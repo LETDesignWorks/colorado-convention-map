@@ -1,0 +1,13 @@
+{
+  "name": "2027 Colorado Convention Map",
+  "short_name": "Convention Map",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef3f7",
+  "theme_color": "#0B447E",
+  "description": "Congregations, international delegate hotels, and nearby RTD rail stations within the Colorado Convention Center planning area.",
+  "icons": [
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

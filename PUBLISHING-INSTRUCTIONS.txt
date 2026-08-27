@@ -1,0 +1,23 @@
+GITHUB PAGES SETUP — LETDesignWorks
+
+1. On GitHub, create a PUBLIC repository named:
+   colorado-convention-map
+
+2. Open the repository and choose:
+   Add file > Upload files
+
+3. Upload every file from this folder (not the ZIP itself), then click Commit changes.
+
+4. Open:
+   Settings > Pages
+
+5. Under Build and deployment choose:
+   Source: Deploy from a branch
+   Branch: main
+   Folder: /(root)
+   Click Save
+
+6. After GitHub finishes publishing, use:
+   https://letdesignworks.github.io/colorado-convention-map/
+
+The site may take several minutes to appear after Pages is enabled.
