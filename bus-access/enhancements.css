@@ -1,0 +1,14 @@
+.btn.admin-add{background:#dff6e8;color:#155f39;border-color:#a6d8bb}
+.shape{width:16px;height:16px;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px #567;background:#667085;flex:0 0 auto}.hall-shape{border-radius:50%}.meeting-shape{border-radius:4px}
+.wide-modal{width:min(720px,100%);max-height:min(88vh,820px);overflow:auto;-webkit-overflow-scrolling:touch}
+.coordinate-tools{display:flex;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap;background:#f6f9fc;border:1px dashed #b6c6d6;border-radius:10px;padding:10px}.coordinate-tools small{flex:1;min-width:210px;color:#667085;line-height:1.35}
+.split-actions{align-items:center}.action-spacer{flex:1}
+.type-chip{display:inline-flex;align-items:center;background:#edf4fb;color:#174f7d;border:1px solid #c6d8e9;border-radius:999px;padding:4px 7px;font-size:10px;font-weight:800;margin-bottom:3px}
+.list-status{display:flex;flex-direction:column;align-items:flex-end;gap:4px}.list-status em{font-style:normal;font-size:9px;color:#667085;font-weight:750;white-space:nowrap}
+.no-results{font-size:12px;color:#667085;padding:12px;text-align:center}
+.marker-pin.meeting-marker,.list-item .mini.meeting-mini,.number.meeting-number{border-radius:8px}.marker-pin.long-label{font-size:9px}.number{overflow:hidden}.number.meeting-number{font-size:14px}
+.subsection{margin:14px 0;padding:13px;background:#f8fafc;border:1px solid #d9e2eb;border-radius:12px}.subsection h4{margin:0 0 5px;color:#0b447e;font-size:13px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}.private-chip{display:inline-flex;background:#fff1cf;color:#735000;border:1px solid #e5c46c;border-radius:999px;padding:4px 7px;font-size:9px;font-weight:850}.private-note{font-size:11px;line-height:1.4;color:#667085;margin:0 0 10px}
+.contact-box{background:#fff;border:1px solid #d7e0e8;border-radius:10px;padding:10px;margin-top:9px}.contact-box>strong{display:block;color:#294865;font-size:12px;margin-bottom:8px}
+.edit-location-row{display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap;background:#eef6ff;border:1px solid #c7dcef;border-radius:10px;padding:8px 10px;margin-bottom:11px;font-size:11px;color:#405a73}
+@media(max-width:850px){.header-actions .btn.secondary{display:inline-flex!important}.header-actions{justify-content:flex-start}.wide-modal{max-height:86vh}.list-status em{display:none}}
+@media(max-width:560px){.header-row{display:block}.header-actions{margin-top:8px}.header-actions .btn{font-size:11px;padding:7px 8px}.header-actions .btn.admin-add{width:100%}.coordinate-tools{display:block}.coordinate-tools .btn{width:100%;margin-bottom:7px}.list-item{grid-template-columns:38px 1fr}.list-status{grid-column:2;align-items:flex-start;flex-direction:row}.wide-modal{padding:14px}.subsection{padding:10px}}
