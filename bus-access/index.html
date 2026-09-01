@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+<meta content="#0b447e" name="theme-color"/>
+<title>DTC Kingdom Hall Bus Access Review</title>
+<link href="https://unpkg.com" rel="preconnect"/>
+<link href="https://tile.openstreetmap.org" rel="preconnect"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+
+<link href="../apple-touch-icon.png" rel="apple-touch-icon"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="styles.css" rel="stylesheet"/></head>
+<body>
+<div class="app">
+<header>
+<div class="header-row">
+<div class="title"><h1>DTC Kingdom Hall Bus Access Review</h1><p>2027 Colorado Convention transportation planning • Public map with administrator-only editing</p></div>
+<div class="header-actions">
+<a class="btn secondary" href="../">← Full Planning Map</a>
+<button class="btn primary" id="loginButton" type="button">Administrator Sign In</button>
+<button class="btn secondary" hidden="" id="signOutButton" type="button">Sign Out</button>
+</div>
+</div>
+</header>
+<div class="toolbar">
+<div class="search"><input aria-label="Search Kingdom Halls" id="searchInput" placeholder="Search hall, address, city or congregation" type="search"/></div>
+<select aria-label="Filter by bus access status" id="statusFilter">
+<option value="all">All bus statuses</option><option value="not-reviewed">Not reviewed</option><option value="inspection-scheduled">Inspection scheduled</option><option value="approved">Approved</option><option value="conditional">Conditional</option><option value="not-suitable">Not suitable</option>
+</select>
+<div class="stats" id="stats"></div>
+</div>
+<div class="workspace">
+<div class="map-wrap">
+<div aria-label="Interactive DTC Kingdom Hall bus access map" id="map" role="application"></div>
+<div class="legend">
+<strong>Bus Access</strong>
+<div class="legend-row"><span class="dot" style="background:#667085"></span>Not reviewed</div>
+<div class="legend-row"><span class="dot" style="background:#0b4da2"></span>Inspection scheduled</div>
+<div class="legend-row"><span class="dot" style="background:#0e9453"></span>Approved</div>
+<div class="legend-row"><span class="dot" style="background:#d99a00"></span>Conditional</div>
+<div class="legend-row"><span class="dot" style="background:#c9362b"></span>Not suitable</div>
+</div>
+<div class="map-note">Blue dashed line is the estimated 45-minute DTC planning boundary. It is not a live-traffic route. Tap any numbered marker to review that Kingdom Hall.</div>
+</div>
+<aside class="panel" id="panel">
+<div class="firebase-warning" id="firebaseWarning"></div>
+<div id="detail"><div class="card empty"><div><strong>Select a Kingdom Hall</strong><br/><small>Tap a numbered marker or choose a Hall below.</small></div></div></div>
+<div class="card">
+<h3 class="section-title"><span>Kingdom Halls in DTC 45-Minute Area</span><span id="visibleCount"></span></h3>
+<div class="list" id="hallList"></div>
+</div>
+</aside>
+</div>
+</div>
+<div aria-labelledby="loginTitle" aria-modal="true" class="modal" id="loginModal" role="dialog">
+<div class="modal-card">
+<h2 id="loginTitle">Administrator Sign In</h2>
+<p>Only the approved transportation administrator can save bus-access reviews. The public does not need to sign in to view the map.</p>
+<form id="loginForm">
+<div class="field"><label for="loginEmail">Email</label><input autocomplete="username" id="loginEmail" required="" type="email" value="michaeltarin@hotmail.com"/></div>
+<div class="field"><label for="loginPassword">Firebase password</label><input autocomplete="current-password" id="loginPassword" required="" type="password"/></div>
+<div class="form-actions"><button class="btn light" id="cancelLogin" type="button">Cancel</button><button class="btn blue" type="submit">Sign In</button></div>
+<button class="btn light" id="resetPassword" style="width:100%;margin-top:9px" type="button">Send Password Reset Email</button>
+</form>
+</div>
+</div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<script src="app.js" type="module"></script>
+</body>
+</html>
