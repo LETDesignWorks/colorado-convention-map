@@ -277,7 +277,7 @@ function drawRoute(result){
   originMarker=L.marker(origin,{icon:L.divIcon({className:'',html:`<div class="route-origin-marker">${escapeHtml(result.hotelMarker)}</div>`,iconSize:[40,40],iconAnchor:[20,20]})}).addTo(map).bindTooltip(result.hotelName,{direction:'top'});
   destinationMarker=L.marker(destination,{icon:L.divIcon({className:'',html:'<div class="route-destination-marker">★</div>',iconSize:[42,42],iconAnchor:[21,21]})}).addTo(map).bindTooltip(result.destinationName,{direction:'top'});
   const points=(Array.isArray(result.routeCoordinates)&&result.routeCoordinates.length>1)
-    ?result.routeCoordinates.map(p=>[p[1],p[0]]):[origin,destination];
+    ?result.routeCoordinates.map(point=>Array.isArray(point)?[point[1],point[0]]:[Number(point.lat),Number(point.lng)]):[origin,destination];
   routeLayer=L.polyline(points,{color:ROUTE_COLORS[0],weight:6,opacity:.86,dashArray:result.routeCoordinates?.length>1?null:'9 7'}).addTo(map);
   map.fitBounds(routeLayer.getBounds(),{padding:[48,48],maxZoom:13});
 }
@@ -461,7 +461,7 @@ async function saveCurrentRoute(){
       distanceMiles:currentResult.distanceMiles??null,
       baselineMinutes:currentResult.baselineMinutes,driveMinutes:currentResult.driveMinutes,
       manualOverride:currentResult.manualOverride,calculationSource:currentResult.calculationSource,
-      routeCoordinates:currentResult.routeCoordinates||[],
+      routeCoordinates:(currentResult.routeCoordinates||[]).map(point=>Array.isArray(point)?{lng:Number(point[0]),lat:Number(point[1])}:{lng:Number(point.lng),lat:Number(point.lat)}),
       meetingTimeIso:currentResult.meetingTimeIso,arrivalTimeIso:currentResult.arrivalTimeIso,
       leaveTimeIso:currentResult.leaveTimeIso,reportTimeIso:currentResult.reportTimeIso,
       meetingDateTimeLocal:meetingDateTime.value,
