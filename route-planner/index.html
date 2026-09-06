@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#083f73"/>
+<title>Bus Route Planner | 2027 Colorado Convention</title>
+<link rel="preconnect" href="https://unpkg.com"/>
+<link rel="preconnect" href="https://tile.openstreetmap.org"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Hotel-to-Field-Service Bus Route Planner</h1>
+      <p>Choose a hotel, choose a meeting location, calculate the planning time, and determine when the bus should leave.</p>
+    </div>
+    <nav class="top-actions" aria-label="Planning website navigation">
+      <a class="btn ghost" href="../">Full Planning Map</a>
+      <a class="btn ghost" href="../bus-access/">Bus Access Review</a>
+      <a class="btn ghost optional-nav" href="../team/">Team Assignments</a>
+      <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+      <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
+    </nav>
+  </div>
+</header>
+
+<main class="workspace">
+  <section class="map-area" aria-label="Route map">
+    <div id="map" role="application" aria-label="Interactive hotel-to-meeting-location route map"></div>
+    <div class="map-legend">
+      <div><span class="symbol hotel-symbol">H</span> Selected hotel</div>
+      <div><span class="symbol destination-symbol">★</span> Field-service meeting location</div>
+      <div><span class="line-symbol"></span> Proposed driving route</div>
+    </div>
+    <div class="map-disclaimer">Initial calculations use an OpenStreetMap road-network estimate. They do not include live traffic or motorcoach restrictions. Verify the final route with the bus company and a traffic-aware routing service.</div>
+  </section>
+
+  <aside class="side-panel">
+    <section class="card">
+      <div class="card-heading">
+        <div>
+          <span class="eyebrow">ROUTE SETUP</span>
+          <h2>Plan a Hotel Departure</h2>
+        </div>
+        <span class="public-chip">Public calculator</span>
+      </div>
+
+      <form id="routeForm">
+        <div class="field">
+          <label for="hotelSelect">1. Hotel starting point</label>
+          <select id="hotelSelect" name="hotelId" required></select>
+          <small id="hotelAddress">Select one of the international delegate hotels.</small>
+        </div>
+
+        <div class="field">
+          <label for="destinationSelect">2. Meeting for field service location</label>
+          <select id="destinationSelect" name="destinationId" required></select>
+          <small id="destinationAddress">Kingdom Halls and administrator-added meeting areas appear here.</small>
+        </div>
+
+        <div class="field">
+          <label for="meetingDateTime">3. Meeting date and time</label>
+          <input id="meetingDateTime" name="meetingDateTime" type="datetime-local" required/>
+          <small>Displayed and calculated in Denver local time.</small>
+        </div>
+
+        <div class="buffer-grid">
+          <div class="field">
+            <label for="arriveEarly">Arrive before meeting</label>
+            <div class="number-wrap"><input id="arriveEarly" name="arriveEarly" type="number" min="0" max="120" step="5" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="routeBuffer">Bus/traffic contingency</label>
+            <div class="number-wrap"><input id="routeBuffer" name="routeBuffer" type="number" min="0" max="180" step="5" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="loadingBuffer">Passenger loading time</label>
+            <div class="number-wrap"><input id="loadingBuffer" name="loadingBuffer" type="number" min="0" max="120" step="5" value="20"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="manualMinutes">Confirmed drive time override</label>
+            <div class="number-wrap"><input id="manualMinutes" name="manualMinutes" type="number" min="1" max="300" step="1" placeholder="Optional"/><span>min</span></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="routeName">Route name</label>
+          <input id="routeName" name="routeName" maxlength="120" placeholder="Example: H17 to Greenwood Village — Tuesday morning"/>
+        </div>
+
+        <div class="two-col">
+          <div class="field">
+            <label for="assignedTo">Assigned to</label>
+            <select id="assignedTo" name="assignedTo">
+              <option value="">Unassigned</option>
+              <option value="Michael">Michael</option>
+              <option value="Seth">Seth</option>
+              <option value="Johnathan">Johnathan</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="routeStatus">Planning status</label>
+            <select id="routeStatus" name="routeStatus">
+              <option value="draft">Draft</option>
+              <option value="needs-verification">Needs verification</option>
+              <option value="confirmed">Confirmed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="routeNotes">Route notes</label>
+          <textarea id="routeNotes" name="routeNotes" maxlength="1600" placeholder="Loading area, bus count, accessibility, special instructions, or follow-up items"></textarea>
+        </div>
+
+        <div class="button-row">
+          <button class="btn primary" id="calculateButton" type="submit">Calculate Route &amp; Departure</button>
+          <button class="btn secondary" id="clearButton" type="button">Clear</button>
+        </div>
+      </form>
+      <div class="service-note" id="serviceNote" hidden></div>
+    </section>
+
+    <section class="card result-card" id="resultCard" hidden>
+      <div class="card-heading">
+        <div><span class="eyebrow">SCHEDULE RESULT</span><h2 id="resultTitle">Recommended Departure</h2></div>
+        <span class="estimate-chip" id="estimateChip">Planning estimate</span>
+      </div>
+      <div class="route-pair">
+        <div><span class="route-label">FROM</span><strong id="resultHotel"></strong><small id="resultHotelAddress"></small></div>
+        <div class="route-arrow">→</div>
+        <div><span class="route-label">TO</span><strong id="resultDestination"></strong><small id="resultDestinationAddress"></small></div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span>Road distance</span><strong id="distanceValue">—</strong></div>
+        <div class="metric"><span>Baseline drive time</span><strong id="driveTimeValue">—</strong></div>
+        <div class="metric"><span>Added contingency</span><strong id="contingencyValue">—</strong></div>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item report"><span>Passengers report at hotel</span><strong id="reportTimeValue">—</strong></div>
+        <div class="timeline-item leave"><span>Bus leaves hotel</span><strong id="leaveTimeValue">—</strong></div>
+        <div class="timeline-item arrive"><span>Target arrival at meeting location</span><strong id="arrivalTimeValue">—</strong></div>
+        <div class="timeline-item meeting"><span>Meeting for field service</span><strong id="meetingTimeValue">—</strong></div>
+      </div>
+      <div class="result-note" id="calculationExplanation"></div>
+      <div class="button-row result-actions">
+        <a class="btn secondary" id="googleRouteLink" target="_blank" rel="noopener">Verify in Google Maps</a>
+        <a class="btn secondary" id="appleRouteLink" target="_blank" rel="noopener">Open in Apple Maps</a>
+        <button class="btn save" id="saveRouteButton" type="button">Save Route</button>
+      </div>
+      <div class="save-message" id="saveMessage">Sign in as the administrator to save this route to Firebase.</div>
+    </section>
+
+    <section class="card" id="savedRoutesCard">
+      <div class="card-heading">
+        <div><span class="eyebrow">SAVED PLANS</span><h2>Saved Bus Routes</h2></div>
+        <span class="private-chip">Administrator only</span>
+      </div>
+      <div class="signed-out-copy" id="savedRoutesSignedOut">Sign in to view, update, or delete saved route plans.</div>
+      <div id="savedRoutesList" class="saved-routes" hidden></div>
+    </section>
+  </aside>
+</main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>The route calculator is public. Sign-in is required only to save and manage route plans.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required value="michaeltarin@hotmail.com"/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" type="password" autocomplete="current-password" required/></div>
+      <div class="button-row"><button class="btn secondary" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="text-button" id="resetPassword" type="button">Send password reset email</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
