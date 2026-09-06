@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#083f73"/>
+<title>Michael Hall Assignments | 2027 Convention</title>
+<link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+<link rel="preconnect" href="https://unpkg.com"/>
+<link rel="preconnect" href="https://tile.openstreetmap.org"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body data-member="michael">
+<header class="topbar"><div class="topbar-inner"><div class="brand"><h1 id="memberName">Michael Hall Assignments</h1><p>2027 Colorado Convention physical-location review</p></div><nav class="navlinks" aria-label="Map navigation"><a class="btn light optional" href="./">All Team Assignments</a><a class="btn light" href="../">Full Planning Map</a><a class="btn white" href="../bus-access/">Bus Access Review</a></nav></div></header>
+<section class="team-summary"><div class="team-summary-inner"><span class="team-pill" id="assignmentCount"></span><span class="team-pill" id="areaName"></span><span class="team-note" id="teamDescription"></span><span class="progress" id="progress"></span></div></section>
+<main class="map-layout"><section class="map-panel"><div class="map" id="map" aria-label="Michael assigned Kingdom Hall map"></div><div class="map-legend"><strong>Bus Access Status</strong><div class="legend-row"><span class="dot" style="background:#667085"></span>Not reviewed</div><div class="legend-row"><span class="dot" style="background:#0b4da2"></span>Inspection scheduled</div><div class="legend-row"><span class="dot" style="background:#0e9453"></span>Approved</div><div class="legend-row"><span class="dot" style="background:#d99a00"></span>Conditional</div><div class="legend-row"><span class="dot" style="background:#c9362b"></span>Not suitable</div></div><div class="map-note">Only Michael’s assigned Hall locations are shown. Marker colors update automatically from the shared Bus Access Review database.</div></section><aside class="sidebar" id="sidebar"><div class="warning" id="firebaseWarning"></div><div id="detail"></div><div class="card"><h3>Assigned Kingdom Halls</h3><div class="hall-list" id="hallList"></div></div></aside></main>
+<script type="module" src="team-map.js"></script>
+</body>
+</html>
