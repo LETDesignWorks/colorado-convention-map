@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#083f73"/>
+  <title>Hotel-to-Field-Service Bus Route Planner</title>
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <link rel="preconnect" href="https://tile.openstreetmap.org"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Hotel-to-Field-Service Bus Route Planner</h1>
+        <p>Choose a hotel and meeting location, estimate travel time, calculate departure time, and save the plan.</p>
+      </div>
+      <nav class="navlinks" aria-label="Planning site navigation">
+        <a class="btn ghost" href="../">Full Planning Map</a>
+        <a class="btn ghost" href="../team/">Team Assignments</a>
+        <a class="btn white" href="../bus-access/">Bus Access Review</a>
+        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="control-panel">
+      <div class="card intro-card">
+        <div class="eyebrow">Route setup</div>
+        <h2>Plan a hotel departure</h2>
+        <p>The route estimate uses the road network without live traffic or bus-specific restrictions. Add a travel allowance and an early-arrival buffer before using the departure time operationally.</p>
+      </div>
+
+      <form class="card planner-form" id="plannerForm">
+        <div class="field full">
+          <label for="routeName">Route name</label>
+          <input id="routeName" maxlength="140" name="routeName" placeholder="Example: H17 to Highlands Ranch morning field service"/>
+        </div>
+
+        <div class="field full">
+          <label for="hotelSelect">Starting hotel</label>
+          <select id="hotelSelect" name="hotelId" required></select>
+          <small id="hotelAddress"></small>
+        </div>
+
+        <div class="field full custom-origin" id="customOriginWrap" hidden>
+          <label for="customOriginAddress">Other hotel or starting address</label>
+          <input id="customOriginAddress" maxlength="220" placeholder="Street, city, state and ZIP"/>
+        </div>
+
+        <div class="field full">
+          <label for="destinationSelect">Meeting for field service location</label>
+          <select id="destinationSelect" name="destinationId" required></select>
+          <small id="destinationAddress">Select a Kingdom Hall, saved meeting area, planning landmark, or custom point.</small>
+        </div>
+
+        <div class="custom-destination" id="customDestinationWrap" hidden>
+          <div class="pick-banner" id="pickBanner">Tap the map to place the meeting point.</div>
+          <div class="form-grid">
+            <div class="field full">
+              <label for="customDestinationName">Meeting location name</label>
+              <input id="customDestinationName" maxlength="140" placeholder="Example: South Metro field service meeting point"/>
+            </div>
+            <div class="field full">
+              <label for="customDestinationAddress">Address or location notes</label>
+              <input id="customDestinationAddress" maxlength="220" placeholder="Optional street address or meeting instructions"/>
+            </div>
+            <div class="field">
+              <label for="customDestinationLat">Latitude</label>
+              <input id="customDestinationLat" inputmode="decimal" step="any" type="number"/>
+            </div>
+            <div class="field">
+              <label for="customDestinationLng">Longitude</label>
+              <input id="customDestinationLng" inputmode="decimal" step="any" type="number"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="field full">
+          <label for="meetingAt">Meeting for field service date and time</label>
+          <input id="meetingAt" name="meetingAt" required type="datetime-local"/>
+          <small>Enter the meeting time in Denver local time.</small>
+        </div>
+
+        <div class="allowance-grid">
+          <div class="field">
+            <label for="travelAllowance">Traffic / bus operations allowance</label>
+            <div class="number-unit"><input id="travelAllowance" min="0" max="180" name="travelAllowance" type="number" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="arrivalBuffer">Arrive before meeting</label>
+            <div class="number-unit"><input id="arrivalBuffer" min="0" max="180" name="arrivalBuffer" type="number" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="boardingBuffer">Passengers report before departure</label>
+            <div class="number-unit"><input id="boardingBuffer" min="0" max="180" name="boardingBuffer" type="number" value="15"/><span>min</span></div>
+          </div>
+        </div>
+
+        <div class="field full">
+          <label for="routeNotes">Route notes</label>
+          <textarea id="routeNotes" maxlength="2000" placeholder="Bus loading location, entrance to use, special instructions, or follow-up items"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn outline" id="newRouteButton" type="button">New Route</button>
+          <button class="btn primary" id="calculateButton" type="submit">Calculate Route</button>
+        </div>
+      </form>
+
+      <div class="card sign-in-card" id="saveHelp">
+        <h3>Saving routes</h3>
+        <p>Anyone can calculate a route. Saved route plans are private and currently available only to the approved Firebase administrator.</p>
+      </div>
+    </section>
+
+    <section class="map-column">
+      <div class="map-card">
+        <div id="map" aria-label="Hotel to field service route map" role="application"></div>
+        <div class="map-legend">
+          <div><span class="legend-symbol hotel-symbol">H</span> Selected hotel</div>
+          <div><span class="legend-symbol destination-symbol">M</span> Meeting location</div>
+          <div><span class="legend-line"></span> Calculated route</div>
+        </div>
+        <div class="map-note">Planning estimate only. Verify the final route, live traffic, road restrictions, turning clearance, and motorcoach access before operation.</div>
+      </div>
+
+      <section class="result-card card" id="resultCard" hidden>
+        <div class="result-head">
+          <div><div class="eyebrow">Calculated schedule</div><h2 id="resultTitle">Route result</h2></div>
+          <span class="estimate-chip">OSRM / OpenStreetMap estimate</span>
+        </div>
+        <div class="metric-grid">
+          <article><span>Road distance</span><strong id="distanceResult">—</strong></article>
+          <article><span>Base drive estimate</span><strong id="baseTimeResult">—</strong></article>
+          <article><span>Planned travel time</span><strong id="plannedTimeResult">—</strong></article>
+          <article><span>Total time before meeting</span><strong id="totalLeadResult">—</strong></article>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item"><span class="time-dot report"></span><div><small>Passengers report at hotel</small><strong id="reportTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot depart"></span><div><small>Bus leaves hotel</small><strong id="departureTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot arrive"></span><div><small>Expected arrival</small><strong id="arrivalTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot meeting"></span><div><small>Meeting for field service</small><strong id="meetingTimeResult">—</strong></div></div>
+        </div>
+        <div class="route-warning" id="coordinateNotice"></div>
+        <div class="result-actions">
+          <a class="btn outline" id="googleDirections" target="_blank" rel="noopener">Open in Google Maps</a>
+          <a class="btn outline" id="appleDirections" target="_blank" rel="noopener">Open in Apple Maps</a>
+          <button class="btn primary" id="saveRouteButton" disabled type="button">Sign In to Save</button>
+        </div>
+      </section>
+
+      <section class="card saved-card">
+        <div class="saved-head">
+          <div><div class="eyebrow">Firebase route records</div><h2>Saved bus routes</h2></div>
+          <span class="private-chip">Administrator only</span>
+        </div>
+        <div id="savedRouteStatus" class="saved-empty">Sign in to view and manage saved routes.</div>
+        <div id="savedRoutes" class="saved-routes"></div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>Sign in with the Firebase administrator account to save, update, load, or delete route plans.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" autocomplete="username" required type="email" value="michaeltarin@hotmail.com"/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" autocomplete="current-password" required type="password"/></div>
+      <div class="form-actions"><button class="btn outline" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="btn outline reset" id="resetPassword" type="button">Send Password Reset Email</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite" role="status"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
