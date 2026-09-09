@@ -1,23 +1,8 @@
-GITHUB PAGES SETUP — LETDesignWorks
+The Denver 2027 planning website is published through GitHub Pages from the main branch and repository root.
 
-1. On GitHub, create a PUBLIC repository named:
-   colorado-convention-map
+Main site:
+https://letdesignworks.github.io/colorado-convention-map/
 
-2. Open the repository and choose:
-   Add file > Upload files
+The standalone full planning map is now a branded wrapper at /full-map.html. Its original interactive map content is preserved at /full-map-content.html and is embedded by the branded site pages.
 
-3. Upload every file from this folder (not the ZIP itself), then click Commit changes.
-
-4. Open:
-   Settings > Pages
-
-5. Under Build and deployment choose:
-   Source: Deploy from a branch
-   Branch: main
-   Folder: /(root)
-   Click Save
-
-6. After GitHub finishes publishing, use:
-   https://letdesignworks.github.io/colorado-convention-map/
-
-The site may take several minutes to appear after Pages is enabled.
+Changes committed to main trigger a Pages deployment automatically.
