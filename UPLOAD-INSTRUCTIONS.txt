@@ -1,27 +1,15 @@
-2027 COLORADO CONVENTION BUS ROUTE PLANNER UPDATE
+DENVER 2027 MINI LOGO WEBSITE UPDATE
 
-1. Open the GitHub repository:
-   LETDesignWorks/colorado-convention-map
+Upload the CONTENTS of this folder to the root of the GitHub repository:
+LETDesignWorks/colorado-convention-map
 
-2. Download and extract this ZIP file.
+Allow GitHub to replace the existing files with the same names:
+- assets/branding.js
+- assets/denver-2027-logo.png
+- apple-touch-icon.png
+- icon-512.png
 
-3. In GitHub, choose Add file > Upload files.
+Suggested commit message:
+Replace Denver 2027 branding with circular mini logo
 
-4. Drag the CONTENTS of the extracted folder into the upload area so the paths remain:
-   index.html
-   bus-access/app.js
-   team/index.html
-   routes/index.html
-   routes/styles.css
-   routes/app.js
-   routes/hotels.js
-
-5. Commit with a message such as:
-   Add hotel-to-field-service bus route planner
-
-6. GitHub Pages will republish automatically. The route planner address will be:
-   https://letdesignworks.github.io/colorado-convention-map/routes/
-
-No Firestore rule change is required for the first version. Saved route records are stored as administrator-only documents in the existing reviews collection.
-
-Planning limitation: route times use OSRM/OpenStreetMap without live traffic or bus-specific restrictions. Verify final times and routing in Google Maps and with the bus operator.
+GitHub Pages should republish automatically after the commit. On an iPhone, refresh Safari or close and reopen the page to clear the previous cached logo.

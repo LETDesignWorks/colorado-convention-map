@@ -7,12 +7,12 @@ function addBrandingStyles() {
   style.id = 'denver-2027-branding-styles';
   style.textContent = `
     .denver-2027-brand-link {
-      width: 90px;
-      height: 50px;
-      padding: 3px 5px;
-      border-radius: 11px;
-      background: rgba(255,255,255,.97);
-      border: 1px solid rgba(255,255,255,.85);
+      width: 58px;
+      height: 58px;
+      padding: 2px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.98);
+      border: 1px solid rgba(255,255,255,.9);
       box-shadow: 0 3px 12px rgba(0,24,48,.24);
       display: inline-flex;
       align-items: center;
@@ -33,23 +33,24 @@ function addBrandingStyles() {
       z-index: 890;
       top: 12px;
       left: 52px;
-      width: 96px;
-      height: 54px;
-      padding: 4px 6px;
-      border-radius: 11px;
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(94,119,143,.46);
+      width: 62px;
+      height: 62px;
+      padding: 2px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(94,119,143,.48);
       box-shadow: 0 3px 12px rgba(0,24,48,.22);
       pointer-events: none;
       user-select: none;
+      overflow: hidden;
     }
     .frame-wrap > .denver-2027-map-brand,
     .full-map-frame > .denver-2027-map-brand {
       left: 12px;
     }
     @media (max-width: 760px) {
-      .denver-2027-brand-link { width: 66px; height: 38px; padding: 2px 4px; border-radius: 9px; }
-      .denver-2027-map-brand { width: 76px; height: 44px; left: 45px; top: 8px; padding: 3px 5px; border-radius: 9px; }
+      .denver-2027-brand-link { width: 46px; height: 46px; padding: 2px; }
+      .denver-2027-map-brand { width: 52px; height: 52px; left: 45px; top: 8px; padding: 2px; }
       .frame-wrap > .denver-2027-map-brand,
       .full-map-frame > .denver-2027-map-brand { left: 8px; }
       .topbar-inner > .denver-2027-brand-link { float: left; margin: 0 8px 5px 0; }
@@ -57,15 +58,15 @@ function addBrandingStyles() {
       .topbar-inner > .top-actions { clear: both; }
     }
     @media (max-width: 460px) {
-      .denver-2027-brand-link { width: 56px; height: 33px; }
-      .denver-2027-map-brand { width: 68px; height: 39px; }
+      .denver-2027-brand-link { width: 40px; height: 40px; }
+      .denver-2027-map-brand { width: 46px; height: 46px; }
     }
     @media print {
       .denver-2027-map-brand {
         display: flex !important;
-        width: 94px;
-        height: 53px;
-        background: rgba(255,255,255,.96);
+        width: 58px;
+        height: 58px;
+        background: rgba(255,255,255,.97);
         box-shadow: none;
       }
     }
