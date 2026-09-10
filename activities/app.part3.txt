@@ -1,0 +1,90 @@
+  els.activitySelect.value = activity.id;
+  const outbound = getActivityPoint(activity.outboundPointId);
+  const returning = getActivityPoint(activity.returnPointId);
+  els.activityDescription.textContent = `${activity.description} Outbound: ${outbound?.name || '—'}. Return pickup: ${returning?.name || '—'}.`;
+  refreshPointIcons();
+  updatePlanPlaceholder();
+  if (pan && outbound) map.setView([outbound.lat, outbound.lng], 12, { animate: true });
+}
+function handleHotelChange() {
+  const value = els.hotelSelect.value;
+  els.customOriginWrap.hidden = value !== 'custom';
+  const hotel = HOTELS.find(item => item.id === value);
+  els.hotelAddress.textContent = hotel ? `${hotel.address} • ${hotel.region}` : value === 'custom' ? 'Enter the hotel or bus staging address below.' : 'Select an international-delegate hotel.';
+  updatePlanPlaceholder();
+}
+function updatePlanPlaceholder() {
+  if (clean(els.planName.value)) return;
+  const hotel = HOTELS.find(item => item.id === els.hotelSelect.value);
+  const originLabel = hotel?.id || (els.hotelSelect.value === 'custom' ? 'Other hotel' : 'Hotel');
+  els.planName.placeholder = selectedActivity ? `${originLabel} to ${selectedActivity.name}` : 'Example: H17 to Georgetown Loop — Tuesday';
+}
+
+async function resolveHotel() {
+  const hotel = HOTELS.find(item => item.id === els.hotelSelect.value);
+  if (hotel && Number.isFinite(hotel.lat) && Number.isFinite(hotel.lng)) return hotel;
+  const address = hotel?.address || clean(els.customOriginAddress.value);
+  if (!address) throw new Error('Choose a hotel or enter another hotel / staging address.');
+  const cacheKey = normalKey(hotel?.id || address);
+  if (geocodeCache[cacheKey]) return { ...(hotel || {}), ...geocodeCache[cacheKey], id: hotel?.id || 'H', name: hotel?.name || 'Other hotel / staging point', address };
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('countrycodes', 'us');
+  url.searchParams.set('addressdetails', '0');
+  url.searchParams.set('q', address);
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Geocoding service returned ${response.status}.`);
+  const results = await response.json();
+  if (!results.length) throw new Error('The hotel / staging address could not be located.');
+  const coords = { lat: Number(results[0].lat), lng: Number(results[0].lon) };
+  if (!Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) throw new Error('The geocoder returned invalid coordinates.');
+  geocodeCache[cacheKey] = coords;
+  saveCache();
+  return { ...(hotel || {}), ...coords, id: hotel?.id || 'H', name: hotel?.name || 'Other hotel / staging point', address };
+}
+async function requestRoute(origin, destination) {
+  const coords = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&alternatives=false`;
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Routing service returned ${response.status}.`);
+  const data = await response.json();
+  if (data.code !== 'Ok' || !data.routes?.length) throw new Error(data.message || 'No drivable route was found.');
+  return data.routes[0];
+}
+function parseSchedule(outboundRoute, returnRoute) {
+  const start = new Date(els.activityStart.value);
+  const pickup = new Date(els.activityPickup.value);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(pickup.getTime())) throw new Error('Enter valid activity start and pickup times.');
+  if (pickup <= start) throw new Error('The activity pickup time must be later than the activity start time.');
+
+  const outboundBase = Math.ceil(outboundRoute.duration / 60);
+  const returnBase = Math.ceil(returnRoute.duration / 60);
+  const arriveEarly = numberValue(els.arriveEarly.value, 15);
+  const outboundAllowance = numberValue(els.outboundAllowance.value, 20);
+  const passengerReport = numberValue(els.passengerReport.value, 20);
+  const pickupLoading = numberValue(els.pickupLoading.value, 15);
+  const returnAllowance = numberValue(els.returnAllowance.value, 20);
+  const coachReset = numberValue(els.coachReset.value, 15);
+  const outboundPlanned = outboundBase + outboundAllowance;
+  const returnPlanned = returnBase + returnAllowance;
+  const targetArrival = new Date(start.getTime() - arriveEarly * 60000);
+  const hotelDeparture = new Date(targetArrival.getTime() - outboundPlanned * 60000);
+  const report = new Date(hotelDeparture.getTime() - passengerReport * 60000);
+  const returnDeparture = new Date(pickup.getTime() + pickupLoading * 60000);
+  const hotelReturn = new Date(returnDeparture.getTime() + returnPlanned * 60000);
+  const available = new Date(hotelReturn.getTime() + coachReset * 60000);
+  return {
+    start, pickup, outboundBase, returnBase, arriveEarly, outboundAllowance, passengerReport,
+    pickupLoading, returnAllowance, coachReset, outboundPlanned, returnPlanned, targetArrival,
+    hotelDeparture, report, returnDeparture, hotelReturn, available
+  };
+}
+function drawRoutes(outboundRoute, returnRoute, hotel, outboundPoint, returnPoint) {
+  clearRouteLayers();
+  const outboundLatLngs = outboundRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  const returnLatLngs = returnRoute.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  outboundLayer = L.polyline(outboundLatLngs, { color: '#0b5b9f', weight: 5, opacity: .88 }).addTo(map);
+  returnLayer = L.polyline(returnLatLngs, { color: '#e76f32', weight: 5, opacity: .82, dashArray: '10 7' }).addTo(map);
+  hotelMarker = L.marker([hotel.lat, hotel.lng], {
+    icon: L.divIcon({ className: '', html: `<div class="hotel-marker">${escapeHtml(hotel.id || 'H')}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] })

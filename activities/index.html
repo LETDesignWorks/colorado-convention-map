@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#083f73"/>
+  <title>Delegate Activity & Bus Availability Planner | Denver 2027</title>
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <link rel="preconnect" href="https://tile.openstreetmap.org"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="../assets/branding.js?v=circular-20260909-2"></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Delegate Activity &amp; Bus Availability Planner</h1>
+        <p>Map non-service activities, calculate hotel departures and returns, and identify when a coach is unavailable for field service.</p>
+      </div>
+      <nav class="navlinks" aria-label="Planning site navigation">
+        <a class="btn ghost" href="../">Full Planning Map</a>
+        <a class="btn ghost" href="../routes/">Field-Service Route Planner</a>
+        <a class="btn white" href="../bus-access/">Bus Access Review</a>
+        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="map-column">
+      <div class="map-card">
+        <div id="map" aria-label="Delegate activity locations and bus routes" role="application"></div>
+        <div class="map-legend">
+          <div><span class="legend-symbol activity-symbol">A</span> Non-service activity point</div>
+          <div><span class="legend-symbol hotel-symbol">H</span> Selected hotel</div>
+          <div><span class="legend-line outbound-line"></span> Hotel to activity</div>
+          <div><span class="legend-line return-line"></span> Activity back to hotel</div>
+        </div>
+        <div class="map-note">Four activities are represented by five operating points because the Platte Street Food Tour uses Commons Park for drop-off and Confluence Park for pickup. All routes are planning estimates and must be verified with the bus operator.</div>
+      </div>
+
+      <section class="card locations-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">ACTIVITY LOCATIONS</span><h2>Four Activities • Five Bus Points</h2></div>
+          <span class="public-chip">Public map</span>
+        </div>
+        <div class="location-grid" id="locationGrid"></div>
+      </section>
+    </section>
+
+    <aside class="side-panel">
+      <section class="card intro-card">
+        <span class="eyebrow">SCHEDULE PURPOSE</span>
+        <h2>Protect the Field-Service Window</h2>
+        <p>Calculate when passengers report, when the coach leaves the hotel, and when it returns. The result shows the period when that coach is unavailable for a meeting-for-field-service assignment.</p>
+      </section>
+
+      <form class="card planner-form" id="activityForm">
+        <div class="card-heading">
+          <div><span class="eyebrow">ACTIVITY BUS PLAN</span><h2>Build an Activity Schedule</h2></div>
+          <span class="public-chip">Public calculator</span>
+        </div>
+
+        <div class="field">
+          <label for="planName">Plan name</label>
+          <input id="planName" maxlength="140" placeholder="Example: H17 to Georgetown Loop — Tuesday"/>
+        </div>
+
+        <div class="field">
+          <label for="hotelSelect">Starting and returning hotel</label>
+          <select id="hotelSelect" required></select>
+          <small id="hotelAddress">Select an international-delegate hotel.</small>
+        </div>
+
+        <div class="field custom-origin" id="customOriginWrap" hidden>
+          <label for="customOriginAddress">Other hotel or bus staging address</label>
+          <input id="customOriginAddress" maxlength="220" placeholder="Street, city, state and ZIP"/>
+        </div>
+
+        <div class="field">
+          <label for="activitySelect">Non-service activity</label>
+          <select id="activitySelect" required></select>
+          <small id="activityDescription">Select one of the four delegate activities.</small>
+        </div>
+
+        <div class="time-grid">
+          <div class="field">
+            <label for="activityStart">Activity start / delegates due</label>
+            <input id="activityStart" type="datetime-local" required/>
+          </div>
+          <div class="field">
+            <label for="activityPickup">Activity ends / pickup begins</label>
+            <input id="activityPickup" type="datetime-local" required/>
+          </div>
+        </div>
+
+        <div class="allowance-grid">
+          <div class="field">
+            <label for="arriveEarly">Arrive before activity</label>
+            <div class="number-unit"><input id="arriveEarly" min="0" max="180" step="5" type="number" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="outboundAllowance">Outbound traffic / bus allowance</label>
+            <div class="number-unit"><input id="outboundAllowance" min="0" max="240" step="5" type="number" value="20"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="passengerReport">Passengers report before departure</label>
+            <div class="number-unit"><input id="passengerReport" min="0" max="180" step="5" type="number" value="20"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="pickupLoading">Pickup / boarding time</label>
+            <div class="number-unit"><input id="pickupLoading" min="0" max="180" step="5" type="number" value="15"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="returnAllowance">Return traffic / bus allowance</label>
+            <div class="number-unit"><input id="returnAllowance" min="0" max="240" step="5" type="number" value="20"/><span>min</span></div>
+          </div>
+          <div class="field">
+            <label for="coachReset">Coach reset after hotel return</label>
+            <div class="number-unit"><input id="coachReset" min="0" max="180" step="5" type="number" value="15"/><span>min</span></div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="field">
+            <label for="coachId">Coach / bus group</label>
+            <input id="coachId" maxlength="60" placeholder="Example: Bus 3 or Hotel Group A"/>
+          </div>
+          <div class="field">
+            <label for="planStatus">Planning status</label>
+            <select id="planStatus">
+              <option value="draft">Draft</option>
+              <option value="needs-verification">Needs verification</option>
+              <option value="confirmed">Confirmed</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="planNotes">Planning notes</label>
+          <textarea id="planNotes" maxlength="2000" placeholder="Bus count, loading location, accessibility, venue contact, staging instructions, or follow-up items"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn outline" id="newPlanButton" type="button">New Plan</button>
+          <button class="btn primary" id="calculateButton" type="submit">Calculate Activity Bus Window</button>
+        </div>
+      </form>
+
+      <section class="card result-card" id="resultCard" hidden>
+        <div class="card-heading">
+          <div><span class="eyebrow">CALCULATED SCHEDULE</span><h2 id="resultTitle">Activity Bus Plan</h2></div>
+          <span class="estimate-chip">Planning estimate</span>
+        </div>
+
+        <div class="route-pair">
+          <div><span class="route-label">HOTEL</span><strong id="resultHotel">—</strong><small id="resultHotelAddress"></small></div>
+          <div class="route-arrow">⇄</div>
+          <div><span class="route-label">ACTIVITY</span><strong id="resultActivity">—</strong><small id="resultActivityPoints"></small></div>
+        </div>
+
+        <div class="metric-grid">
+          <article><span>Outbound road distance</span><strong id="outboundDistance">—</strong></article>
+          <article><span>Outbound base drive</span><strong id="outboundBase">—</strong></article>
+          <article><span>Return road distance</span><strong id="returnDistance">—</strong></article>
+          <article><span>Return base drive</span><strong id="returnBase">—</strong></article>
+        </div>
+
+        <div class="timeline">
+          <div class="timeline-item report"><small>Passengers report at hotel</small><strong id="reportTime">—</strong></div>
+          <div class="timeline-item depart"><small>Coach leaves hotel</small><strong id="departTime">—</strong></div>
+          <div class="timeline-item arrive"><small>Target arrival at activity</small><strong id="arrivalTime">—</strong></div>
+          <div class="timeline-item start"><small>Activity begins</small><strong id="startTime">—</strong></div>
+          <div class="timeline-item pickup"><small>Activity pickup / boarding begins</small><strong id="pickupTime">—</strong></div>
+          <div class="timeline-item return"><small>Coach expected back at hotel</small><strong id="returnTime">—</strong></div>
+          <div class="timeline-item available"><small>Coach available after reset</small><strong id="availableTime">—</strong></div>
+        </div>
+
+        <div class="availability-box">
+          <span>BUS UNAVAILABLE WINDOW</span>
+          <strong id="unavailableWindow">—</strong>
+          <p id="fieldServiceImpact"></p>
+        </div>
+
+        <div class="conflict-box" id="conflictBox" hidden>
+          <strong>Potential conflicts with saved field-service routes</strong>
+          <div id="conflictList"></div>
+          <small>This comparison checks the saved field-service outbound window from passenger report through meeting time. Existing field-service records do not yet include the return trip to the hotel.</small>
+        </div>
+
+        <div class="verification-note" id="verificationNote"></div>
+
+        <div class="result-actions">
+          <a class="btn outline" id="googleOutbound" target="_blank" rel="noopener">Verify Outbound in Google Maps</a>
+          <a class="btn outline" id="googleReturn" target="_blank" rel="noopener">Verify Return in Google Maps</a>
+          <button class="btn save" id="savePlanButton" type="button">Sign In to Save</button>
+        </div>
+      </section>
+
+      <section class="card saved-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">FIREBASE SCHEDULES</span><h2>Saved Activity Bus Plans</h2></div>
+          <span class="private-chip">Administrator only</span>
+        </div>
+        <div id="savedStatus" class="saved-empty">Sign in to view and manage saved activity plans.</div>
+        <div id="savedPlans" class="saved-plans"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>The activity map and calculator are public. Sign-in is required only to save plans and compare them with saved field-service routes.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" autocomplete="username" required type="email" value="michaeltarin@hotmail.com"/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" autocomplete="current-password" required type="password"/></div>
+      <div class="form-actions"><button class="btn outline" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="btn outline reset" id="resetPassword" type="button">Send Password Reset Email</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite" role="status"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

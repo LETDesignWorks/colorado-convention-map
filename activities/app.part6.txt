@@ -1,0 +1,117 @@
+  els.coachId.value = plan.coachId || '';
+  els.planStatus.value = plan.status || 'draft';
+  els.planNotes.value = plan.notes || '';
+  els.activityStart.value = plan.activityStartLocal || '';
+  els.activityPickup.value = plan.activityPickupLocal || '';
+  els.arriveEarly.value = plan.arriveEarly ?? 15;
+  els.outboundAllowance.value = plan.outboundAllowance ?? 20;
+  els.passengerReport.value = plan.passengerReport ?? 20;
+  els.pickupLoading.value = plan.pickupLoading ?? 15;
+  els.returnAllowance.value = plan.returnAllowance ?? 20;
+  els.coachReset.value = plan.coachReset ?? 15;
+  const hotel = HOTELS.find(item => item.id === plan.hotelId);
+  if (hotel) {
+    els.hotelSelect.value = hotel.id;
+    els.customOriginWrap.hidden = true;
+  } else {
+    els.hotelSelect.value = 'custom';
+    els.customOriginWrap.hidden = false;
+    els.customOriginAddress.value = plan.hotelAddress || plan.hotelName || '';
+    if (plan.hotel) {
+      geocodeCache[normalKey(plan.hotelAddress || plan.hotelName)] = plan.hotel;
+      saveCache();
+    }
+  }
+  els.activitySelect.value = plan.activityId || '';
+  selectActivity(plan.activityId, false);
+  handleHotelChange();
+  await calculatePlan();
+  toast('Saved activity plan loaded for review or updating.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function deletePlan(id) {
+  const plan = savedPlans.find(item => item.id === id);
+  if (!plan || !isAdmin()) return;
+  if (!window.confirm(`Delete “${plan.planName || 'this activity plan'}”?`)) return;
+  try {
+    await deleteDoc(doc(db, 'reviews', id));
+    if (currentPlanId === id) { currentPlanId = null; updateSaveButton(); }
+    toast('Activity bus plan deleted.');
+  } catch (error) {
+    toast(`Could not delete activity plan: ${friendlyError(error)}`, true);
+  }
+}
+function resetPlanner() {
+  currentPlan = null;
+  currentPlanId = null;
+  els.form.reset();
+  initDefaults();
+  els.arriveEarly.value = 15;
+  els.outboundAllowance.value = 20;
+  els.passengerReport.value = 20;
+  els.pickupLoading.value = 15;
+  els.returnAllowance.value = 20;
+  els.coachReset.value = 15;
+  els.planStatus.value = 'draft';
+  els.resultCard.hidden = true;
+  els.customOriginWrap.hidden = true;
+  selectedActivity = null;
+  clearRouteLayers();
+  refreshPointIcons();
+  const bounds = L.latLngBounds(ACTIVITY_POINTS.map(point => [point.lat, point.lng]));
+  map.fitBounds(bounds, { padding: [42, 42], maxZoom: 10 });
+  updateSaveButton();
+  toast('New activity plan form ready.');
+}
+
+function openLogin() { els.loginModal.classList.add('open'); setTimeout(() => els.loginPassword.focus(), 50); }
+function closeLogin() { els.loginModal.classList.remove('open'); }
+els.loginButton.addEventListener('click', openLogin);
+document.getElementById('cancelLogin').addEventListener('click', closeLogin);
+els.loginModal.addEventListener('click', event => { if (event.target === els.loginModal) closeLogin(); });
+els.loginForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await signInWithEmailAndPassword(auth, els.loginEmail.value.trim(), els.loginPassword.value);
+    els.loginPassword.value = '';
+    closeLogin();
+    toast('Administrator signed in.');
+  } catch (error) { toast(friendlyError(error), true); }
+});
+document.getElementById('resetPassword').addEventListener('click', async () => {
+  try {
+    await sendPasswordResetEmail(auth, els.loginEmail.value.trim() || ADMIN_EMAIL);
+    toast('Password reset email sent.');
+  } catch (error) { toast(friendlyError(error), true); }
+});
+els.signOutButton.addEventListener('click', async () => { await signOut(auth); toast('Signed out.'); });
+els.form.addEventListener('submit', calculatePlan);
+els.hotelSelect.addEventListener('change', handleHotelChange);
+els.activitySelect.addEventListener('change', () => selectActivity(els.activitySelect.value, true));
+els.planName.addEventListener('input', updatePlanPlaceholder);
+els.newPlanButton.addEventListener('click', resetPlanner);
+els.savePlanButton.addEventListener('click', savePlan);
+
+populateHotels();
+populateActivities();
+renderLocationGrid();
+initDefaults();
+initMap();
+updateSaveButton();
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence);
+  onAuthStateChanged(auth, user => {
+    currentUser = user;
+    els.loginButton.hidden = Boolean(user);
+    els.signOutButton.hidden = !user;
+    if (user && !isAdmin()) toast('This account has viewing access only.', true);
+    subscribeRecords();
+    updateSaveButton();
+  });
+} catch (error) {
+  toast(`Firebase could not initialize: ${friendlyError(error)}`, true);
+}

@@ -1,0 +1,98 @@
+  }).addTo(map).bindTooltip(hotel.name, { direction: 'top', offset: [0, -17] });
+  pointMarkers.get(outboundPoint.id)?.setIcon(pointIcon(outboundPoint, true));
+  pointMarkers.get(returnPoint.id)?.setIcon(pointIcon(returnPoint, true));
+  const combined = L.latLngBounds([...outboundLatLngs, ...returnLatLngs]);
+  map.fitBounds(combined, { padding: [35, 35] });
+}
+function sameHotel(fieldRoute, hotel) {
+  if (fieldRoute.hotelId && hotel.id && normalKey(fieldRoute.hotelId) === normalKey(hotel.id)) return true;
+  if (fieldRoute.hotelAddress && hotel.address && normalKey(fieldRoute.hotelAddress) === normalKey(hotel.address)) return true;
+  return Boolean(fieldRoute.hotelName && hotel.name && normalKey(fieldRoute.hotelName) === normalKey(hotel.name));
+}
+function overlap(startA, endA, startB, endB) { return startA < endB && startB < endA; }
+function findConflicts(plan) {
+  const activityStart = plan.schedule.report;
+  const activityEnd = plan.schedule.available;
+  return savedFieldRoutes.filter(route => {
+    if (!sameHotel(route, plan.hotel)) return false;
+    const routeStart = new Date(route.reportLocal || route.departureLocal || route.meetingLocal);
+    const routeEnd = new Date(route.meetingLocal || route.arrivalLocal || route.departureLocal);
+    if (Number.isNaN(routeStart.getTime()) || Number.isNaN(routeEnd.getTime())) return false;
+    return overlap(activityStart, activityEnd, routeStart, routeEnd);
+  });
+}
+function renderConflicts(plan) {
+  const conflicts = isAdmin() ? findConflicts(plan) : [];
+  els.conflictBox.hidden = !conflicts.length;
+  els.conflictList.innerHTML = conflicts.map(route => `<div class="conflict-item"><strong>${escapeHtml(route.routeName || 'Saved field-service route')}</strong><br>${escapeHtml(formatDateTime(route.reportLocal || route.departureLocal))} through ${escapeHtml(formatDateTime(route.meetingLocal || route.arrivalLocal))}</div>`).join('');
+}
+function renderResult(plan) {
+  const { activity, hotel, outboundPoint, returnPoint, outboundRoute, returnRoute, schedule } = plan;
+  els.resultTitle.textContent = plan.planName;
+  els.resultHotel.textContent = hotel.name;
+  els.resultHotelAddress.textContent = hotel.address;
+  els.resultActivity.textContent = `${activity.marker} — ${activity.name}`;
+  els.resultActivityPoints.textContent = outboundPoint.id === returnPoint.id ? outboundPoint.name : `Drop-off: ${outboundPoint.name} • Pickup: ${returnPoint.name}`;
+  els.outboundDistance.textContent = formatDistance(outboundRoute.distance);
+  els.outboundBase.textContent = formatMinutes(schedule.outboundBase);
+  els.returnDistance.textContent = formatDistance(returnRoute.distance);
+  els.returnBase.textContent = formatMinutes(schedule.returnBase);
+  els.reportTime.textContent = formatDateTime(schedule.report);
+  els.departTime.textContent = formatDateTime(schedule.hotelDeparture);
+  els.arrivalTime.textContent = formatDateTime(schedule.targetArrival);
+  els.startTime.textContent = formatDateTime(schedule.start);
+  els.pickupTime.textContent = formatDateTime(schedule.pickup);
+  els.returnTime.textContent = formatDateTime(schedule.hotelReturn);
+  els.availableTime.textContent = formatDateTime(schedule.available);
+  els.unavailableWindow.textContent = `${formatDateTime(schedule.report)} — ${formatDateTime(schedule.available)}`;
+  els.fieldServiceImpact.textContent = `Using this same coach, a field-service assignment should have the bus back at ${hotel.name} before ${formatDateTime(schedule.report)}, or its passenger-report time should begin after ${formatDateTime(schedule.available)}.`;
+  els.verificationNote.textContent = `${outboundPoint.note} ${returnPoint.id !== outboundPoint.id ? returnPoint.note : ''} The road estimates do not include live traffic, weather, construction, motorcoach restrictions, turning clearance, or curb permits.`;
+  els.googleOutbound.href = googleDirections(hotel, outboundPoint);
+  els.googleReturn.href = googleDirections(returnPoint, hotel);
+  els.resultCard.hidden = false;
+  renderConflicts(plan);
+  updateSaveButton();
+  drawRoutes(outboundRoute, returnRoute, hotel, outboundPoint, returnPoint);
+  els.resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function calculatePlan(event) {
+  event?.preventDefault();
+  const activity = getActivity(els.activitySelect.value);
+  if (!activity) { toast('Choose a non-service activity.', true); return; }
+  els.calculateButton.disabled = true;
+  els.calculateButton.textContent = 'Calculating…';
+  try {
+    const hotel = await resolveHotel();
+    const outboundPoint = getActivityPoint(activity.outboundPointId);
+    const returnPoint = getActivityPoint(activity.returnPointId);
+    if (!outboundPoint || !returnPoint) throw new Error('The selected activity is missing a route point.');
+    const [outboundRoute, returnRoute] = await Promise.all([
+      requestRoute(hotel, outboundPoint), requestRoute(returnPoint, hotel)
+    ]);
+    const schedule = parseSchedule(outboundRoute, returnRoute);
+    const planName = clean(els.planName.value) || `${hotel.id || 'Hotel'} to ${activity.name}`;
+    els.planName.value = planName;
+    currentPlan = {
+      id: currentPlanId, planName, activity, hotel, outboundPoint, returnPoint, outboundRoute,
+      returnRoute, schedule, coachId: clean(els.coachId.value), status: els.planStatus.value,
+      notes: clean(els.planNotes.value)
+    };
+    renderResult(currentPlan);
+    toast('Activity bus window calculated.');
+  } catch (error) {
+    toast(friendlyError(error), true);
+  } finally {
+    els.calculateButton.disabled = false;
+    els.calculateButton.textContent = 'Calculate Activity Bus Window';
+  }
+}
+function updateSaveButton() {
+  if (!currentPlan) {
+    els.savePlanButton.disabled = true;
+    els.savePlanButton.textContent = 'Calculate Before Saving';
+  } else if (!isAdmin()) {
+    els.savePlanButton.disabled = false;
+    els.savePlanButton.textContent = 'Sign In to Save';
+  } else {
+    els.savePlanButton.disabled = false;

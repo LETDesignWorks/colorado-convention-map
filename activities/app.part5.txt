@@ -1,0 +1,119 @@
+    els.savePlanButton.textContent = currentPlanId ? 'Update Saved Plan' : 'Save Activity Plan';
+  }
+}
+function serializePlan(plan) {
+  const { schedule, outboundRoute, returnRoute, hotel, activity, outboundPoint, returnPoint } = plan;
+  return {
+    recordType: 'activity-bus-plan',
+    planName: plan.planName,
+    status: plan.status,
+    coachId: plan.coachId,
+    hotelId: hotel.id || 'custom',
+    hotelName: hotel.name,
+    hotelAddress: hotel.address,
+    hotel: { lat: hotel.lat, lng: hotel.lng },
+    activityId: activity.id,
+    activityMarker: activity.marker,
+    activityName: activity.name,
+    outboundPointId: outboundPoint.id,
+    outboundPointName: outboundPoint.name,
+    outboundPointAddress: outboundPoint.address,
+    outboundPoint: { lat: outboundPoint.lat, lng: outboundPoint.lng },
+    returnPointId: returnPoint.id,
+    returnPointName: returnPoint.name,
+    returnPointAddress: returnPoint.address,
+    returnPoint: { lat: returnPoint.lat, lng: returnPoint.lng },
+    outboundDistanceMiles: Number((outboundRoute.distance / 1609.344).toFixed(2)),
+    outboundBaseMinutes: schedule.outboundBase,
+    outboundAllowance: schedule.outboundAllowance,
+    outboundPlannedMinutes: schedule.outboundPlanned,
+    returnDistanceMiles: Number((returnRoute.distance / 1609.344).toFixed(2)),
+    returnBaseMinutes: schedule.returnBase,
+    returnAllowance: schedule.returnAllowance,
+    returnPlannedMinutes: schedule.returnPlanned,
+    arriveEarly: schedule.arriveEarly,
+    passengerReport: schedule.passengerReport,
+    pickupLoading: schedule.pickupLoading,
+    coachReset: schedule.coachReset,
+    activityStartLocal: localInputValue(schedule.start),
+    activityPickupLocal: localInputValue(schedule.pickup),
+    reportLocal: localInputValue(schedule.report),
+    departureLocal: localInputValue(schedule.hotelDeparture),
+    targetArrivalLocal: localInputValue(schedule.targetArrival),
+    returnDepartureLocal: localInputValue(schedule.returnDeparture),
+    hotelReturnLocal: localInputValue(schedule.hotelReturn),
+    availableLocal: localInputValue(schedule.available),
+    timeZone: 'America/Denver',
+    notes: plan.notes,
+    updatedByEmail: currentUser.email,
+    updatedAt: serverTimestamp()
+  };
+}
+async function savePlan() {
+  if (!isAdmin()) { openLogin(); return; }
+  if (!currentPlan) { toast('Calculate the activity schedule before saving.', true); return; }
+  const button = els.savePlanButton;
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  try {
+    const reference = currentPlanId ? doc(db, 'reviews', currentPlanId) : doc(collection(db, 'reviews'));
+    await setDoc(reference, {
+      ...serializePlan(currentPlan),
+      ...(currentPlanId ? {} : { createdAt: serverTimestamp() })
+    }, { merge: true });
+    currentPlanId = reference.id;
+    currentPlan.id = reference.id;
+    toast('Activity bus plan saved.');
+  } catch (error) {
+    toast(`Could not save activity plan: ${friendlyError(error)}`, true);
+  } finally {
+    button.disabled = false;
+    updateSaveButton();
+  }
+}
+function subscribeRecords() {
+  if (recordsUnsub) recordsUnsub();
+  savedPlans = [];
+  savedFieldRoutes = [];
+  renderSavedPlans();
+  if (!isAdmin()) return;
+  els.savedStatus.textContent = 'Loading saved schedules…';
+  recordsUnsub = onSnapshot(collection(db, 'reviews'), snapshot => {
+    savedPlans = [];
+    savedFieldRoutes = [];
+    snapshot.forEach(item => {
+      const data = item.data();
+      if (data.recordType === 'activity-bus-plan') savedPlans.push({ id: item.id, ...data });
+      if (data.recordType === 'bus-route') savedFieldRoutes.push({ id: item.id, ...data });
+    });
+    savedPlans.sort((a, b) => String(a.activityStartLocal || '').localeCompare(String(b.activityStartLocal || '')));
+    renderSavedPlans();
+    if (currentPlan) renderConflicts(currentPlan);
+  }, error => { els.savedStatus.textContent = `Saved schedules could not be loaded: ${friendlyError(error)}`; });
+}
+function renderSavedPlans() {
+  if (!isAdmin()) {
+    els.savedStatus.textContent = 'Sign in to view and manage saved activity plans.';
+    els.savedPlans.innerHTML = '';
+    return;
+  }
+  if (!savedPlans.length) {
+    els.savedStatus.textContent = 'No activity bus plans have been saved yet.';
+    els.savedPlans.innerHTML = '';
+    return;
+  }
+  els.savedStatus.textContent = `${savedPlans.length} saved activity plan${savedPlans.length === 1 ? '' : 's'} • ${savedFieldRoutes.length} saved field-service route${savedFieldRoutes.length === 1 ? '' : 's'} available for conflict comparison`;
+  els.savedPlans.innerHTML = savedPlans.map(plan => `<article class="saved-plan">
+    <div class="saved-plan-head"><div><h3>${escapeHtml(plan.planName || plan.activityName || 'Activity plan')}</h3><p>${escapeHtml(plan.hotelName || 'Hotel')} ⇄ ${escapeHtml(plan.activityName || 'Activity')}</p></div><span class="status-pill ${escapeHtml(plan.status || 'draft')}">${escapeHtml((plan.status || 'draft').replaceAll('-', ' '))}</span></div>
+    <span class="window">Unavailable ${escapeHtml(formatDateTime(plan.reportLocal))} — ${escapeHtml(formatDateTime(plan.availableLocal || plan.hotelReturnLocal))}</span>
+    ${plan.coachId ? `<p>Coach / group: ${escapeHtml(plan.coachId)}</p>` : ''}
+    <div class="saved-plan-actions"><button class="btn outline" data-load-plan="${escapeHtml(plan.id)}" type="button">Load</button><button class="btn outline danger" data-delete-plan="${escapeHtml(plan.id)}" type="button">Delete</button></div>
+  </article>`).join('');
+  els.savedPlans.querySelectorAll('[data-load-plan]').forEach(button => button.addEventListener('click', () => loadPlan(button.dataset.loadPlan)));
+  els.savedPlans.querySelectorAll('[data-delete-plan]').forEach(button => button.addEventListener('click', () => deletePlan(button.dataset.deletePlan)));
+}
+async function loadPlan(id) {
+  const plan = savedPlans.find(item => item.id === id);
+  if (!plan) return;
+  currentPlanId = id;
+  els.planName.value = plan.planName || '';

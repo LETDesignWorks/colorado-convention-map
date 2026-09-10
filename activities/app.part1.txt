@@ -1,0 +1,125 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import {
+  getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, sendPasswordResetEmail
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import {
+  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { HOTELS } from 'https://letdesignworks.github.io/colorado-convention-map/routes/hotels.js?v=20260910-1';
+import { ACTIVITIES, ACTIVITY_POINTS, getActivity, getActivityPoint } from 'https://letdesignworks.github.io/colorado-convention-map/activities/data.js?v=20260910-1';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',
+  authDomain: 'convention-fs.firebaseapp.com',
+  projectId: 'convention-fs',
+  storageBucket: 'convention-fs.firebasestorage.app',
+  messagingSenderId: '29365992209',
+  appId: '1:29365992209:web:0bd35e723688b37d776ab0',
+  measurementId: 'G-054BLBBE0F'
+};
+const ADMIN_EMAIL = 'michaeltarin@hotmail.com';
+
+let app;
+let auth;
+let db;
+let map;
+let currentUser = null;
+let selectedActivity = null;
+let currentPlan = null;
+let currentPlanId = null;
+let savedPlans = [];
+let savedFieldRoutes = [];
+let recordsUnsub = null;
+let outboundLayer = null;
+let returnLayer = null;
+let hotelMarker = null;
+const pointMarkers = new Map();
+const geocodeCache = readCache();
+
+const els = {
+  form: document.getElementById('activityForm'),
+  planName: document.getElementById('planName'),
+  hotelSelect: document.getElementById('hotelSelect'),
+  hotelAddress: document.getElementById('hotelAddress'),
+  customOriginWrap: document.getElementById('customOriginWrap'),
+  customOriginAddress: document.getElementById('customOriginAddress'),
+  activitySelect: document.getElementById('activitySelect'),
+  activityDescription: document.getElementById('activityDescription'),
+  activityStart: document.getElementById('activityStart'),
+  activityPickup: document.getElementById('activityPickup'),
+  arriveEarly: document.getElementById('arriveEarly'),
+  outboundAllowance: document.getElementById('outboundAllowance'),
+  passengerReport: document.getElementById('passengerReport'),
+  pickupLoading: document.getElementById('pickupLoading'),
+  returnAllowance: document.getElementById('returnAllowance'),
+  coachReset: document.getElementById('coachReset'),
+  coachId: document.getElementById('coachId'),
+  planStatus: document.getElementById('planStatus'),
+  planNotes: document.getElementById('planNotes'),
+  calculateButton: document.getElementById('calculateButton'),
+  newPlanButton: document.getElementById('newPlanButton'),
+  resultCard: document.getElementById('resultCard'),
+  resultTitle: document.getElementById('resultTitle'),
+  resultHotel: document.getElementById('resultHotel'),
+  resultHotelAddress: document.getElementById('resultHotelAddress'),
+  resultActivity: document.getElementById('resultActivity'),
+  resultActivityPoints: document.getElementById('resultActivityPoints'),
+  outboundDistance: document.getElementById('outboundDistance'),
+  outboundBase: document.getElementById('outboundBase'),
+  returnDistance: document.getElementById('returnDistance'),
+  returnBase: document.getElementById('returnBase'),
+  reportTime: document.getElementById('reportTime'),
+  departTime: document.getElementById('departTime'),
+  arrivalTime: document.getElementById('arrivalTime'),
+  startTime: document.getElementById('startTime'),
+  pickupTime: document.getElementById('pickupTime'),
+  returnTime: document.getElementById('returnTime'),
+  availableTime: document.getElementById('availableTime'),
+  unavailableWindow: document.getElementById('unavailableWindow'),
+  fieldServiceImpact: document.getElementById('fieldServiceImpact'),
+  conflictBox: document.getElementById('conflictBox'),
+  conflictList: document.getElementById('conflictList'),
+  verificationNote: document.getElementById('verificationNote'),
+  googleOutbound: document.getElementById('googleOutbound'),
+  googleReturn: document.getElementById('googleReturn'),
+  savePlanButton: document.getElementById('savePlanButton'),
+  savedStatus: document.getElementById('savedStatus'),
+  savedPlans: document.getElementById('savedPlans'),
+  locationGrid: document.getElementById('locationGrid'),
+  loginButton: document.getElementById('loginButton'),
+  signOutButton: document.getElementById('signOutButton'),
+  loginModal: document.getElementById('loginModal'),
+  loginForm: document.getElementById('loginForm'),
+  loginEmail: document.getElementById('loginEmail'),
+  loginPassword: document.getElementById('loginPassword'),
+  toast: document.getElementById('toast')
+};
+
+function escapeHtml(value = '') {
+  return String(value ?? '').replace(/[&<>'"]/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  })[character]);
+}
+function clean(value = '') { return String(value ?? '').trim(); }
+function numberValue(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+function isAdmin() { return currentUser?.email?.toLowerCase() === ADMIN_EMAIL; }
+function readCache() {
+  try { return JSON.parse(localStorage.getItem('conventionActivityGeocodes') || '{}'); }
+  catch { return {}; }
+}
+function saveCache() {
+  try { localStorage.setItem('conventionActivityGeocodes', JSON.stringify(geocodeCache)); }
+  catch { /* Local storage may be unavailable. */ }
+}
+function localInputValue(date) {
+  const pad = number => String(number).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function formatDateTime(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(undefined, {

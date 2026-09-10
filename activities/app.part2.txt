@@ -1,0 +1,109 @@
+    weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  }).format(date);
+}
+function formatMinutes(minutes) {
+  const value = Math.max(0, Math.round(minutes));
+  if (value < 60) return `${value} min`;
+  const hours = Math.floor(value / 60);
+  const remainder = value % 60;
+  return remainder ? `${hours} hr ${remainder} min` : `${hours} hr`;
+}
+function formatDistance(meters) { return `${(meters / 1609.344).toFixed(1)} mi`; }
+function toast(message, error = false) {
+  els.toast.textContent = message;
+  els.toast.className = `toast show${error ? ' error' : ''}`;
+  clearTimeout(els.toast._timer);
+  els.toast._timer = setTimeout(() => { els.toast.className = 'toast'; }, 3800);
+}
+function friendlyError(error) {
+  const code = error?.code || '';
+  if (code.includes('invalid-credential')) return 'The email or password is not correct.';
+  if (code.includes('permission-denied')) return 'Firebase denied this action. Confirm the administrator sign-in and Firestore rules.';
+  if (code.includes('network-request-failed') || code.includes('unavailable')) return 'The network or service is temporarily unavailable.';
+  if (code.includes('unauthorized-domain')) return 'Add letdesignworks.github.io to Firebase Authentication authorized domains.';
+  return error?.message?.replace(/^Firebase:\s*/, '') || 'Unknown error';
+}
+function normalKey(value = '') { return clean(value).toLowerCase().replace(/\s+/g, ' '); }
+function googleDirections(origin, destination) {
+  const originQuery = origin.address || `${origin.lat},${origin.lng}`;
+  const destinationQuery = destination.address || `${destination.lat},${destination.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originQuery)}&destination=${encodeURIComponent(destinationQuery)}&travelmode=driving`;
+}
+
+function initDefaults() {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(10, 0, 0, 0);
+  const pickup = new Date(start.getTime() + 3 * 60 * 60000);
+  els.activityStart.value = localInputValue(start);
+  els.activityPickup.value = localInputValue(pickup);
+}
+function populateHotels() {
+  const regions = [...new Set(HOTELS.map(hotel => hotel.region))];
+  els.hotelSelect.innerHTML = '<option value="">Choose a hotel…</option>' + regions.map(region =>
+    `<optgroup label="${escapeHtml(region)}">${HOTELS.filter(hotel => hotel.region === region).map(hotel =>
+      `<option value="${escapeHtml(hotel.id)}">${escapeHtml(hotel.id)} — ${escapeHtml(hotel.name)}</option>`
+    ).join('')}</optgroup>`
+  ).join('') + '<optgroup label="Other"><option value="custom">Other hotel or bus staging address</option></optgroup>';
+}
+function populateActivities() {
+  els.activitySelect.innerHTML = '<option value="">Choose an activity…</option>' + ACTIVITIES.map(activity =>
+    `<option value="${escapeHtml(activity.id)}">${escapeHtml(activity.marker)} — ${escapeHtml(activity.name)}</option>`
+  ).join('');
+}
+function renderLocationGrid() {
+  els.locationGrid.innerHTML = ACTIVITY_POINTS.map(point => {
+    const roleClass = point.role === 'dropoff' ? 'dropoff' : point.role === 'pickup' ? 'pickup' : '';
+    return `<button class="location-card" data-point-id="${escapeHtml(point.id)}" type="button">
+      <span class="location-badge ${roleClass}">${escapeHtml(point.marker)}</span>
+      <span><strong>${escapeHtml(point.name)}</strong><small>${escapeHtml(point.address)}</small><small>${escapeHtml(point.note)}</small></span>
+    </button>`;
+  }).join('');
+  els.locationGrid.querySelectorAll('[data-point-id]').forEach(button => button.addEventListener('click', () => {
+    const point = getActivityPoint(button.dataset.pointId);
+    if (!point) return;
+    const activity = getActivity(point.activityId);
+    if (activity) selectActivity(activity.id, true);
+    map.setView([point.lat, point.lng], 14, { animate: true });
+    pointMarkers.get(point.id)?.openTooltip();
+  }));
+}
+
+function pointIcon(point, selected = false) {
+  const roleClass = point.role === 'dropoff' ? 'dropoff' : point.role === 'pickup' ? 'pickup' : '';
+  return L.divIcon({
+    className: '',
+    html: `<div class="activity-marker ${roleClass}${selected ? ' selected' : ''}">${escapeHtml(point.marker)}</div>`,
+    iconSize: [42, 42], iconAnchor: [21, 21]
+  });
+}
+function initMap() {
+  map = L.map('map', { zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  for (const point of ACTIVITY_POINTS) {
+    const marker = L.marker([point.lat, point.lng], { icon: pointIcon(point) }).addTo(map);
+    marker.bindTooltip(`${point.marker} — ${point.name}`, { direction: 'top', offset: [0, -16] });
+    marker.bindPopup(`<div class="popup-title">${escapeHtml(point.name)}</div><div class="popup-sub">${escapeHtml(point.address)}<br>${escapeHtml(point.note)}</div>`);
+    marker.on('click', () => selectActivity(point.activityId, false));
+    pointMarkers.set(point.id, marker);
+  }
+  const bounds = L.latLngBounds(ACTIVITY_POINTS.map(point => [point.lat, point.lng]));
+  map.fitBounds(bounds, { padding: [42, 42], maxZoom: 10 });
+  L.control.scale({ imperial: true, metric: false, position: 'bottomright' }).addTo(map);
+}
+function refreshPointIcons() {
+  const activity = selectedActivity;
+  const selectedIds = new Set(activity ? [activity.outboundPointId, activity.returnPointId] : []);
+  for (const point of ACTIVITY_POINTS) pointMarkers.get(point.id)?.setIcon(pointIcon(point, selectedIds.has(point.id)));
+}
+function clearRouteLayers() {
+  if (outboundLayer) { map.removeLayer(outboundLayer); outboundLayer = null; }
+  if (returnLayer) { map.removeLayer(returnLayer); returnLayer = null; }
+  if (hotelMarker) { map.removeLayer(hotelMarker); hotelMarker = null; }
+}
+function selectActivity(id, pan = false) {
+  const activity = getActivity(id);
+  if (!activity) return;
+  selectedActivity = activity;
