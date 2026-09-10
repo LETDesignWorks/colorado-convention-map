@@ -1,0 +1,66 @@
+      }
+    });
+  });
+
+  renderStats();
+  renderSelectionControls();
+}
+
+function renderAll() {
+  renderCongregationList();
+  renderMeetingPointList();
+  renderSelectedMeetingPoint();
+  syncMarkers();
+}
+
+async function assignSelected() {
+  if (!isAdmin()) {
+    openLogin();
+    return;
+  }
+
+  const destination = locations.find(location => location.id === els.assignmentDestination.value);
+  if (!destination) {
+    toast('Choose a meeting point before assigning congregations.', true);
+    return;
+  }
+  if (!selectedCongregations.size) {
+    toast('Select at least one congregation.', true);
+    return;
+  }
+
+  const selected = CONGREGATIONS.filter(congregation => selectedCongregations.has(congregation.id));
+  const batch = writeBatch(db);
+  const nowFields = {
+    recordType: 'congregation-assignment',
+    meetingPointId: destination.id,
+    meetingPointLabel: markerLabel(destination),
+    meetingPointName: destination.name,
+    meetingPointAddress: destination.address || '',
+    meetingPointType: destination.locationType,
+    assigned: true,
+    updatedByEmail: currentUser.email,
+    updatedAt: serverTimestamp()
+  };
+
+  for (const congregation of selected) {
+    batch.set(doc(db, 'halls', assignmentDocumentId(congregation.id)), {
+      ...nowFields,
+      congregationId: congregation.id,
+      congregationName: congregation.name,
+      sourceName: congregation.sourceName,
+      homeAddress: congregation.homeAddress
+    }, { merge: true });
+  }
+
+  els.assignSelectedButton.disabled = true;
+  els.assignSelectedButton.textContent = 'Saving…';
+  try {
+    await batch.commit();
+    selectedCongregations.clear();
+    selectedMeetingPointId = destination.id;
+    toast(`${selected.length} congregation${selected.length === 1 ? '' : 's'} assigned to ${markerLabel(destination)} — ${destination.name}.`);
+  } catch (error) {
+    toast(friendlyError(error), true);
+  } finally {
+    els.

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#083f73"/>
+<title>Congregation Meeting-Point Assignments | Denver 2027</title>
+<link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+<link rel="preconnect" href="https://unpkg.com"/>
+<link rel="preconnect" href="https://tile.openstreetmap.org"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="../assets/branding.js?v=congregation-assignments-20260910-1"></script>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Congregation Meeting-Point Assignments</h1>
+      <p>Assign each congregation to a Kingdom Hall or administrator-added meeting area and track completion.</p>
+    </div>
+    <nav class="navlinks" aria-label="Planning website navigation">
+      <a class="btn ghost" href="../">Full Planning Map</a>
+      <a class="btn ghost" href="../bus-access/">Bus Access Review</a>
+      <a class="btn ghost" href="../routes/">Field-Service Routes</a>
+      <a class="btn ghost optional-nav" href="../activities/">Delegate Activities</a>
+      <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+      <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
+    </nav>
+  </div>
+</header>
+
+<section class="toolbar">
+  <div class="search-field">
+    <label class="sr-only" for="searchInput">Search congregations</label>
+    <input id="searchInput" type="search" placeholder="Search congregation, home address, or assigned meeting point"/>
+  </div>
+  <select id="statusFilter" aria-label="Filter by assignment status">
+    <option value="all">All congregations</option>
+    <option value="unassigned">Unassigned only</option>
+    <option value="assigned">Assigned only</option>
+  </select>
+  <select id="meetingFilter" aria-label="Filter by assigned meeting point">
+    <option value="all">All meeting points</option>
+    <option value="unassigned">Unassigned congregations</option>
+  </select>
+  <div class="stats" id="stats" aria-live="polite"></div>
+</section>
+
+<main class="workspace">
+  <section class="map-area" aria-label="Meeting point map">
+    <div id="map" role="application" aria-label="Interactive congregation meeting-point assignment map"></div>
+    <div class="map-legend">
+      <strong>Meeting Points</strong>
+      <div><span class="legend-marker hall"></span>Current Kingdom Hall</div>
+      <div><span class="legend-marker added-hall"></span>Added Kingdom Hall</div>
+      <div><span class="legend-marker meeting"></span>Other meeting area</div>
+      <div><span class="count-sample">4</span>Assigned congregation count</div>
+    </div>
+    <div class="map-note">Tap a meeting-point marker to see the congregations assigned there. The blue dashed line is the DTC 45-minute planning boundary, not a live-traffic limit.</div>
+  </section>
+
+  <aside class="side-panel">
+    <section class="card assignment-controls">
+      <div class="card-heading">
+        <div>
+          <span class="eyebrow">ASSIGNMENT CONTROL</span>
+          <h2>Assign Congregations</h2>
+        </div>
+        <span class="public-chip">Public status</span>
+      </div>
+      <p class="intro-copy">The congregation list is publicly viewable. Only the approved Firebase administrator can create, change, or clear assignments.</p>
+
+      <div class="signed-out-note" id="signedOutNote">
+        Sign in to select congregations and save meeting-point assignments.
+      </div>
+
+      <div class="admin-controls" id="adminControls" hidden>
+        <div class="selection-row">
+          <strong id="selectionCount">0 selected</strong>
+          <button class="text-button" id="selectAllShownButton" type="button">Select all shown</button>
+          <button class="text-button" id="clearSelectionButton" type="button">Clear selection</button>
+        </div>
+        <div class="field">
+          <label for="assignmentDestination">Meeting point for selected congregations</label>
+          <select id="assignmentDestination">
+            <option value="">Choose a Kingdom Hall or meeting area…</option>
+          </select>
+          <small>Clicking a marker on the map also places that location in this field.</small>
+        </div>
+        <div class="button-row">
+          <button class="btn primary" id="assignSelectedButton" type="button">Assign Selected</button>
+          <button class="btn danger" id="unassignSelectedButton" type="button">Clear Selected Assignments</button>
+        </div>
+      </div>
+
+      <div class="add-location-note">
+        Need another meeting point?
+        <a href="../bus-access/">Add a Kingdom Hall or meeting area on the Bus Access Review Map.</a>
+      </div>
+    </section>
+
+    <section class="card selected-point-card">
+      <div class="card-heading">
+        <div><span class="eyebrow">MEETING-POINT SUMMARY</span><h2 id="selectedPointTitle">Select a meeting point</h2></div>
+        <span class="count-chip" id="selectedPointCount">0 assigned</span>
+      </div>
+      <div id="selectedPointDetail" class="selected-point-detail">
+        Tap a marker or choose a meeting point below to see its assignment list.
+      </div>
+      <div id="selectedPointCongregations" class="assigned-name-list"></div>
+      <div class="selected-point-actions" id="selectedPointActions" hidden>
+        <button class="btn outline" id="filterToPointButton" type="button">Show Only This Meeting Point</button>
+        <a class="btn outline" id="openPointMapLink" target="_blank" rel="noopener">Open in Google Maps</a>
+      </div>
+    </section>
+
+    <section class="card meeting-points-card">
+      <div class="card-heading compact">
+        <div><span class="eyebrow">CURRENT MAP LOCATIONS</span><h2>Meeting Points</h2></div>
+        <span class="count-chip" id="meetingPointCount">0</span>
+      </div>
+      <div class="meeting-point-list" id="meetingPointList"></div>
+    </section>
+
+    <section class="card congregation-card">
+      <div class="card-heading compact">
+        <div><span class="eyebrow">CONGREGATION DIRECTORY</span><h2>Congregations</h2></div>
+        <span class="count-chip" id="visibleCount">0 shown</span>
+      </div>
+      <div class="progress-wrap" aria-label="Assignment progress">
+        <div class="progress-bar"><span id="progressBar"></span></div>
+        <div class="progress-text" id="progressText"></div>
+      </div>
+      <div class="congregation-list" id="congregationList"></div>
+    </section>
+  </aside>
+</main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>Sign in with the Firebase administrator account to save congregation assignments.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label for="loginEmail">Email</label>
+        <input id="loginEmail" type="email" autocomplete="username" required value="michaeltarin@hotmail.com"/>
+      </div>
+      <div class="field">
+        <label for="loginPassword">Firebase password</label>
+        <input id="loginPassword" type="password" autocomplete="current-password" required/>
+      </div>
+      <div class="button-row">
+        <button class="btn outline" id="cancelLogin" type="button">Cancel</button>
+        <button class="btn primary" type="submit">Sign In</button>
+      </div>
+      <button class="text-button reset-button" id="resetPassword" type="button">Send password reset email</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+)) || null;
+}
+
+function assignedCongregationsAt(locationId) {
+  return CONGREGATIONS.filter(congregation => assignmentFor(congregation.id)?.meetingPointId === String(locationId));
+}
+
+function assignedCountAt(locationId) {
+  let count = 0;
+  for (const assignment of assignments.values()) {
+    if (String(assignment.meetingPointId) === String(locationId)) count += 1;
+  }
+  return count;
+}
+
+function meetingPointIcon(location) {
+  const count = assignedCountAt(location.id);
+  const selected = location.id === selectedMeetingPointId;
+  const className = location.locationType === 'meeting-area'
+    ? 'meeting-area'
+    : (location.customLocation ? 'added-hall' : '');
+  return L.divIcon({
+    className: '',
+    html: `<div class="meeting-map-pin ${className}${selected ? ' selected' : ''}">
+      <span>${escapeHtml(markerLabel(location))}</span>
+      ${count ? `<span class="assignment-count">${count}</span>` : ''}
+    </div>`,
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+    popupAnchor: [0, -20]
+  });
+}
+
+function initMap() {
+  if (!window.L) {
+    document.getElementById('map').innerHTML = '<div style="padding:24px">The map library could not load. The congregation assignment list remains available.</div>';
+    return;
+  }
+
+  map = L.map('map', { zoomControl: true, attributionControl: true }).setView(DTC, 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  boundaryLayer = L.polygon(DTC_BOUNDARY, {
+    color: '#0b4da2',
+    weight: 2.5,
+    dashArray: '9 7',
+    fillColor: '#4d9cdb',
+    fillOpacity: .035,
+    interactive: false
+  }).addTo(map);
+
+  L.marker(DTC, {
+    icon: L.divIcon({
+      className: '',
+      html: '<div class="center-star">★</div>',
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
+    })
+  }).addTo(map).bindPopup('<div class="popup-titl

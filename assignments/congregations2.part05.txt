@@ -1,0 +1,3 @@
+ (USA)",36]];
+export const CONGREGATIONS=ROWS.map((r,i)=>({id:`C${String(i+1).padStart(3,'0')}`,name:r[0],sourceName:r[1],homeAddress:ADDRESSES[r[2]]}));
+export const CONGREGATION_SOURCE={count:CONGREGATIONS.length,description:'Congregation list supplied for 2027 Colorado Convention field-service planning.'};

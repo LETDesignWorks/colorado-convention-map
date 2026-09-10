@@ -1,0 +1,52 @@
+e">DTC Center Point</div><div class="popup-sub">I-25 & E. Belleview Avenue</div>');
+
+  map.fitBounds(boundaryLayer.getBounds(), { padding: [20, 20] });
+  syncMarkers();
+}
+
+function syncMarkers() {
+  if (!map) return;
+  const active = new Set(locations.map(location => location.id));
+
+  for (const [id, marker] of markers.entries()) {
+    if (!active.has(id)) {
+      map.removeLayer(marker);
+      markers.delete(id);
+    }
+  }
+
+  for (const location of locations) {
+    let marker = markers.get(location.id);
+    const count = assignedCountAt(location.id);
+    const tooltip = `${markerLabel(location)} — ${location.name} • ${count} assigned`;
+
+    if (!marker) {
+      marker = L.marker([location.lat, location.lng], { icon: meetingPointIcon(location) }).addTo(map);
+      marker.on('click', () => selectMeetingPoint(location.id, true));
+      marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -16] });
+      markers.set(location.id, marker);
+    } else {
+      marker.setLatLng([location.lat, location.lng]);
+      marker.setIcon(meetingPointIcon(location));
+      marker.setTooltipContent(tooltip);
+    }
+  }
+}
+
+function sortedLocations() {
+  return [...locations].sort((a, b) => markerLabel(a).localeCompare(markerLabel(b), undefined, { numeric: true }));
+}
+
+function optionGroup(label, items) {
+  if (!items.length) return '';
+  return `<optgroup label="${escapeHtml(label)}">${items.map(location =>
+    `<option value="${escapeHtml(location.id)}">${escapeHtml(markerLabel(location))} — ${escapeHtml(location.name)}</option>`
+  ).join('')}</optgroup>`;
+}
+
+function populateMeetingPointOptions() {
+  const previousDestination = els.assignmentDestination.value;
+  const previousFilter = els.meetingFilter.value;
+
+  const base = sortedLocations().filter(location => !location.customLocation);
+  const addedHalls = sortedLocations().filter(location => location.customLocation && location.

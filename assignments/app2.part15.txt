@@ -1,0 +1,53 @@
+('click', assignSelected);
+els.unassignSelectedButton.addEventListener('click', clearSelectedAssignments);
+els.filterToPointButton.addEventListener('click', () => {
+  if (!selectedMeetingPointId) return;
+  els.meetingFilter.value = selectedMeetingPointId;
+  renderCongregationList();
+});
+els.loginButton.addEventListener('click', openLogin);
+document.getElementById('cancelLogin').addEventListener('click', closeLogin);
+els.loginModal.addEventListener('click', event => {
+  if (event.target === els.loginModal) closeLogin();
+});
+els.loginForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await signInWithEmailAndPassword(auth, els.loginEmail.value.trim(), els.loginPassword.value);
+    els.loginPassword.value = '';
+    closeLogin();
+    toast('Administrator signed in.');
+  } catch (error) {
+    toast(friendlyError(error), true);
+  }
+});
+document.getElementById('resetPassword').addEventListener('click', async () => {
+  try {
+    await sendPasswordResetEmail(auth, els.loginEmail.value.trim() || ADMIN_EMAIL);
+    toast('Password reset email sent.');
+  } catch (error) {
+    toast(friendlyError(error), true);
+  }
+});
+els.signOutButton.addEventListener('click', async () => {
+  await signOut(auth);
+  toast('Signed out.');
+});
+
+initMap();
+populateMeetingPointOptions();
+renderAll();
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence);
+  onAuthStateChanged(auth, user => {
+    currentUser = user;
+    updateAuthUi();
+  });
+  subscribeToPublicData();
+} catch (error) {
+  toast(`Firebase could not initialize: ${friendlyError(error)}`, true);
+}

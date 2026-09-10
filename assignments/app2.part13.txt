@@ -1,0 +1,62 @@
+assignSelectedButton.textContent = 'Assign Selected';
+    renderSelectionControls();
+  }
+}
+
+async function clearSelectedAssignments() {
+  if (!isAdmin()) {
+    openLogin();
+    return;
+  }
+  const selected = CONGREGATIONS.filter(congregation => selectedCongregations.has(congregation.id));
+  const assignedSelected = selected.filter(congregation => assignmentFor(congregation.id));
+  if (!assignedSelected.length) {
+    toast('None of the selected congregations currently has an assignment.', true);
+    return;
+  }
+
+  if (!confirm(`Clear the meeting-point assignment for ${assignedSelected.length} congregation${assignedSelected.length === 1 ? '' : 's'}?`)) return;
+
+  const batch = writeBatch(db);
+  for (const congregation of assignedSelected) {
+    batch.delete(doc(db, 'halls', assignmentDocumentId(congregation.id)));
+  }
+
+  els.unassignSelectedButton.disabled = true;
+  els.unassignSelectedButton.textContent = 'Clearing…';
+  try {
+    await batch.commit();
+    selectedCongregations.clear();
+    toast(`${assignedSelected.length} congregation assignment${assignedSelected.length === 1 ? '' : 's'} cleared.`);
+  } catch (error) {
+    toast(friendlyError(error), true);
+  } finally {
+    els.unassignSelectedButton.textContent = 'Clear Selected Assignments';
+    renderSelectionControls();
+  }
+}
+
+function selectAllShown() {
+  if (!isAdmin()) {
+    openLogin();
+    return;
+  }
+  for (const congregation of filteredCongregations()) selectedCongregations.add(congregation.id);
+  renderCongregationList();
+}
+
+function clearSelection() {
+  selectedCongregations.clear();
+  renderCongregationList();
+}
+
+function updateAuthUi() {
+  const admin = isAdmin();
+  els.loginButton.hidden = Boolean(currentUser);
+  els.signOutButton.hidden = !currentUser;
+  els.adminControls.hidden = !admin;
+  els.signedOutNote.hidden = admin;
+
+  if (currentUser && !admin) {
+    els.signedOutNote.hidden = false;
+    els

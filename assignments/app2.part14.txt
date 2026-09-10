@@ -1,0 +1,55 @@
+.signedOutNote.textContent = `Signed in as ${currentUser.email}. This account has view-only access.`;
+  } else if (!currentUser) {
+    els.signedOutNote.textContent = 'Sign in to select congregations and save meeting-point assignments.';
+  }
+
+  if (!admin) selectedCongregations.clear();
+  renderCongregationList();
+}
+
+function openLogin() {
+  els.loginModal.classList.add('open');
+  setTimeout(() => els.loginPassword.focus(), 50);
+}
+
+function closeLogin() {
+  els.loginModal.classList.remove('open');
+}
+
+function subscribeToPublicData() {
+  if (assignmentsUnsubscribe) assignmentsUnsubscribe();
+  assignmentsUnsubscribe = onSnapshot(collection(db, 'halls'), snapshot => {
+    publicLocationData.clear();
+    assignments.clear();
+
+    snapshot.forEach(item => {
+      const data = item.data();
+      if (data.recordType === 'congregation-assignment' && data.congregationId) {
+        assignments.set(String(data.congregationId), { id: item.id, ...data });
+      } else {
+        publicLocationData.set(item.id, data);
+      }
+    });
+
+    rebuildLocations();
+    renderAll();
+  }, error => {
+    toast(`Assignment information could not be loaded: ${friendlyError(error)}`, true);
+  });
+}
+
+els.searchInput.addEventListener('input', renderCongregationList);
+els.statusFilter.addEventListener('change', renderCongregationList);
+els.meetingFilter.addEventListener('change', () => {
+  const value = els.meetingFilter.value;
+  if (value !== 'all' && value !== 'unassigned') selectMeetingPoint(value, true);
+  renderCongregationList();
+});
+els.assignmentDestination.addEventListener('change', () => {
+  const value = els.assignmentDestination.value;
+  if (value) selectMeetingPoint(value, true);
+  renderSelectionControls();
+});
+els.selectAllShownButton.addEventListener('click', selectAllShown);
+els.clearSelectionButton.addEventListener('click', clearSelection);
+els.assignSelectedButton.addEventListener

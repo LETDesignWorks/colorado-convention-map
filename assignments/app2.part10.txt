@@ -1,0 +1,34 @@
+essBar.style.width = `${percent}%`;
+  els.progressText.textContent = `${assigned} of ${total} assigned (${percent}%)`;
+}
+
+function renderSelectionControls() {
+  const count = selectedCongregations.size;
+  els.selectionCount.textContent = `${count} selected`;
+  els.assignSelectedButton.disabled = !isAdmin() || count === 0 || !els.assignmentDestination.value;
+  els.unassignSelectedButton.disabled = !isAdmin() || count === 0;
+  els.clearSelectionButton.disabled = count === 0;
+  renderStats();
+}
+
+function renderCongregationList() {
+  const visible = filteredCongregations();
+  els.visibleCount.textContent = `${visible.length} shown`;
+
+  els.congregationList.innerHTML = visible.map(congregation => {
+    const assignment = assignmentFor(congregation.id);
+    const point = meetingPointForAssignment(assignment);
+    const homeLocation = homeLocationFor(congregation);
+    const assigned = Boolean(assignment);
+    const selected = selectedCongregations.has(congregation.id);
+
+    const assignmentName = point?.name || assignment?.meetingPointName || 'Assigned location not found';
+    const assignmentLabel = point ? markerLabel(point) : assignment?.meetingPointLabel || '';
+    const assignmentAddress = point?.address || assignment?.meetingPointAddress || '';
+
+    return `<div class="congregation-row${assigned ? ' assigned' : ''}${selected ? ' selected' : ''}" data-congregation="${escapeHtml(congregation.id)}">
+      <input type="checkbox" aria-label="Select ${escapeHtml(congregation.name)}" data-select="${escapeHtml(congregation.id)}" ${selected ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'}>
+      <div class="congregation-main">
+        <strong>${escapeHtml(congregation.name)}</strong>
+        <small>Current congregation address: ${escapeHtml(congregation.homeAddress)}</small>
+        ${homeLocation ? `<small class="home-map-chip">Home Hall on map: ${escapeHtml(markerLabel(homeL

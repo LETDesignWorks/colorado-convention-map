@@ -1,0 +1,51 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import {
+  getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, sendPasswordResetEmail
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import {
+  getFirestore, collection, doc, onSnapshot, writeBatch, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { HALLS, DTC_BOUNDARY, DTC } from 'https://letdesignworks.github.io/colorado-convention-map/bus-access/data.js?v=congregation-assignments-20260910-1';
+import { CONGREGATIONS } from 'https://letdesignworks.github.io/colorado-convention-map/assignments/congregations.js?v=20260910-2';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',
+  authDomain: 'convention-fs.firebaseapp.com',
+  projectId: 'convention-fs',
+  storageBucket: 'convention-fs.firebasestorage.app',
+  messagingSenderId: '29365992209',
+  appId: '1:29365992209:web:0bd35e723688b37d776ab0',
+  measurementId: 'G-054BLBBE0F'
+};
+
+const ADMIN_EMAIL = 'michaeltarin@hotmail.com';
+const BASE_LOCATIONS = HALLS.map(hall => ({
+  ...hall,
+  id: String(hall.id),
+  markerLabel: String(hall.number),
+  locationType: 'kingdom-hall',
+  customLocation: false
+}));
+
+let app;
+let auth;
+let db;
+let map;
+let boundaryLayer;
+let currentUser = null;
+let locations = [...BASE_LOCATIONS];
+let selectedMeetingPointId = '';
+let assignmentsUnsubscribe = null;
+
+const publicLocationData = new Map();
+const assignments = new Map();
+const markers = new Map();
+const selectedCongregations = new Set();
+
+const els = {
+  searchInput: document.getElementById('searchInput'),
+  statusFilter: document.getElementById('statusFilter'),
+  meetingFilter: document.getElementById('meetingFilter'),
+  stats: document.getElementById('stats'),
+  assignmentDestination: document.getE

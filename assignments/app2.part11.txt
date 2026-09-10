@@ -1,0 +1,33 @@
+ocation))} — ${escapeHtml(homeLocation.name)}</small>` : '<small>Current congregation address is not one of the meeting points presently shown on this map.</small>'}
+      </div>
+      <div class="assignment-status">
+        <span class="status-chip ${assigned ? 'assigned' : 'unassigned'}">${assigned ? 'Assigned' : 'Unassigned'}</span>
+        ${assigned ? `<strong>${escapeHtml(assignmentLabel ? `${assignmentLabel} — ${assignmentName}` : assignmentName)}</strong><small>${escapeHtml(assignmentAddress)}</small>` : '<small>No meeting point selected</small>'}
+      </div>
+    </div>`;
+  }).join('') || '<div class="no-results">No congregations match the current filters.</div>';
+
+  els.congregationList.querySelectorAll('[data-select]').forEach(checkbox => {
+    checkbox.addEventListener('click', event => event.stopPropagation());
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedCongregations.add(checkbox.dataset.select);
+      else selectedCongregations.delete(checkbox.dataset.select);
+      checkbox.closest('.congregation-row')?.classList.toggle('selected', checkbox.checked);
+      renderSelectionControls();
+    });
+  });
+
+  els.congregationList.querySelectorAll('[data-congregation]').forEach(row => {
+    row.addEventListener('click', event => {
+      if (event.target.closest('input,button,a,select')) return;
+      const id = row.dataset.congregation;
+      if (isAdmin()) {
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        checkbox.checked = !checkbox.checked;
+        if (checkbox.checked) selectedCongregations.add(id);
+        else selectedCongregations.delete(id);
+        row.classList.toggle('selected', checkbox.checked);
+        renderSelectionControls();
+      } else {
+        const assignment = assignmentFor(id);
+        if (assignment?.meetingPointId) selectMeetingPoint(assignment.meetingPointId, true);

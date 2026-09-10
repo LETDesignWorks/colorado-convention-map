@@ -1,0 +1,29 @@
+t.textContent = '0 assigned';
+    els.selectedPointDetail.textContent = 'Tap a marker or choose a meeting point below to see its assignment list.';
+    els.selectedPointCongregations.innerHTML = '';
+    els.selectedPointActions.hidden = true;
+    return;
+  }
+
+  const assigned = assignedCongregationsAt(location.id);
+  els.selectedPointTitle.textContent = `${markerLabel(location)} — ${location.name}`;
+  els.selectedPointCount.textContent = `${assigned.length} assigned`;
+  els.selectedPointDetail.innerHTML = `<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>`;
+  els.selectedPointCongregations.innerHTML = assigned.length
+    ? assigned.map(congregation => `<div class="assigned-name">${escapeHtml(congregation.name)}</div>`).join('')
+    : '<div class="empty-list">No congregations have been assigned to this meeting point.</div>';
+  els.selectedPointActions.hidden = false;
+  els.openPointMapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.address || `${location.lat},${location.lng}`)}`;
+}
+
+function renderMeetingPointList() {
+  const points = sortedLocations();
+  els.meetingPointCount.textContent = `${points.length} points`;
+  els.meetingPointList.innerHTML = points.map(location => {
+    const count = assignedCountAt(location.id);
+    const markerClass = location.locationType === 'meeting-area'
+      ? 'meeting'
+      : (location.customLocation ? 'added' : '');
+    return `<button class="meeting-point-row${location.id === selectedMeetingPointId ? ' active' : ''}" type="button" data-point="${escapeHtml(location.id)}">
+      <span class="point-marker ${markerClass}">${escapeHtml(markerLabel(location))}</span>
+      <span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address || locationTypeLabel(location))}</small>

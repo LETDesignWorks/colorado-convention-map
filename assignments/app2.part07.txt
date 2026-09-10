@@ -1,0 +1,50 @@
+locationType !== 'meeting-area');
+  const meetingAreas = sortedLocations().filter(location => location.locationType === 'meeting-area');
+
+  const groupedOptions =
+    optionGroup('Current Kingdom Halls', base) +
+    optionGroup('Added Kingdom Halls', addedHalls) +
+    optionGroup('Other meeting areas', meetingAreas);
+
+  els.assignmentDestination.innerHTML =
+    '<option value="">Choose a Kingdom Hall or meeting area…</option>' + groupedOptions;
+
+  els.meetingFilter.innerHTML =
+    '<option value="all">All meeting points</option>' +
+    '<option value="unassigned">Unassigned congregations</option>' +
+    groupedOptions;
+
+  if ([...els.assignmentDestination.options].some(option => option.value === previousDestination)) {
+    els.assignmentDestination.value = previousDestination;
+  } else if (selectedMeetingPointId && [...els.assignmentDestination.options].some(option => option.value === selectedMeetingPointId)) {
+    els.assignmentDestination.value = selectedMeetingPointId;
+  }
+
+  if ([...els.meetingFilter.options].some(option => option.value === previousFilter)) {
+    els.meetingFilter.value = previousFilter;
+  } else {
+    els.meetingFilter.value = 'all';
+  }
+}
+
+function selectMeetingPoint(id, pan = false) {
+  const location = locations.find(item => item.id === String(id));
+  if (!location) return;
+
+  selectedMeetingPointId = location.id;
+  if (isAdmin()) els.assignmentDestination.value = location.id;
+  syncMarkers();
+  renderMeetingPointList();
+  renderSelectedMeetingPoint();
+
+  if (pan && map) {
+    map.setView([location.lat, location.lng], Math.max(map.getZoom(), 13), { animate: true });
+    markers.get(location.id)?.openTooltip();
+  }
+}
+
+function renderSelectedMeetingPoint() {
+  const location = locations.find(item => item.id === selectedMeetingPointId);
+  if (!location) {
+    els.selectedPointTitle.textContent = 'Select a meeting point';
+    els.selectedPointCoun

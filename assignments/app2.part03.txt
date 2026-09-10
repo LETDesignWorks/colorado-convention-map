@@ -1,0 +1,50 @@
+<>'"]/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[char]));
+}
+
+function isAdmin() {
+  return currentUser?.email?.toLowerCase() === ADMIN_EMAIL;
+}
+
+function markerLabel(location) {
+  return clean(location.markerLabel || location.number || 'M');
+}
+
+function locationTypeLabel(location) {
+  if (location.locationType === 'meeting-area') return 'Other meeting area';
+  if (location.customLocation) return 'Added Kingdom Hall';
+  return 'Current Kingdom Hall';
+}
+
+function assignmentDocumentId(congregationId) {
+  return `congregation-${String(congregationId).toLowerCase()}`;
+}
+
+function toast(message, error = false) {
+  els.toast.textContent = message;
+  els.toast.className = `toast show${error ? ' error' : ''}`;
+  clearTimeout(els.toast._timer);
+  els.toast._timer = setTimeout(() => { els.toast.className = 'toast'; }, 3800);
+}
+
+function friendlyError(error) {
+  const code = error?.code || '';
+  if (code.includes('invalid-credential')) return 'The email or password is not correct.';
+  if (code.includes('permission-denied')) return 'Firebase denied this change. Confirm the administrator sign-in and published Firestore rules.';
+  if (code.includes('network-request-failed') || code.includes('unavailable')) return 'The network or Firebase service is temporarily unavailable.';
+  if (code.includes('unauthorized-domain')) return 'Add letdesignworks.github.io under Firebase Authentication → Settings → Authorized domains.';
+  return error?.message?.replace(/^Firebase:\s*/, '') || 'Unknown error';
+}
+
+function normalizeAddress(address = '') {
+  return String(address)
+    .toLowerCase()
+    .replace(/\bavenue\b/g, 'ave')
+    .replace(/\bstreet\b/g, 'st')
+    .replace(/\broad\b/g, 'rd')
+    .replace(/\bdrive\b/g, 'dr')
+    .replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bcircle\b/g, 'cir')
+    .replace(/\btrail\b/g, 'trl')
+    .replace(/\s+/g, 

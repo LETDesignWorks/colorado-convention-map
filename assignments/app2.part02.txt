@@ -1,0 +1,36 @@
+lementById('assignmentDestination'),
+  congregationList: document.getElementById('congregationList'),
+  visibleCount: document.getElementById('visibleCount'),
+  meetingPointList: document.getElementById('meetingPointList'),
+  meetingPointCount: document.getElementById('meetingPointCount'),
+  selectedPointTitle: document.getElementById('selectedPointTitle'),
+  selectedPointCount: document.getElementById('selectedPointCount'),
+  selectedPointDetail: document.getElementById('selectedPointDetail'),
+  selectedPointCongregations: document.getElementById('selectedPointCongregations'),
+  selectedPointActions: document.getElementById('selectedPointActions'),
+  filterToPointButton: document.getElementById('filterToPointButton'),
+  openPointMapLink: document.getElementById('openPointMapLink'),
+  signedOutNote: document.getElementById('signedOutNote'),
+  adminControls: document.getElementById('adminControls'),
+  selectionCount: document.getElementById('selectionCount'),
+  selectAllShownButton: document.getElementById('selectAllShownButton'),
+  clearSelectionButton: document.getElementById('clearSelectionButton'),
+  assignSelectedButton: document.getElementById('assignSelectedButton'),
+  unassignSelectedButton: document.getElementById('unassignSelectedButton'),
+  progressBar: document.getElementById('progressBar'),
+  progressText: document.getElementById('progressText'),
+  loginButton: document.getElementById('loginButton'),
+  signOutButton: document.getElementById('signOutButton'),
+  loginModal: document.getElementById('loginModal'),
+  loginForm: document.getElementById('loginForm'),
+  loginEmail: document.getElementById('loginEmail'),
+  loginPassword: document.getElementById('loginPassword'),
+  toast: document.getElementById('toast')
+};
+
+function clean(value = '') {
+  return String(value ?? '').trim();
+}
+
+function escapeHtml(value = '') {
+  return String(value ?? '').replace(/[&

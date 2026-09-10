@@ -1,0 +1,51 @@
+</span>
+      <span class="point-count${count ? ' has-assignments' : ''}">${count}</span>
+    </button>`;
+  }).join('');
+
+  els.meetingPointList.querySelectorAll('[data-point]').forEach(button => {
+    button.addEventListener('click', () => selectMeetingPoint(button.dataset.point, true));
+  });
+}
+
+function filteredCongregations() {
+  const query = clean(els.searchInput.value).toLowerCase();
+  const status = els.statusFilter.value;
+  const meeting = els.meetingFilter.value;
+
+  return CONGREGATIONS.filter(congregation => {
+    const assignment = assignmentFor(congregation.id);
+    const point = meetingPointForAssignment(assignment);
+    const isAssigned = Boolean(assignment);
+
+    if (status === 'assigned' && !isAssigned) return false;
+    if (status === 'unassigned' && isAssigned) return false;
+    if (meeting === 'unassigned' && isAssigned) return false;
+    if (meeting !== 'all' && meeting !== 'unassigned' && String(assignment?.meetingPointId) !== meeting) return false;
+
+    if (!query) return true;
+    return [
+      congregation.name,
+      congregation.sourceName,
+      congregation.homeAddress,
+      assignment?.meetingPointName,
+      assignment?.meetingPointAddress,
+      point?.name,
+      point?.address
+    ].filter(Boolean).join(' ').toLowerCase().includes(query);
+  });
+}
+
+function renderStats() {
+  const total = CONGREGATIONS.length;
+  const assigned = CONGREGATIONS.filter(congregation => assignmentFor(congregation.id)).length;
+  const unassigned = total - assigned;
+  const percent = total ? Math.round((assigned / total) * 100) : 0;
+
+  els.stats.innerHTML = `
+    <span class="stat">${total} congregations</span>
+    <span class="stat assigned">${assigned} assigned</span>
+    <span class="stat unassigned">${unassigned} unassigned</span>
+    ${selectedCongregations.size ? `<span class="stat">${selectedCongregations.size} selected</span>` : ''}
+  `;
+  els.progr

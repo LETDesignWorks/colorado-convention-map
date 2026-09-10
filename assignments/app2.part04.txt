@@ -1,0 +1,56 @@
+' ')
+    .replace(/[.,#]/g, '')
+    .trim();
+}
+
+function streetAddressKey(address = '') {
+  return normalizeAddress(String(address).split(',')[0]);
+}
+
+function homeLocationFor(congregation) {
+  const key = streetAddressKey(congregation.homeAddress);
+  return locations.find(location => streetAddressKey(location.address) === key) || null;
+}
+
+function normalizeCustomLocation(id, data) {
+  const lat = Number(data.lat);
+  const lng = Number(data.lng);
+  if (data.customLocation !== true || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const congregations = Array.isArray(data.congregations) ? data.congregations.map(clean).filter(Boolean) : [];
+  return {
+    id: String(id),
+    markerLabel: clean(data.markerLabel || data.number || 'M'),
+    number: clean(data.markerLabel || data.number || 'M'),
+    name: clean(data.name || 'Added meeting point'),
+    address: clean(data.address || ''),
+    lat,
+    lng,
+    congregations,
+    congregationCount: congregations.length,
+    locationType: data.locationType === 'meeting-area' ? 'meeting-area' : 'kingdom-hall',
+    planningArea: data.planningArea || 'other',
+    customLocation: true
+  };
+}
+
+function rebuildLocations() {
+  const custom = [];
+  for (const [id, data] of publicLocationData.entries()) {
+    const location = normalizeCustomLocation(id, data);
+    if (location) custom.push(location);
+  }
+  custom.sort((a, b) => markerLabel(a).localeCompare(markerLabel(b), undefined, { numeric: true }));
+  locations = [...BASE_LOCATIONS, ...custom];
+  populateMeetingPointOptions();
+  syncMarkers();
+  renderMeetingPointList();
+  renderSelectedMeetingPoint();
+}
+
+function assignmentFor(congregationId) {
+  return assignments.get(String(congregationId)) || null;
+}
+
+function meetingPointForAssignment(assignment) {
+  if (!assignment) return null;
+  return locations.find(location => location.id === String(assignment.meetingPointId
