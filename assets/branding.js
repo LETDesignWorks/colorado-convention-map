@@ -110,9 +110,36 @@ function addMapLogo() {
   mapHost.appendChild(badge);
 }
 
+function addDelegateActivitiesLink() {
+  if (location.pathname.includes('/activities/')) return;
+  if (document.querySelector('a[href*="activities/"]')) return;
+
+  const nav = document.querySelector('.header-actions, .top-actions, .navlinks, .actions') || document.querySelector('header.nav');
+  if (!nav) return;
+
+  const link = document.createElement('a');
+  const path = location.pathname;
+  if (path.includes('/bus-access/')) {
+    link.className = 'btn primary delegate-activities-link';
+  } else if (path.includes('/routes/') || path.includes('/route-planner/')) {
+    link.className = 'btn ghost delegate-activities-link';
+  } else {
+    link.className = 'btn light delegate-activities-link';
+  }
+  link.href = new URL('activities/', siteHomeUrl).href;
+  link.textContent = 'Delegate Activities';
+  link.setAttribute('aria-label', 'Open the delegate activity and bus availability planner');
+
+  const links = Array.from(nav.querySelectorAll('a'));
+  const routeLink = links.find(item => /\/(?:routes|route-planner)\/?$/.test(new URL(item.href, location.href).pathname));
+  const busAccessLink = links.find(item => /\/bus-access\/?$/.test(new URL(item.href, location.href).pathname));
+  nav.insertBefore(link, routeLink || busAccessLink || null);
+}
+
 function applyDenver2027Branding() {
   addBrandingStyles();
   addHeaderLogo();
+  addDelegateActivitiesLink();
   addMapLogo();
 }
 
