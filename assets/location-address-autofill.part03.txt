@@ -1,0 +1,148 @@
+    const addressField = addressInput.closest('.field') || addressInput.parentElement;
+    addressField?.insertAdjacentElement('afterend', container);
+    return container;
+  }
+
+  function ensureProfileUi(profile, addressInput, coordinateContainer = null) {
+    let host = profile.toolsSelector ? document.querySelector(profile.toolsSelector) : null;
+
+    if (!host && profile.insertAfterAddress) {
+      host = document.createElement('div');
+      host.className = 'field full denver-address-tools';
+      const addressField = addressInput.closest('.field') || addressInput.parentElement;
+      const anchor = coordinateContainer || addressField;
+      anchor?.insertAdjacentElement('afterend', host);
+    }
+    if (!host) {
+      host = document.createElement('div');
+      host.className = 'denver-address-tools';
+      addressInput.insertAdjacentElement('afterend', host);
+    }
+    host.classList.add('denver-address-tools');
+    if (profile.helpText) {
+      const existingHelp = Array.from(host.querySelectorAll('small')).find(item => item.id !== profile.statusId);
+      if (existingHelp) existingHelp.textContent = profile.helpText;
+    }
+
+    let lookupButton = document.getElementById(profile.lookupButtonId);
+    if (!lookupButton) {
+      lookupButton = document.createElement('button');
+      lookupButton.id = profile.lookupButtonId;
+      lookupButton.type = 'button';
+      lookupButton.className = profile.buttonClass || 'btn outline';
+      host.prepend(lookupButton);
+    }
+
+    let status = document.getElementById(profile.statusId);
+    if (!status) {
+      status = document.createElement('small');
+      status.id = profile.statusId;
+      status.className = 'denver-address-status';
+      host.appendChild(status);
+    } else {
+      status.classList.add('denver-address-status');
+    }
+
+    let verifyLinks = host.querySelector('.denver-address-verify-links');
+    if (!verifyLinks) {
+      verifyLinks = document.createElement('div');
+      verifyLinks.className = 'denver-address-verify-links';
+      verifyLinks.hidden = true;
+      host.appendChild(verifyLinks);
+    }
+
+    return { host, lookupButton, status, verifyLinks };
+  }
+
+  function beginSession(state) {
+    if (!isActive(state)) return;
+    const address = normalizeAddress(state.addressInput.value);
+    const coordinates = readCoordinates(state);
+    state.initialAddress = address;
+    state.initialCoordinates = coordinates ? { ...coordinates } : null;
+    state.resolvedAddress = address && coordinates ? address : '';
+    state.lastCoordinateSignature = coordinateSignature(coordinates);
+    state.activeLastTick = true;
+    clearTimeout(state.debounceTimer);
+    state.lookupSequence += 1;
+    removePreview(state);
+
+    if (address && coordinates) {
+      updateVerifyLinks(state, { ...coordinates, matchedAddress: address });
+      setStatus(state, 'Existing address coordinates loaded. Change the address to refresh them, or verify the point in Google Maps or Apple Maps.', 'success');
+    } else {
+      state.verifyLinks.hidden = true;
+      setStatus(state, 'Enter a complete U.S. street address. After you pause typing, latitude and longitude will update automatically.', 'waiting');
+    }
+  }
+
+  function endSession(state) {
+    clearTimeout(state.debounceTimer);
+    state.lookupSequence += 1;
+    state.activeLastTick = false;
+    state.pendingSubmitter = null;
+    removePreview(state);
+  }
+
+  function resetState(state) {
+    state.initialAddress = '';
+    state.initialCoordinates = null;
+    state.resolvedAddress = '';
+    state.lastCoordinateSignature = coordinateSignature(readCoordinates(state));
+    state.verifyLinks.hidden = true;
+    removePreview(state);
+    setStatus(state, 'Enter a complete U.S. street address. After you pause typing, latitude and longitude will update automatically.', 'waiting');
+  }
+
+  function isActive(state) {
+    try {
+      return state.profile.contextActive ? Boolean(state.profile.contextActive()) : true;
+    } catch {
+      return true;
+    }
+  }
+
+  function scheduleAutomaticLookup(state) {
+    if (!isActive(state)) return;
+    clearTimeout(state.debounceTimer);
+    state.lookupSequence += 1;
+
+    const address = normalizeAddress(state.addressInput.value);
+    handleChangedAddress(state, address);
+
+    if (!address) {
+      setStatus(state, 'Enter a complete U.S. street address. Latitude and longitude will update automatically.', 'waiting');
+      return;
+    }
+    if (!looksComplete(address)) {
+      setStatus(state, 'Keep typing the street address, city, state, and ZIP. Coordinates will update after you pause.', 'waiting');
+      return;
+    }
+
+    setStatus(state, 'Address looks complete. Waiting briefly before updating coordinates…', 'working');
+    state.debounceTimer = setTimeout(() => geocodeAddress(state, { manual: false }), AUTO_LOOKUP_DELAY_MS);
+  }
+
+  function handleChangedAddress(state, currentAddress) {
+    const currentKey = currentAddress.toLowerCase();
+    const resolvedKey = state.resolvedAddress.toLowerCase();
+    if (currentKey === resolvedKey) return;
+
+    const initialKey = state.initialAddress.toLowerCase();
+    if (currentKey && initialKey && currentKey === initialKey && state.initialCoordinates) {
+      writeCoordinates(state, state.initialCoordinates);
+      state.resolvedAddress = state.initialAddress;
+      updateVerifyLinks(state, { ...state.initialCoordinates, matchedAddress: state.initialAddress });
+      setStatus(state, 'Original saved address restored with its existing coordinates.', 'success');
+      return;
+    }
+
+    clearCoordinates(state);
+    state.resolvedAddress = '';
+    state.verifyLinks.hidden = true;
+    removePreview(state);
+  }
+
+  function guardSubmit(state, event) {
+    if (!isActive(state)) return;
+    if (state.bypassNextSubmit) {
