@@ -7,9 +7,10 @@ const PARTS = [
   'app.part6.txt'
 ];
 
-const version = '20260910-1';
+const version = '20260910-2';
 
 try {
+  await import('../assets/location-address-autofill.js?v=20260910-3');
   const responses = await Promise.all(PARTS.map(name => fetch(`${name}?v=${version}`, { cache: 'no-store' })));
   const failed = responses.find(response => !response.ok);
   if (failed) throw new Error(`Application file could not be loaded (${failed.status}).`);
