@@ -1,0 +1,145 @@
+    const active = isActive(state);
+    if (active && !state.activeLastTick) beginSession(state);
+    state.activeLastTick = active;
+    if (!active || state.writingCoordinates || !state.profile.allowMapCoordinates) return;
+
+    const coordinates = readCoordinates(state);
+    const signature = coordinateSignature(coordinates);
+    if (!signature || signature === state.lastCoordinateSignature) return;
+    state.lastCoordinateSignature = signature;
+    markManualCoordinates(state, 'Map-selected coordinates loaded. Confirm the point before continuing.');
+  }
+
+  function coordinateSignature(coordinates) {
+    if (!coordinates) return '';
+    return `${Number(coordinates.lat).toFixed(6)},${Number(coordinates.lng).toFixed(6)}`;
+  }
+
+  function normalizeAddress(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ');
+  }
+
+  function looksComplete(address) {
+    if (address.length < ADDRESS_MIN_LENGTH) return false;
+    if (!/^\s*\d+[A-Za-z-]?\s+/.test(address)) return false;
+    const hasStateOrZip = /\b(?:CO|Colorado)\b/i.test(address) || /\b\d{5}(?:-\d{4})?\b/.test(address);
+    const hasStreetWord = /\b(?:st|street|ave|avenue|rd|road|dr|drive|blvd|boulevard|ln|lane|ct|court|cir|circle|trl|trail|way|pkwy|parkway|hwy|highway|pl|place|ter|terrace|loop)\b/i.test(address);
+    return hasStateOrZip && hasStreetWord;
+  }
+
+  function setStatus(state, message, statusState = 'waiting') {
+    state.status.textContent = message;
+    state.status.dataset.state = statusState;
+  }
+
+  function readCache() {
+    try {
+      const value = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      return value && typeof value === 'object' ? value : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeCache(address, result) {
+    try {
+      const cache = readCache();
+      cache[address.toLowerCase()] = result;
+      const keys = Object.keys(cache);
+      if (keys.length > 120) {
+        for (const key of keys.slice(0, keys.length - 100)) delete cache[key];
+      }
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Address lookup still works when local storage is unavailable.
+    }
+  }
+
+  function cachedResult(address) {
+    return readCache()[address.toLowerCase()] || null;
+  }
+
+  function censusGeocode(address, sequence, state) {
+    return new Promise((resolve, reject) => {
+      const callbackName = `__denver2027CensusGeocode_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const script = document.createElement('script');
+      let finished = false;
+      let timeout;
+
+      const cleanup = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeout);
+        script.remove();
+        try { delete window[callbackName]; } catch { window[callbackName] = undefined; }
+      };
+
+      timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error('The U.S. Census address service timed out.'));
+      }, REQUEST_TIMEOUT_MS);
+
+      window[callbackName] = payload => {
+        if (sequence !== state.lookupSequence) {
+          cleanup();
+          reject(new Error('The address changed before the lookup finished.'));
+          return;
+        }
+        const match = payload?.result?.addressMatches?.[0];
+        const coordinates = match?.coordinates;
+        cleanup();
+        if (!coordinates) {
+          reject(new Error('No Census address match was found.'));
+          return;
+        }
+        resolve({
+          lat: Number(coordinates.y),
+          lng: Number(coordinates.x),
+          matchedAddress: match.matchedAddress || address,
+          source: 'U.S. Census Geocoder'
+        });
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error('The U.S. Census address service could not be reached.'));
+      };
+
+      const url = new URL('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress');
+      url.searchParams.set('address', address);
+      url.searchParams.set('benchmark', 'Public_AR_Current');
+      url.searchParams.set('format', 'jsonp');
+      url.searchParams.set('callback', callbackName);
+      script.src = url.href;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function nominatimGeocode(address) {
+    const wait = Math.max(0, 1100 - (Date.now() - lastNominatimRequestAt));
+    if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+    lastNominatimRequestAt = Date.now();
+
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('countrycodes', 'us');
+    url.searchParams.set('addressdetails', '1');
+    url.searchParams.set('q', address);
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`OpenStreetMap address service returned ${response.status}.`);
+    const results = await response.json();
+    if (!results.length) throw new Error('No address match was found.');
+    return {
+      lat: Number(results[0].lat),
+      lng: Number(results[0].lon),
+      matchedAddress: results[0].display_name || address,
+      source: 'OpenStreetMap address search'
+    };
+  }
+
+  function updateVerifyLinks(state, result) {
+    const coordinate = `${Number(result.lat).toFixed(6)},${Number(result.lng).toFixed(6)}`;
+    const google = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(coordinate)}`;
+    const apple = `https://maps.apple.com/?ll=${encodeURIComponent(coordinate)}&q=${encodeURIComponent(result.matchedAddress || 'Meeting point')}`;
+    state.verifyLinks.innerHTML = `<a href="${google}" target="_blank" rel="noopener">Verify in Google Maps</a><a href="${apple}" target="_blank" rel="noopener">Verify in Apple Maps</a>`;
