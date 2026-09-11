@@ -1,0 +1,62 @@
+e()));
+}
+
+els.hotelSelect.addEventListener('change', () => selectHotel(els.hotelSelect.value, true, true));
+els.meetingSelect.addEventListener('change', () => selectMeeting(els.meetingSelect.value, true, true));
+els.originStationSelect.addEventListener('change', () => updatePlanner(false));
+els.destinationStationSelect.addEventListener('change', () => updatePlanner(false));
+els.firstMileMode.addEventListener('change', () => updatePlanner(false));
+els.lastMileMode.addEventListener('change', () => updatePlanner(false));
+els.closestStationsButton.addEventListener('click', () => useClosestStations(true));
+els.loadSavedButton.addEventListener('click', () => applySavedOrClosest(false));
+els.savePreferenceButton.addEventListener('click', savePreference);
+els.clearPreferenceButton.addEventListener('click', clearPreference);
+els.meetingSearch.addEventListener('input', renderMeetingList);
+els.distanceFilter.addEventListener('change', renderMeetingList);
+els.loginButton.addEventListener('click', openLogin);
+document.getElementById('cancelLogin').addEventListener('click', closeLogin);
+els.loginModal.addEventListener('click', event => { if (event.target === els.loginModal) closeLogin(); });
+els.loginForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await signInWithEmailAndPassword(auth, clean(els.loginEmail.value), els.loginPassword.value);
+    els.loginPassword.value = '';
+    closeLogin();
+    toast('Administrator signed in.');
+  } catch (error) { toast(friendlyError(error), true); }
+});
+document.getElementById('resetPassword').addEventListener('click', async () => {
+  try { await sendPasswordResetEmail(auth, clean(els.loginEmail.value) || ADMIN_EMAIL); toast('Password reset email sent.'); }
+  catch (error) { toast(friendlyError(error), true); }
+});
+els.signOutButton.addEventListener('click', async () => { await signOut(auth); toast('Signed out.'); });
+els.addLocationButton.addEventListener('click', openAddLocation);
+document.getElementById('cancelAddLocation').addEventListener('click', closeAddLocation);
+els.addLocationModal.addEventListener('click', event => { if (event.target === els.addLocationModal) closeAddLocation(); });
+document.getElementById('locateAddressButton').addEventListener('click', locateAddress);
+document.getElementById('useMapCenterButton').addEventListener('click', useMapCenter);
+els.addLocationForm.addEventListener('submit', saveMeetingPoint);
+
+populateHotelSelector();
+populateStationSelectors();
+renderStationGrid();
+rebuildMeetingPoints();
+initMap();
+syncMeetingMarkers();
+selectHotel(els.hotelSelect.value, false, false);
+selectMeeting(els.meetingSelect.value || meetingPoints[0]?.id, false, true);
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  await setPersistence(auth, browserLocalPersistence);
+  onAuthStateChanged(auth, user => { currentUser = user; updateAuthUi(); });
+  onSnapshot(collection(db, 'halls'), snapshot => {
+    publicHallData.clear();
+    snapshot.forEach(item => publicHallData.set(item.id, item.data()));
+    rebuildMeetingPoints();
+  }, error => toast('Saved meeting points and rail preferences could not be loaded: ' + friendlyError(error), true));
+} catch (error) {
+  toast('Firebase could not initialize: ' + friendlyError(error), true);
+}

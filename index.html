@@ -15,21 +15,22 @@ body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bot
 .shell{height:100%;display:grid;grid-template-rows:auto 1fr}
 .nav{min-height:56px;background:linear-gradient(135deg,#083a6b,#0b5b9f);color:#fff;display:flex;align-items:center;gap:12px;padding:8px 12px;box-shadow:0 2px 10px #0003;z-index:5}
 .brand{min-width:0;flex:1}.brand strong{display:block;font-size:16px;line-height:1.15}.brand span{display:block;font-size:11px;opacity:.88;margin-top:2px}
-.actions{display:flex;align-items:center;gap:8px;overflow-x:auto}.btn{min-height:38px;border-radius:10px;padding:8px 12px;text-decoration:none;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}.btn.light{background:#ffffff18;color:#fff;border:1px solid #ffffff55}.btn.team{background:#e8f4ff;color:var(--navy);border:1px solid #c0dbef}.btn.assignments{background:#eef8e9;color:#285d1b;border:1px solid #b9d8aa}.btn.activity{background:#e7f7f5;color:#075b68;border:1px solid #9fd3d4}.btn.route{background:#fff1df;color:#75410c;border:1px solid #f0c58f}.btn.primary{background:#fff;color:var(--navy);border:1px solid #fff}
+.actions{display:flex;align-items:center;gap:8px;overflow-x:auto}.btn{min-height:38px;border-radius:10px;padding:8px 12px;text-decoration:none;font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}.btn.light{background:#ffffff18;color:#fff;border:1px solid #ffffff55}.btn.team{background:#e8f4ff;color:var(--navy);border:1px solid #c0dbef}.btn.assignments{background:#eef8e9;color:#285d1b;border:1px solid #b9d8aa}.btn.rail{background:#e7f7ef;color:#095e43;border:1px solid #9fd2bb}.btn.activity{background:#e7f7f5;color:#075b68;border:1px solid #9fd3d4}.btn.route{background:#fff1df;color:#75410c;border:1px solid #f0c58g}.btn.primary{background:#fff;color:var(--navy);border:1px solid #fff}
 .frame-wrap{min-height:0;position:relative}.frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
 @media(max-width:850px){.nav{min-height:54px;padding:7px 8px;gap:7px}.brand strong{font-size:13px}.brand span{display:none}.actions{gap:5px}.btn{font-size:10px;padding:8px 8px}.btn.light{display:none}}
-@media(max-width:620px){.brand strong{font-size:12px}.btn{font-size:9px;padding:7px 7px}.btn.team,.btn.assignments,.btn.activity{max-width:98px;white-space:normal;text-align:center;line-height:1.05}}
+@media(max-width:700px){.brand strong{font-size:12px}.btn{font-size:9px;padding:7px 7px}.btn.team,.btn.assignments,.btn.rail,.btn.activity{max-width:98px;white-space:normal;text-align:center;line-height:1.05}}
 </style>
-<script type="module" src="assets/branding.js?v=congregation-assignments-20260910-1"></script>
+<script type="module" src="assets/branding.js?v=south-dtc-rail-20260910-1"></script>
 </head>
 <body>
 <div class="shell">
 <header class="nav">
-<div class="brand"><strong>2027 Colorado Convention Planning Map</strong><span>Congregations, meeting-point assignments, international delegate hotels, RTD rail, bus access, field-service routes, and delegate activity scheduling</span></div>
+<div class="brand"><strong>2027 Colorado Convention Planning Map</strong><span>Congregations, meeting-point assignments, DTC rail connections, international delegate hotels, bus access, field-service routes, and delegate activity scheduling</span></div>
 <nav class="actions" aria-label="Planning map navigation">
 <a class="btn light" href="map-fullscreen.html" target="_blank" rel="noopener">Open Map Full Screen</a>
 <a class="btn team" href="team/">Team Assignment Maps</a>
 <a class="btn assignments" href="assignments/">Congregation Assignments</a>
+<a class="btn rail" href="south-dtc-rail/">South DTC Rail</a>
 <a class="btn activity" href="activities/">Delegate Activities</a>
 <a class="btn route" href="routes/">Field-Service Route Planner</a>
 <a class="btn primary" href="bus-access/">Bus Access Review Map →</a>

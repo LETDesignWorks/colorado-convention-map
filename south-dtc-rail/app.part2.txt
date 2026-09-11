@@ -1,0 +1,131 @@
+ the administrator sign-in and published Firestore rules.';
+  if (code.includes('network-request-failed') || code.includes('unavailable')) return 'The network or Firebase service is temporarily unavailable.';
+  if (code.includes('unauthorized-domain')) return 'Add letdesignworks.github.io under Firebase Authentication authorized domains.';
+  return error?.message?.replace(/^Firebase:\s*/, '') || 'Unknown error';
+}
+function slug(value) {
+  return clean(value).toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'item';
+}
+function markerLabel(location) { return clean(location.markerLabel || location.number || 'M'); }
+function pointQuery(point) {
+  if (Number.isFinite(Number(point.lat)) && Number.isFinite(Number(point.lng))) return `${Number(point.lat).toFixed(6)},${Number(point.lng).toFixed(6)}`;
+  return clean(point.address || point.name);
+}
+function haversineMiles(a, b) {
+  const toRad = d => d * Math.PI / 180;
+  const lat1 = toRad(Number(a.lat)), lat2 = toRad(Number(b.lat));
+  const dLat = lat2 - lat1, dLng = toRad(Number(b.lng) - Number(a.lng));
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 3958.7613 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+function formatMiles(value) {
+  if (!Number.isFinite(value)) return '—';
+  if (value < 0.1) return '<0.1 mi';
+  return `${value.toFixed(value < 10 ? 1 : 0)} mi`;
+}
+function distanceClass(miles) {
+  if (miles <= 1) return 'walk';
+  if (miles <= 3) return 'shuttle';
+  return 'remote';
+}
+function distanceLabel(miles) {
+  if (miles <= 1) return 'Walk candidate';
+  if (miles <= 3) return 'Short shuttle likely';
+  return 'Vehicle connection needed';
+}
+function googleDirections(origin, destination, mode = 'walking') {
+  const url = new URL('https://www.google.com/maps/dir/');
+  url.searchParams.set('api', '1');
+  url.searchParams.set('origin', pointQuery(origin));
+  url.searchParams.set('destination', pointQuery(destination));
+  url.searchParams.set('travelmode', mode);
+  return url.href;
+}
+function appleDirections(origin, destination, mode = 'walking') {
+  const url = new URL('https://maps.apple.com/');
+  url.searchParams.set('saddr', pointQuery(origin));
+  url.searchParams.set('daddr', pointQuery(destination));
+  url.searchParams.set('dirflg', mode === 'transit' ? 'r' : mode === 'driving' ? 'd' : 'w');
+  return url.href;
+}
+function googleSearch(point) {
+  const url = new URL('https://www.google.com/maps/search/');
+  url.searchParams.set('api', '1');
+  url.searchParams.set('query', pointQuery(point));
+  return url.href;
+}
+function appleSearch(point) {
+  const url = new URL('https://maps.apple.com/');
+  url.searchParams.set('q', clean(point.name || point.address));
+  url.searchParams.set('ll', `${point.lat},${point.lng}`);
+  return url.href;
+}
+
+function getDtcHotels() {
+  return DTC_HOTEL_IDS.map(id => HOTELS.find(h => h.id === id)).filter(Boolean);
+}
+function normalizeMeetingPoint(id, data) {
+  const lat = Number(data.lat), lng = Number(data.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || data.customLocation !== true) return null;
+  const congregations = Array.isArray(data.congregations) ? data.congregations.map(clean).filter(Boolean) : parseLines(data.congregations || '');
+  return {
+    id: String(id), markerLabel: clean(data.markerLabel || data.number || 'M'),
+    number: clean(data.markerLabel || data.number || 'M'), name: clean(data.name || 'Added meeting point'),
+    address: clean(data.address || ''), lat, lng, congregations,
+    locationType: data.locationType === 'kingdom-hall' ? 'kingdom-hall' : 'meeting-area',
+    planningArea: data.planningArea || 'other', customLocation: true
+  };
+}
+function isSouthCustom(location) {
+  if (location.planningArea === 'south-dtc-45') return true;
+  return location.lat <= DTC[0] + SOUTH_LAT_TOLERANCE && haversineMiles({ lat: DTC[0], lng: DTC[1] }, location) <= SOUTH_RADIUS_MILES;
+}
+function rebuildMeetingPoints() {
+  const base = HALLS.filter(h => SOUTH_BASE_IDS.has(String(h.id))).map(h => ({
+    ...h, id: String(h.id), markerLabel: String(h.number), locationType: 'kingdom-hall', customLocation: false
+  }));
+  const custom = [];
+  railPreferences.clear();
+  for (const [id, data] of publicHallData.entries()) {
+    if (data.recordType === 'south-dtc-rail-connection') {
+      railPreferences.set(`${data.hotelId}|${data.meetingPointId}`, { id, ...data });
+      continue;
+    }
+    const location = normalizeMeetingPoint(id, data);
+    if (location && isSouthCustom(location)) custom.push(location);
+  }
+  custom.sort((a, b) => markerLabel(a).localeCompare(markerLabel(b), undefined, { numeric: true }));
+  meetingPoints = [...base, ...custom];
+  populateMeetingSelector();
+  syncMeetingMarkers();
+  renderMeetingList();
+  if (!selectedMeeting || !meetingPoints.some(x => x.id === selectedMeeting.id)) {
+    selectMeeting(meetingPoints[0]?.id, false, true);
+  } else {
+    selectedMeeting = meetingPoints.find(x => x.id === selectedMeeting.id) || null;
+    updatePlanner(true);
+  }
+  if (pendingLocationId && meetingPoints.some(x => x.id === pendingLocationId)) {
+    const id = pendingLocationId;
+    pendingLocationId = null;
+    selectMeeting(id, true, true);
+  }
+}
+
+function buildSouthBoundary() {
+  const south = DTC_BOUNDARY.filter(([lat]) => lat <= DTC[0] + 0.002);
+  if (!south.length) return [[DTC[0], DTC[1]], ...DTC_BOUNDARY];
+  return [[DTC[0], south[0][1]], ...south, [DTC[0], south[south.length - 1][1]]];
+}
+function hotelIcon(hotel) {
+  return L.divIcon({ className: '', html: `<div class="hotel-pin">${escapeHtml(hotel.id)}</div>`, iconSize: [40, 40], iconAnchor: [20, 20] });
+}
+function meetingIcon(location, selected = false) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="meeting-pin${location.customLocation ? ' manual' : ''}${selected ? ' selected' : ''}">${escapeHtml(markerLabel(location))}</div>`,
+    iconSize: [38, 38], iconAnchor: [19, 19]
+  });
+}
+function stationIcon(station) {
+  const origin = els.o

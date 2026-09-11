@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#083f73"/>
+  <title>South DTC Rail & Meeting-Point Planner | Denver 2027</title>
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <link rel="preconnect" href="https://tile.openstreetmap.org"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="../assets/branding.js?v=south-dtc-rail-20260910-1"></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>South DTC Rail &amp; Meeting-Point Planner</h1>
+        <p>DTC-area hotels, the approximate 45-minute southern planning area, meeting points, and nearby RTD rail connections.</p>
+      </div>
+      <nav class="navlinks" aria-label="Planning website navigation">
+        <a class="btn ghost" href="../">Full Planning Map</a>
+        <a class="btn ghost" href="../assignments/">Congregation Assignments</a>
+        <a class="btn ghost" href="../routes/">Field-Service Routes</a>
+        <a class="btn white" href="../bus-access/">Bus Access Review</a>
+        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn ghost" id="addLocationButton" type="button" hidden>＋ Add Meeting Point</button>
+        <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="map-column">
+      <div class="map-card">
+        <div id="map" role="application" aria-label="DTC hotels, southern meeting points and RTD rail stations map"></div>
+        <div class="map-legend">
+          <div><span class="legend-symbol hotel-symbol">H</span>DTC / RidgeGate hotel</div>
+          <div><span class="legend-symbol meeting-symbol">M</span>Kingdom Hall or meeting point</div>
+          <div><span class="legend-symbol rail-symbol">R</span>RTD rail station</div>
+          <div><span class="legend-line rail-line"></span>Southeast rail corridor</div>
+          <div><span class="legend-line boundary-line"></span>Approx. 45-minute south area</div>
+        </div>
+        <div class="map-note">Planning map only. The blue dashed area is an approximate south-facing 45-minute zone from DTC, not a live-traffic isochrone. Rail service, walking routes, and accessibility must be rechecked for 2027.</div>
+      </div>
+
+      <section class="card station-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">RTD REFERENCE</span><h2>Rail stations shown on this map</h2></div>
+          <a class="btn outline small-button" href="https://www.rtd-denver.com/system-map" target="_blank" rel="noopener">Open RTD System Map</a>
+        </div>
+        <div class="station-grid" id="stationGrid"></div>
+        <p class="source-note">Station and line labels are a current planning reference. Confirm the applicable 2027 schedule and service alerts before giving final delegate instructions.</p>
+      </section>
+    </section>
+
+    <aside class="side-panel">
+      <section class="card intro-card">
+        <span class="eyebrow">HOW TO USE THIS PAGE</span>
+        <h2>Choose a hotel and meeting point</h2>
+        <p>The planner suggests the closest mapped rail station to each location. You may choose different stations, select walking or vehicle/shuttle access for the first and last mile, and open each leg—or the complete trip—in Google Maps or Apple Maps.</p>
+      </section>
+
+      <section class="card planner-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">RAIL CONNECTION</span><h2>Plan a delegate trip</h2></div>
+          <span class="public-chip">Public planner</span>
+        </div>
+
+        <div class="field">
+          <label for="hotelSelect">1. DTC-area hotel</label>
+          <select id="hotelSelect"></select>
+          <small id="hotelDetail"></small>
+        </div>
+
+        <div class="field">
+          <label for="meetingSelect">2. Kingdom Hall or meeting point</label>
+          <select id="meetingSelect"></select>
+          <small id="meetingDetail"></small>
+        </div>
+
+        <div class="recommendation-row">
+          <button class="btn primary" id="closestStationsButton" type="button">Use Closest Stations</button>
+          <span id="savedPreferenceChip" class="saved-chip" hidden>Saved preferred connection</span>
+        </div>
+
+        <div class="station-pair">
+          <div class="field">
+            <label for="originStationSelect">3. Boarding station</label>
+            <select id="originStationSelect"></select>
+            <small id="originDistance"></small>
+          </div>
+          <div class="field">
+            <label for="destinationStationSelect">4. Arrival station</label>
+            <select id="destinationStationSelect"></select>
+            <small id="destinationDistance"></small>
+          </div>
+        </div>
+
+        <div class="mode-pair">
+          <div class="field">
+            <label for="firstMileMode">Hotel to boarding station</label>
+            <select id="firstMileMode">
+              <option value="walking">Walk</option>
+              <option value="driving">Vehicle / shuttle</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="lastMileMode">Arrival station to meeting point</label>
+            <select id="lastMileMode">
+              <option value="walking">Walk</option>
+              <option value="driving">Vehicle / shuttle</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field admin-note-field" id="railNoteWrap" hidden>
+          <label for="railNote">Public rail-connection note</label>
+          <textarea id="railNote" maxlength="1000" placeholder="Example: Meet at the hotel lobby 20 minutes before departure; shuttle from RidgeGate Parkway Station to the meeting point."></textarea>
+        </div>
+
+        <div class="planner-actions">
+          <button class="btn outline" id="loadSavedButton" type="button" hidden>Load Saved Preference</button>
+          <button class="btn save" id="savePreferenceButton" type="button" hidden>Save Preferred Connection</button>
+          <button class="btn danger" id="clearPreferenceButton" type="button" hidden>Clear Saved Preference</button>
+        </div>
+      </section>
+
+      <section class="card result-card" id="resultCard">
+        <div class="card-heading">
+          <div><span class="eyebrow">TRIP GUIDANCE</span><h2 id="resultTitle">Select a hotel and meeting point</h2></div>
+          <span id="connectionQuality" class="quality-chip neutral">Planning</span>
+        </div>
+        <div id="savedPublicNote" class="saved-public-note" hidden></div>
+        <div class="trip-summary" id="tripSummary"></div>
+        <div class="route-guidance" id="routeGuidance"></div>
+
+        <div class="link-sections" id="linkSections" hidden>
+          <div class="link-section full-trip">
+            <h3>Complete delegate trip</h3>
+            <p>These links ask the map app to build a public-transit trip from the hotel to the meeting point.</p>
+            <div class="link-grid two">
+              <a id="googleFullTrip" class="btn google" target="_blank" rel="noopener">Google Maps Transit</a>
+              <a id="appleFullTrip" class="btn apple" target="_blank" rel="noopener">Apple Maps Transit</a>
+            </div>
+          </div>
+          <div class="link-section">
+            <h3>Leg 1 — Hotel to boarding station</h3>
+            <div class="link-grid two"><a id="googleFirstLeg" class="btn outline" target="_blank" rel="noopener">Google Maps</a><a id="appleFirstLeg" class="btn outline" target="_blank" rel="noopener">Apple Maps</a></div>
+          </div>
+          <div class="link-section">
+            <h3>Leg 2 — Rail station to rail station</h3>
+            <div class="link-grid two"><a id="googleRailLeg" class="btn outline" target="_blank" rel="noopener">Google Maps Transit</a><a id="appleRailLeg" class="btn outline" target="_blank" rel="noopener">Apple Maps Transit</a></div>
+          </div>
+          <div class="link-section">
+            <h3>Leg 3 — Arrival station to meeting point</h3>
+            <div class="link-grid two"><a id="googleLastLeg" class="btn outline" target="_blank" rel="noopener">Google Maps</a><a id="appleLastLeg" class="btn outline" target="_blank" rel="noopener">Apple Maps</a></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card meeting-directory-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">SOUTHERN MEETING POINTS</span><h2>Kingdom Halls &amp; added areas</h2></div>
+          <span id="meetingCount" class="count-chip"></span>
+        </div>
+        <div class="directory-tools">
+          <input id="meetingSearch" type="search" placeholder="Search meeting points" aria-label="Search meeting points"/>
+          <select id="distanceFilter" aria-label="Filter by closest rail distance">
+            <option value="all">All rail distances</option>
+            <option value="walk">Within 1 mile</option>
+            <option value="shuttle">1–3 miles</option>
+            <option value="remote">Over 3 miles</option>
+          </select>
+        </div>
+        <div id="meetingList" class="meeting-list"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>The map and route links are public. Sign-in is required to add meeting points or save a preferred rail connection.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required value="michaeltarin@hotmail.com"/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" type="password" autocomplete="current-password" required/></div>
+      <div class="modal-actions"><button class="btn outline" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="text-button" id="resetPassword" type="button">Send password reset email</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="addLocationModal" role="dialog" aria-modal="true" aria-labelledby="addLocationTitle">
+  <div class="modal-card wide">
+    <h2 id="addLocationTitle">Add a Southern Meeting Point</h2>
+    <p>This location will be added to the same public meeting-point database used by the Bus Access Review and Congregation Assignment pages.</p>
+    <form id="addLocationForm">
+      <div class="form-grid">
+        <div class="field">
+          <label for="locationType">Location type</label>
+          <select id="locationType"><option value="meeting-area">Other meeting area</option><option value="kingdom-hall">Kingdom Hall</option></select>
+        </div>
+        <div class="field">
+          <label for="markerLabel">Map marker</label>
+          <input id="markerLabel" maxlength="5" placeholder="S1" required/>
+        </div>
+        <div class="field full">
+          <label for="locationName">Location name</label>
+          <input id="locationName" maxlength="140" placeholder="Example: South Metro Field Service Meeting Point" required/>
+        </div>
+        <div class="field full">
+          <label for="locationAddress">Full address</label>
+          <input id="locationAddress" maxlength="220" placeholder="Street, city, state and ZIP" required/>
+        </div>
+        <div class="field">
+          <label for="locationLat">Latitude</label>
+          <input id="locationLat" type="number" step="any" min="-90" max="90" required/>
+        </div>
+        <div class="field">
+          <label for="locationLng">Longitude</label>
+          <input id="locationLng" type="number" step="any" min="-180" max="180" required/>
+        </div>
+        <div class="field full coordinate-actions">
+          <button class="btn outline" id="locateAddressButton" type="button">Locate Address</button>
+          <button class="btn outline" id="useMapCenterButton" type="button">Use Current Map Center</button>
+          <small id="coordinateMessage">Enter an address and select Locate Address, or position the map over the site and use the current map center.</small>
+        </div>
+        <div class="field full">
+          <label for="locationCongregations">Congregations or groups using this point</label>
+          <textarea id="locationCongregations" maxlength="1600" placeholder="Optional — one congregation or group per line"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions"><button class="btn outline" id="cancelAddLocation" type="button">Cancel</button><button class="btn save" type="submit">Save Meeting Point</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

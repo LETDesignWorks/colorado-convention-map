@@ -110,35 +110,56 @@ function addMapLogo() {
   mapHost.appendChild(badge);
 }
 
-function addDelegateActivitiesLink() {
-  if (location.pathname.includes('/activities/')) return;
-  if (document.querySelector('a[href*="activities/"]')) return;
+function navHost() {
+  return document.querySelector('.header-actions, .top-actions, .navlinks, .actions') || document.querySelector('header.nav');
+}
 
-  const nav = document.querySelector('.header-actions, .top-actions, .navlinks, .actions') || document.querySelector('header.nav');
-  if (!nav) return;
-
-  const link = document.createElement('a');
-  const path = location.pathname;
-  if (path.includes('/bus-access/')) {
-    link.className = 'btn primary delegate-activities-link';
-  } else if (path.includes('/routes/') || path.includes('/route-planner/')) {
-    link.className = 'btn ghost delegate-activities-link';
-  } else {
-    link.className = 'btn light delegate-activities-link';
-  }
-  link.href = new URL('activities/', siteHomeUrl).href;
-  link.textContent = 'Delegate Activities';
-  link.setAttribute('aria-label', 'Open the delegate activity and bus availability planner');
-
+function insertBeforeRouteOrBus(nav, link) {
   const links = Array.from(nav.querySelectorAll('a'));
   const routeLink = links.find(item => /\/(?:routes|route-planner)\/?$/.test(new URL(item.href, location.href).pathname));
   const busAccessLink = links.find(item => /\/bus-access\/?$/.test(new URL(item.href, location.href).pathname));
   nav.insertBefore(link, routeLink || busAccessLink || null);
 }
 
+function linkClassForCurrentPage(extraClass) {
+  const path = location.pathname;
+  if (path.includes('/bus-access/')) return `btn primary ${extraClass}`;
+  if (path.includes('/routes/') || path.includes('/route-planner/') || path.includes('/activities/')) return `btn ghost ${extraClass}`;
+  return `btn light ${extraClass}`;
+}
+
+function addDelegateActivitiesLink() {
+  if (location.pathname.includes('/activities/')) return;
+  if (document.querySelector('a[href*="activities/"]')) return;
+  const nav = navHost();
+  if (!nav) return;
+
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('delegate-activities-link');
+  link.href = new URL('activities/', siteHomeUrl).href;
+  link.textContent = 'Delegate Activities';
+  link.setAttribute('aria-label', 'Open the delegate activity and bus availability planner');
+  insertBeforeRouteOrBus(nav, link);
+}
+
+function addSouthDtcRailLink() {
+  if (location.pathname.includes('/south-dtc-rail/')) return;
+  if (document.querySelector('a[href*="south-dtc-rail/"]')) return;
+  const nav = navHost();
+  if (!nav) return;
+
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('south-dtc-rail-link');
+  link.href = new URL('south-dtc-rail/', siteHomeUrl).href;
+  link.textContent = 'South DTC Rail';
+  link.setAttribute('aria-label', 'Open the South DTC rail and meeting-point planner');
+  insertBeforeRouteOrBus(nav, link);
+}
+
 function applyDenver2027Branding() {
   addBrandingStyles();
   addHeaderLogo();
+  addSouthDtcRailLink();
   addDelegateActivitiesLink();
   addMapLogo();
 }

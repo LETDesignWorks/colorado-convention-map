@@ -1,0 +1,87 @@
+riginStationSelect.value === station.id;
+  const destination = els.destinationStationSelect.value === station.id;
+  const state = origin && destination ? ' selected-both' : origin ? ' selected-origin' : destination ? ' selected-destination' : '';
+  return L.divIcon({ className: '', html: `<div class="rail-pin${state}">${escapeHtml(station.marker)}</div>`, iconSize: [36, 36], iconAnchor: [18, 18] });
+}
+function initMap() {
+  if (!window.L) {
+    document.getElementById('map').innerHTML = '<div style="padding:24px">The map library could not load. The hotel, meeting-point, and station lists remain available.</div>';
+    return;
+  }
+  map = L.map('map', { zoomControl: true, attributionControl: true }).setView([39.52, -104.91], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  southBoundaryLayer = L.polygon(buildSouthBoundary(), {
+    color: '#0b5b9f', weight: 3, dashArray: '10 8', fillColor: '#4d9cdb', fillOpacity: 0.055, interactive: false
+  }).addTo(map);
+  L.marker(DTC, { icon: L.divIcon({ className: '', html: '<div class="dtc-star">★</div>', iconSize: [38, 38], iconAnchor: [19, 19] }) })
+    .addTo(map).bindPopup('<div class="popup-title">DTC Center Point</div><div class="popup-sub">I-25 &amp; E. Belleview Avenue</div>');
+
+  const southeast = RAIL_STATIONS.filter(s => s.corridor === 'southeast').sort((a, b) => a.order - b.order);
+  L.polyline(southeast.map(s => [s.lat, s.lng]), { color: '#087b63', weight: 5, opacity: 0.72, interactive: false }).addTo(map);
+
+  for (const hotel of getDtcHotels()) {
+    const marker = L.marker([hotel.lat, hotel.lng], { icon: hotelIcon(hotel) }).addTo(map);
+    marker.bindPopup(`<div class="popup-title">${escapeHtml(hotel.id)} — ${escapeHtml(hotel.name)}</div><div class="popup-sub">${escapeHtml(hotel.address)}</div><div class="popup-actions"><a href="${googleSearch(hotel)}" target="_blank" rel="noopener">Google Maps</a><a href="${appleSearch(hotel)}" target="_blank" rel="noopener">Apple Maps</a></div>`);
+    marker.on('click', () => selectHotel(hotel.id, false, true));
+    hotelMarkers.set(hotel.id, marker);
+  }
+  for (const station of RAIL_STATIONS) {
+    const marker = L.marker([station.lat, station.lng], { icon: stationIcon(station) }).addTo(map);
+    marker.bindPopup(`<div class="popup-title">${escapeHtml(station.marker)} — ${escapeHtml(station.name)}</div><div class="popup-sub">${escapeHtml(station.address)}<br>Lines: ${escapeHtml(station.lines.join(', '))}</div><div class="popup-actions"><a href="${station.rtdUrl}" target="_blank" rel="noopener">RTD Station</a><a href="${googleSearch(station)}" target="_blank" rel="noopener">Google Maps</a></div>`);
+    stationMarkers.set(station.id, marker);
+  }
+  fitSouthMap();
+}
+function fitSouthMap() {
+  if (!map) return;
+  const points = [
+    ...getDtcHotels().map(h => [h.lat, h.lng]),
+    ...RAIL_STATIONS.map(s => [s.lat, s.lng]),
+    ...meetingPoints.map(m => [m.lat, m.lng])
+  ];
+  if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [34, 34], maxZoom: 10 });
+}
+function syncMeetingMarkers() {
+  if (!map) return;
+  const active = new Set(meetingPoints.map(x => x.id));
+  for (const [id, marker] of meetingMarkers.entries()) {
+    if (!active.has(id)) { map.removeLayer(marker); meetingMarkers.delete(id); }
+  }
+  for (const location of meetingPoints) {
+    let marker = meetingMarkers.get(location.id);
+    const closest = nearestStation(location);
+    const popup = `<div class="popup-title">${escapeHtml(markerLabel(location))} — ${escapeHtml(location.name)}</div><div class="popup-sub">${escapeHtml(location.address || 'Saved map point')}<br>Closest mapped rail: ${escapeHtml(closest.station.name)} (${escapeHtml(formatMiles(closest.miles))})</div><div class="popup-actions"><a href="${googleSearch(location)}" target="_blank" rel="noopener">Google Maps</a><a href="${appleSearch(location)}" target="_blank" rel="noopener">Apple Maps</a></div>`;
+    if (!marker) {
+      marker = L.marker([location.lat, location.lng], { icon: meetingIcon(location, location.id === selectedMeeting?.id) }).addTo(map);
+      marker.on('click', () => selectMeeting(location.id, true, true));
+      meetingMarkers.set(location.id, marker);
+    } else {
+      marker.setLatLng([location.lat, location.lng]);
+      marker.setIcon(meetingIcon(location, location.id === selectedMeeting?.id));
+    }
+    marker.bindPopup(popup);
+    marker.bindTooltip(`${markerLabel(location)} — ${location.name}`, { direction: 'top', offset: [0, -15] });
+  }
+}
+function refreshStationIcons() {
+  for (const station of RAIL_STATIONS) stationMarkers.get(station.id)?.setIcon(stationIcon(station));
+}
+
+function populateHotelSelector() {
+  const hotels = getDtcHotels();
+  els.hotelSelect.innerHTML = hotels.map(h => `<option value="${escapeHtml(h.id)}">${escapeHtml(h.id)} — ${escapeHtml(h.name)}</option>`).join('');
+  selectHotel(hotels[0]?.id, false, false);
+}
+function populateMeetingSelector() {
+  const previous = selectedMeeting?.id || els.meetingSelect.value;
+  const base = meetingPoints.filter(x => !x.customLocation);
+  const custom = meetingPoints.filter(x => x.customLocation);
+  els.meetingSelect.innerHTML = '<option value="">Choose a meeting point…</option>' +
+    (base.length ? `<optgroup label="Kingdom Halls from the planning list">${base.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(markerLabel(m))} — ${escapeHtml(m.name)}</option>`).join('')}</optgroup>` : '') +
+    (custom.length ? `<optgroup label="Manually added meeting points">${custom.map(m => `<option value="${escapeHtml(m.id)}">${escapeHtml(markerLabel(m))} — ${escapeHtml(m.name)}</option>`).join('')}</optgroup>` : '');
+  if (previous && meetingPoints.some(x => x.id === previous)) els.meetingSelect.value = previous;
+}
+function populateStationSelectors() {
+  const groups = [
+    ['Southeast I-25 rail corridor', RAIL_STATIONS.filter(s => s.corridor === 'southeast')],
+    ['Southwest conne

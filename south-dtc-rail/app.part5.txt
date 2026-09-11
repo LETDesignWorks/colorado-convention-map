@@ -1,0 +1,84 @@
+   els.tripSummary.innerHTML = '';
+    els.routeGuidance.textContent = 'Choose both locations to create a rail connection.';
+    els.linkSections.hidden = true;
+    return;
+  }
+  const origin = stationById(els.originStationSelect.value) || nearestStation(selectedHotel).station;
+  const destination = stationById(els.destinationStationSelect.value) || nearestStation(selectedMeeting).station;
+  if (!origin || !destination) return;
+  els.originStationSelect.value = origin.id;
+  els.destinationStationSelect.value = destination.id;
+  const firstMiles = haversineMiles(selectedHotel, origin);
+  const lastMiles = haversineMiles(destination, selectedMeeting);
+  els.originDistance.textContent = `${formatMiles(firstMiles)} straight-line from hotel • ${distanceLabel(firstMiles)}`;
+  els.destinationDistance.textContent = `${formatMiles(lastMiles)} straight-line to meeting point • ${distanceLabel(lastMiles)}`;
+
+  const pref = currentPreference();
+  els.savedPreferenceChip.hidden = !pref;
+  els.loadSavedButton.hidden = !pref;
+  els.clearPreferenceButton.hidden = !(pref && isAdmin());
+  els.savePreferenceButton.hidden = !isAdmin();
+  els.railNoteWrap.hidden = !isAdmin();
+  els.savedPublicNote.hidden = !pref?.publicNote;
+  els.savedPublicNote.textContent = pref?.publicNote ? `Saved public note: ${pref.publicNote}` : '';
+
+  els.resultTitle.textContent = `${selectedHotel.id} to ${markerLabel(selectedMeeting)} ${selectedMeeting.name}`;
+  els.tripSummary.innerHTML = `
+    <article class="summary-tile"><span>Hotel</span><strong>${escapeHtml(selectedHotel.name)}</strong><small>${escapeHtml(selectedHotel.address)}</small></article>
+    <article class="summary-tile"><span>Meeting point</span><strong>${escapeHtml(markerLabel(selectedMeeting))} — ${escapeHtml(selectedMeeting.name)}</strong><small>${escapeHtml(selectedMeeting.address || 'Saved map point')}</small></article>
+    <article class="summary-tile"><span>Boarding station</span><strong>${escapeHtml(origin.name)}</strong><small>${escapeHtml(formatMiles(firstMiles))} from hotel • Lines ${escapeHtml(origin.lines.join('/'))}</small></article>
+    <article class="summary-tile"><span>Arrival station</span><strong>${escapeHtml(destination.name)}</strong><small>${escapeHtml(formatMiles(lastMiles))} to meeting point • Lines ${escapeHtml(destination.lines.join('/'))}</small></article>`;
+
+  const guidance = routeInstruction(origin, destination, firstMiles, lastMiles);
+  els.routeGuidance.className = 'route-guidance' + (guidance.level === 'warn' ? ' warn' : guidance.level === 'bad' ? ' bad' : '');
+  els.routeGuidance.textContent = guidance.text;
+  els.connectionQuality.className = `quality-chip ${guidance.level === 'good' ? 'good' : guidance.level === 'warn' ? 'caution' : 'poor'}`;
+  els.connectionQuality.textContent = guidance.level === 'good' ? 'Strong rail candidate' : guidance.level === 'warn' ? 'Shuttle / transfer review' : 'Rail may not be practical';
+
+  const firstMode = els.firstMileMode.value;
+  const lastMode = els.lastMileMode.value;
+  els.googleFullTrip.href = googleDirections(selectedHotel, selectedMeeting, 'transit');
+  els.appleFullTrip.href = appleDirections(selectedHotel, selectedMeeting, 'transit');
+  els.googleFirstLeg.href = googleDirections(selectedHotel, origin, firstMode);
+  els.appleFirstLeg.href = appleDirections(selectedHotel, origin, firstMode);
+  els.googleRailLeg.href = googleDirections(origin, destination, 'transit');
+  els.appleRailLeg.href = appleDirections(origin, destination, 'transit');
+  els.googleLastLeg.href = googleDirections(destination, selectedMeeting, lastMode);
+  els.appleLastLeg.href = appleDirections(destination, selectedMeeting, lastMode);
+  els.linkSections.hidden = false;
+  refreshStationIcons();
+  if (usingSaved && pref) els.savedPreferenceChip.textContent = 'Saved preferred connection';
+}
+
+function filteredMeetingPoints() {
+  const q = els.meetingSearch.value.trim().toLowerCase();
+  const filter = els.distanceFilter.value;
+  return meetingPoints.filter(meeting => {
+    const nearest = nearestStation( meeting);
+    if (filter !== 'all' && distanceClass(nearest.miles) !== filter) return false;
+    if (!q) return true;
+    return [markerLabel(meeting), meeting.name, meeting.address, ...(meeting.congregations || [])].join(' ').toLowerCase().includes(q);
+  });
+}
+function renderMeetingList() {
+  const items = filteredMeetingPoints();
+  els.meetingCount.textContent = `${items.length} shown`;
+  els.meetingList.innerHTML = items.map(meeting => {
+    const nearest = nearestStation(meeting);
+    const cls = distanceClass(nearest.miles);
+    return `<button type="button" class="meeting-row${meeting.id === selectedMeeting?.id ? ' active' : ''}" data-meeting-id="${escapeHtml(meeting.id)}"><span class="meeting-marker-small${meeting.customLocation ? ' manual' : ''}">${escapeHtml(markerLabel(meeting))}</span><span><strong>${escapeHtml(meeting.name)}</strong><small>${escapeHtml(meeting.address || 'Saved map point')}<br>Closest mapped rail: ${escapeHtml(nearest.station.name)}</small></span><span class="distance-pill ${cls}">${escapeHtml(formatMiles(nearest.miles))}</span></button>`;
+  }).join('') || '<div class="empty-list">No meeting points match this search or rail-distance filter.</div>';
+  els.meetingList.querySelectorAll('[data-meeting-id]').forEach(button => button.addEventListener('click', () => selectMeeting(button.dataset.meetingId, true, true)));
+}
+
+async function savePreference() {
+  if (!isAdmin()) { openLogin(); return; }
+  if (!selectedHotel || !selectedMeeting) { toast('Choose a hotel and meeting point first.', true); return; }
+  const origin = stationById(els.originStationSelect.value);
+  const destination = stationById(els.destinationStationSelect.value);
+  if (!origin || !destination) { toast('Choose both rail stations.', true); return; }
+  const id = `rail-${slug(selectedHotel.id)}-${slug(selectedMeeting.id)}`;
+  const button = els.savePreferenceButton;
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  try {

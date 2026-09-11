@@ -1,0 +1,136 @@
+    await setDoc(doc(db, 'halls', id), {
+      recordType: 'south-dtc-rail-connection',
+      hotelId: selectedHotel.id,
+      hotelName: selectedHotel.name,
+      meetingPointId: selectedMeeting.id,
+      meetingPointLabel: markerLabel(selectedMeeting),
+      meetingPointName: selectedMeeting.name,
+      originStationId: origin.id,
+      originStationName: origin.name,
+      destinationStationId: destination.id,
+      destinationStationName: destination.name,
+      firstMileMode: els.firstMileMode.value,
+      lastMileMode: els.lastMileMode.value,
+      publicNote: clean(els.railNote.value),
+      updatedByEmail: currentUser.email,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    toast('Preferred rail connection saved for public viewing.');
+  } catch (error) {
+    toast('Could not save the rail connection: ' + friendlyError(error), true);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Save Preferred Connection';
+  }
+}
+async function clearPreference() {
+  const pref = currentPreference();
+  if (!isAdmin() || !pref) return;
+  if (!confirm(`Clear the saved rail preference from ${selectedHotel.name} to ${selectedMeeting.name}?`)) return;
+  try {
+    await deleteDoc(doc(db, 'halls', pref.id));
+    toast('Saved preferred connection cleared.');
+  } catch (error) {
+    toast('Could not clear the saved connection: ' + friendlyError(error), true);
+  }
+}
+
+function openLogin() { els.loginModal.classList.add('open'); setTimeout(() => els.loginPassword.focus(), 50); }
+function closeLogin() { els.loginModal.classList.remove('open'); }
+function nextManualMarker() {
+  const used = new Set(meetingPoints.map(m => markerLabel(m).toUpperCase()));
+  let n = 1;
+  while (used.has(`S${n}`)) n += 1;
+  return `S${n}`;
+}
+function openAddLocation() {
+  if (!isAdmin()) { openLogin(); return; }
+  els.addLocationForm.reset();
+  els.locationType.value = 'meeting-area';
+  els.markerLabel.value = nextManualMarker();
+  const center = map?.getCenter();
+  if (center) { els.locationLat.value = center.lat.toFixed(6); els.locationLng.value = center.lng.toFixed(6); }
+  els.coordinateMessage.textContent = 'Enter an address and select Locate Address, or position the map over the site and use the current map center.';
+  els.addLocationModal.classList.add('open');
+}
+function closeAddLocation() { els.addLocationModal.classList.remove('open'); }
+async function locateAddress() {
+  const address = clean(els.locationAddress.value);
+  if (!address) { toast('Enter the full address first.', true); return; }
+  const button = document.getElementById('locateAddressButton');
+  button.disabled = true;
+  button.textContent = 'Locating…';
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/search');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('limit', '1');
+    url.searchParams.set('countrycodes', 'us');
+    url.searchParams.set('addressdetails', '0');
+    url.searchParams.set('q', address);
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Address service returned ${response.status}.`);
+    const results = await response.json();
+    if (!results.length) throw new Error('The address was not found.');
+    const lat = Number(results[0].lat), lng = Number(results[0].lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('The address result did not include valid coordinates.');
+    els.locationLat.value = lat.toFixed(6);
+    els.locationLng.value = lng.toFixed(6);
+    els.coordinateMessage.textContent = 'Address located. Review the marker position before saving.';
+    map?.setView([lat, lng], 14, { animate: true });
+    toast('Address located on the map.');
+  } catch (error) {
+    toast('Could not locate that address: ' + friendlyError(error), true);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Locate Address';
+  }
+}
+function useMapCenter() {
+  const center = map?.getCenter();
+  if (!center) return;
+  els.locationLat.value = center.lat.toFixed(6);
+  els.locationLng.value = center.lng.toFixed(6);
+  els.coordinateMessage.textContent = 'Current map center copied into the coordinates.';
+  toast('Map-center coordinates copied.');
+}
+async function saveMeetingPoint(event) {
+  event.preventDefault();
+  if (!isAdmin()) { closeAddLocation(); openLogin(); return; }
+  const lat = Number(els.locationLat.value), lng = Number(els.locationLng.value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) { toast('Enter valid latitude and longitude coordinates.', true); return; }
+  const ref = doc(collection(db, 'halls'));
+  pendingLocationId = ref.id;
+  try {
+    await setDoc(ref, {
+      customLocation: true,
+      locationType: els.locationType.value === 'kingdom-hall' ? 'kingdom-hall' : 'meeting-area',
+      markerLabel: clean(els.markerLabel.value).toUpperCase(),
+      number: clean(els.markerLabel.value).toUpperCase(),
+      name: clean(els.locationName.value),
+      address: clean(els.locationAddress.value),
+      lat, lng,
+      congregations: parseLines(els.locationCongregations.value),
+      planningArea: 'south-dtc-45',
+      busStatus: 'not-reviewed',
+      createdByEmail: currentUser.email,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    closeAddLocation();
+    toast('Meeting point added to the shared planning maps.');
+  } catch (error) {
+    pendingLocationId = null;
+    toast('Could not add the meeting point: ' + friendlyError(error), true);
+  }
+}
+
+function updateAuthUi() {
+  const signedIn = Boolean(currentUser);
+  els.loginButton.hidden = signedIn;
+  els.signOutButton.hidden = !signedIn;
+  els.addLocationButton.hidden = !isAdmin();
+  els.savePreferenceButton.hidden = !isAdmin();
+  els.railNoteWrap.hidden = !isAdmin();
+  els.clearPreferenceButton.hidden = !(isAdmin() && currentPreference());
+  if (signedIn && !isAdmin()) toast('This account has public viewing access only.', true);
+  updatePlanner(Boolean(currentPreferenc

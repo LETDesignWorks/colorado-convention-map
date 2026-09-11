@@ -1,0 +1,100 @@
+ction', RAIL_STATIONS.filter(s => s.corridor === 'southwest')]
+  ];
+  const html = groups.map(([label, stations]) => `<optgroup label="${escapeHtml(label)}">${stations.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.marker)} — ${escapeHtml(s.name)} (${escapeHtml(s.lines.join('/'))})</option>`).join('')}</optgroup>`).join('');
+  els.originStationSelect.innerHTML = html;
+  els.destinationStationSelect.innerHTML = html;
+}
+function renderStationGrid() {
+  els.stationGrid.innerHTML = RAIL_STATIONS.map(station => `<article class="station-row"><span class="station-num">${escapeHtml(station.marker)}</span><span><strong>${escapeHtml(station.name)}</strong><small>${escapeHtml(station.address)}</small></span><span class="line-badges">${station.lines.map(line => `<span class="line-badge">${escapeHtml(line)}</span>`).join('')}</span><a href="${station.rtdUrl}" target="_blank" rel="noopener">Official RTD station information →</a></article>`).join('');
+}
+function nearestStation(point) {
+  const ranked = RAIL_STATIONS.map(station => ({ station, miles: haversineMiles(point, station) })).sort((a, b) => a.miles - b.miles);
+  return ranked[0];
+}
+function stationById(id) { return RAIL_STATIONS.find(s => s.id === id) || null; }
+function hotelById(id) { return getDtcHotels().find(h => h.id === id) || null; }
+function meetingById(id) { return meetingPoints.find(m => m.id === String(id)) || null; }
+function preferenceKey() {
+  return selectedHotel && selectedMeeting ? `${selectedHotel.id}|${selectedMeeting.id}` : '';
+}
+function currentPreference() { return railPreferences.get(preferenceKey()) || null; }
+
+function selectHotel(id, pan = false, preserveMeeting = true) {
+  const hotel = hotelById(id);
+  if (!hotel) return;
+  selectedHotel = hotel;
+  els.hotelSelect.value = hotel.id;
+  els.hotelDetail.textContent = `${hotel.address} • ${hotel.region}`;
+  if (pan && map) map.setView([hotel.lat, hotel.lng], Math.max(map.getZoom(), 13), { animate: true });
+  if (preserveMeeting && selectedMeeting) applySavedOrClosest(true);
+  else updatePlanner(false);
+}
+function selectMeeting(id, pan = false, usePreference = true) {
+  const meeting = meetingById(id);
+  if (!meeting) return;
+  selectedMeeting = meeting;
+  els.meetingSelect.value = meeting.id;
+  const kind = meeting.locationType === 'kingdom-hall' ? 'Kingdom Hall' : 'Added meeting area';
+  els.meetingDetail.textContent = `${kind} • ${meeting.address || 'Saved map coordinates'}`;
+  if (pan && map) {
+    map.setView([meeting.lat, meeting.lng], Math.max(map.getZoom(), 12), { animate: true });
+    meetingMarkers.get(meeting.id)?.openPopup();
+  }
+  syncMeetingMarkers();
+  if (usePreference) applySavedOrClosest(true); else updatePlanner(false);
+  renderMeetingList();
+}
+function useClosestStations(showToast = false) {
+  if (!selectedHotel || !selectedMeeting) return;
+  const origin = nearestStation(selectedHotel);
+  const destination = nearestStation(selectedMeeting);
+  els.originStationSelect.value = origin.station.id;
+  els.destinationStationSelect.value = destination.station.id;
+  els.firstMileMode.value = origin.miles <= 0.8 ? 'walking' : 'driving';
+  els.lastMileMode.value = destination.miles <= 1 ? 'walking' : 'driving';
+  els.railNote.value = '';
+  updatePlanner(false);
+  if (showToast) toast('Closest mapped rail stations selected.');
+}
+function applySavedOrClosest(automatic = false) {
+  const pref = currentPreference();
+  if (pref && stationById(pref.originStationId) && stationById(pref.destinationStationId)) {
+    els.originStationSelect.value = pref.originStationId;
+    els.destinationStationSelect.value = pref.destinationStationId;
+    els.firstMileMode.value = pref.firstMileMode || 'walking';
+    els.lastMileMode.value = pref.lastMileMode || 'walking';
+    els.railNote.value = pref.publicNote || '';
+    updatePlanner(true);
+    if (!automatic) toast('Saved preferred rail connection loaded.');
+  } else {
+    useClosestStations(false);
+  }
+}
+
+function routeInstruction(origin, destination, firstMiles, lastMiles) {
+  if (origin.id === destination.id) {
+    return {
+      level: 'bad',
+      text: `Both locations are tied to ${origin.name}. A rail ride does not add value for this pairing; use the first- and last-mile directions or plan a direct shuttle.`
+    };
+  }
+  let text = '';
+  let level = 'good';
+  if (origin.corridor === 'southeast' && destination.corridor === 'southeast') {
+    const direction = destination.order > origin.order ? 'southbound toward RidgeGate Parkway' : 'northbound toward Denver';
+    text = `Use the Southeast Corridor ${direction} from ${origin.name} to ${destination.name}. The E Line serves this full station sequence; other listed lines may serve part of the corridor. Confirm the current RTD departure and any service alert before travel.`;
+  } else {
+    level = 'warn';
+    text = `The selected stations are on different rail corridors. There is not a simple single-train connection between the Southeast I-25 corridor and Littleton / Mineral. Use the Google or Apple transit link to identify the current transfer, bus connection, or alternate trip, and consider a direct shuttle.`;
+  }
+  if (firstMiles > 1 || lastMiles > 1) level = level === 'good' ? 'warn' : level;
+  if (firstMiles > 3 || lastMiles > 3) level = 'bad';
+  if (lastMiles > 3) text += ` The meeting point is ${formatMiles(lastMiles)} from the selected arrival station, so a vehicle or shuttle connection should be planned rather than treating it as a walkable station destination.`;
+  else if (lastMiles > 1) text += ` The final connection is ${formatMiles(lastMiles)}; review the walking route carefully or provide a short shuttle.`;
+  if (firstMiles > 1) text += ` The hotel is ${formatMiles(firstMiles)} from the boarding station, so hotel-to-station transportation also needs to be confirmed.`;
+  return { level, text };
+}
+function updatePlanner(usingSaved = false) {
+  if (!selectedHotel || !selectedMeeting) {
+    els.resultTitle.textContent = 'Select a hotel and meeting point';
+ 

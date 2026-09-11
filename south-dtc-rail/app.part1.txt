@@ -1,0 +1,122 @@
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import {
+  getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged, sendPasswordResetEmail
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import {
+  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { HALLS, DTC_BOUNDARY, DTC } from 'https://letdesignworks.github.io/colorado-convention-map/bus-access/data.js?v=south-dtc-rail-20260910-1';
+import { HOTELS } from 'https://letdesignworks.github.io/colorado-convention-map/routes/hotels.js?v=south-dtc-rail-20260910-1';
+import {
+  DTC_HOTEL_IDS, SOUTH_BASE_IDS, RAIL_STATIONS,
+  RTD_E_SCHEDULE_URL, RTD_R_SCHEDULE_URL, RTD_C_SCHEDULE_URL
+} from 'https://letdesignworks.github.io/colorado-convention-map/south-dtc-rail/data.js?v=south-dtc-rail-20260910-1';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',
+  authDomain: 'convention-fs.firebaseapp.com',
+  projectId: 'convention-fs',
+  storageBucket: 'convention-fs.firebasestorage.app',
+  messagingSenderId: '29365992209',
+  appId: '1:29365992209:web:0bd35e723688b37d776ab0',
+  measurementId: 'G-054BLBBE0F'
+};
+const ADMIN_EMAIL = 'michaeltarin@hotmail.com';
+const SOUTH_LAT_TOLERANCE = 0.02;
+const SOUTH_RADIUS_MILES = 33;
+
+let app;
+let auth;
+let db;
+let map;
+let southBoundaryLayer;
+let currentUser = null;
+let meetingPoints = [];
+let selectedHotel = null;
+let selectedMeeting = null;
+let pendingLocationId = null;
+
+const publicHallData = new Map();
+const railPreferences = new Map();
+const meetingMarkers = new Map();
+const stationMarkers = new Map();
+const hotelMarkers = new Map();
+
+const els = {
+  hotelSelect: document.getElementById('hotelSelect'),
+  hotelDetail: document.getElementById('hotelDetail'),
+  meetingSelect: document.getElementById('meetingSelect'),
+  meetingDetail: document.getElementById('meetingDetail'),
+  originStationSelect: document.getElementById('originStationSelect'),
+  destinationStationSelect: document.getElementById('destinationStationSelect'),
+  originDistance: document.getElementById('originDistance'),
+  destinationDistance: document.getElementById('destinationDistance'),
+  firstMileMode: document.getElementById('firstMileMode'),
+  lastMileMode: document.getElementById('lastMileMode'),
+  closestStationsButton: document.getElementById('closestStationsButton'),
+  resultTitle: document.getElementById('resultTitle'),
+  connectionQuality: document.getElementById('connectionQuality'),
+  tripSummary: document.getElementById('tripSummary'),
+  routeGuidance: document.getElementById('routeGuidance'),
+  linkSections: document.getElementById('linkSections'),
+  googleFullTrip: document.getElementById('googleFullTrip'),
+  appleFullTrip: document.getElementById('appleFullTrip'),
+  googleFirstLeg: document.getElementById('googleFirstLeg'),
+  appleFirstLeg: document.getElementById('appleFirstLeg'),
+  googleRailLeg: document.getElementById('googleRailLeg'),
+  appleRailLeg: document.getElementById('appleRailLeg'),
+  googleLastLeg: document.getElementById('googleLastLeg'),
+  appleLastLeg: document.getElementById('appleLastLeg'),
+  railNoteWrap: document.getElementById('railNoteWrap'),
+  railNote: document.getElementById('railNote'),
+  savedPreferenceChip: document.getElementById('savedPreferenceChip'),
+  savedPublicNote: document.getElementById('savedPublicNote'),
+  loadSavedButton: document.getElementById('loadSavedButton'),
+  savePreferenceButton: document.getElementById('savePreferenceButton'),
+  clearPreferenceButton: document.getElementById('clearPreferenceButton'),
+  meetingSearch: document.getElementById('meetingSearch'),
+  distanceFilter: document.getElementById('distanceFilter'),
+  meetingList: document.getElementById('meetingList'),
+  meetingCount: document.getElementById('meetingCount'),
+  stationGrid: document.getElementById('stationGrid'),
+  loginButton: document.getElementById('loginButton'),
+  signOutButton: document.getElementById('signOutButton'),
+  addLocationButton: document.getElementById('addLocationButton'),
+  loginModal: document.getElementById('loginModal'),
+  loginForm: document.getElementById('loginForm'),
+  loginEmail: document.getElementById('loginEmail'),
+  loginPassword: document.getElementById('loginPassword'),
+  addLocationModal: document.getElementById('addLocationModal'),
+  addLocationForm: document.getElementById('addLocationForm'),
+  locationType: document.getElementById('locationType'),
+  markerLabel: document.getElementById('markerLabel'),
+  locationName: document.getElementById('locationName'),
+  locationAddress: document.getElementById('locationAddress'),
+  locationLat: document.getElementById('locationLat'),
+  locationLng: document.getElementById('locationLng'),
+  locationCongregations: document.getElementById('locationCongregations'),
+  coordinateMessage: document.getElementById('coordinateMessage'),
+  toast: document.getElementById('toast')
+};
+
+function escapeHtml(value = '') {
+  return String(value ?? '').replace(/[&<>'"]/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[c]));
+}
+function clean(value = '') { return String(value ?? '').trim(); }
+function parseLines(value = '') {
+  return String(value).split(/[\n;]+/).map(v => v.trim()).filter(Boolean);
+}
+function isAdmin() { return currentUser?.email?.toLowerCase() === ADMIN_EMAIL; }
+function toast(message, error = false) {
+  els.toast.textContent = message;
+  els.toast.className = 'toast show' + (error ? ' error' : '');
+  clearTimeout(els.toast._timer);
+  els.toast._timer = setTimeout(() => { els.toast.className = 'toast'; }, 3800);
+}
+function friendlyError(error) {
+  const code = error?.code || '';
+  if (code.includes('invalid-credential')) return 'The email or password is not correct.';
+  if (code.includes('permission-denied')) return 'Firebase denied this change. Confirm
