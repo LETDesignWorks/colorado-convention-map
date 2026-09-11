@@ -1,3 +1,5 @@
+import '../assets/location-address-autofill.js?v=20260910-3';
+
 export const HOTELS = [
   {id:'H1', name:'Aloft Denver Downtown', address:'800 15th St, Denver, CO 80202', region:'Downtown Denver', lat:39.74325, lng:-104.99375},
   {id:'H2', name:'The Curtis Denver', address:'1405 Curtis St, Denver, CO 80202', region:'Downtown Denver', lat:39.74502, lng:-104.99715},
