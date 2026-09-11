@@ -1,3 +1,5 @@
+import './location-address-autofill.js?v=20260910-1';
+
 const logoUrl = new URL('./denver-2027-logo.png', import.meta.url).href;
 const siteHomeUrl = new URL('../', import.meta.url).href;
 
