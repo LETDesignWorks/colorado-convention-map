@@ -1,0 +1,106 @@
+    state.verifyLinks.hidden = false;
+  }
+
+  function installGeocodeFetchBridge() {
+    if (window.fetch?.__denver2027GeocodeBridge) return;
+    const originalFetch = window.fetch.bind(window);
+    const wrappedFetch = async function (input, init) {
+      try {
+        const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+        const url = new URL(rawUrl, location.href);
+        if (url.hostname === 'nominatim.openstreetmap.org' && /\/search\/?$/.test(url.pathname)) {
+          const address = normalizeAddress(url.searchParams.get('q'));
+          const cached = address ? cachedResult(address) : null;
+          const lat = Number(cached?.lat);
+          const lng = Number(cached?.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            const payload = [{
+              lat: String(lat),
+              lon: String(lng),
+              display_name: cached.matchedAddress || address
+            }];
+            return new Response(JSON.stringify(payload), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json; charset=utf-8' }
+            });
+          }
+        }
+      } catch {
+        // Fall through to the page's original request.
+      }
+      return originalFetch(input, init);
+    };
+    wrappedFetch.__denver2027GeocodeBridge = true;
+    window.fetch = wrappedFetch;
+  }
+
+  function installLeafletCapture() {
+    if (!window.L?.map || window.L.map.__denver2027Captured) return;
+    const originalMap = window.L.map;
+    const wrappedMap = function (...args) {
+      const map = originalMap.apply(this, args);
+      const target = args[0];
+      const id = typeof target === 'string' ? target : target?.id;
+      if (id) MAP_REGISTRY.set(id, map);
+      return map;
+    };
+    Object.assign(wrappedMap, originalMap);
+    wrappedMap.__denver2027Captured = true;
+    window.L.map = wrappedMap;
+  }
+
+  function showPreview(state, result) {
+    const map = MAP_REGISTRY.get(state.profile.mapId || 'map');
+    if (!map || !window.L) return;
+    removePreview(state);
+    state.previewLayer = window.L.circleMarker([result.lat, result.lng], {
+      radius: 12,
+      color: '#ffffff',
+      weight: 4,
+      fillColor: '#e77b18',
+      fillOpacity: 1
+    }).addTo(map);
+    state.previewLayer.bindPopup(`<strong>Address preview</strong><br>${escapeHtml(result.matchedAddress || normalizeAddress(state.addressInput.value))}<br><small>Confirm this point before saving.</small>`).openPopup();
+    map.setView([result.lat, result.lng], Math.max(map.getZoom(), 15), { animate: true });
+  }
+
+  function removePreview(state) {
+    const map = MAP_REGISTRY.get(state.profile.mapId || 'map');
+    if (state.previewLayer && map) {
+      try { map.removeLayer(state.previewLayer); } catch { /* no-op */ }
+    }
+    state.previewLayer = null;
+  }
+
+  function escapeHtml(value = '') {
+    return String(value).replace(/[&<>'"]/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[character]));
+  }
+
+  function injectSharedStyles() {
+    if (document.getElementById('denver-address-autofill-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'denver-address-autofill-styles';
+    style.textContent = `
+      .denver-address-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; width:100%; }
+      .denver-address-tools .denver-address-status { flex:1 1 260px; display:block; line-height:1.35; }
+      .denver-address-coordinate-field { margin-top:-2px; }
+      .denver-address-coordinate-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; width:100%; }
+      .denver-address-coordinate-grid label { display:flex; flex-direction:column; gap:5px; font-size:11px; font-weight:800; color:#3e5068; }
+      .denver-address-coordinate-grid input { width:100%; border:1px solid #aebdcb; border-radius:10px; background:#f4f7fa; color:#34485e; padding:9px 10px; min-height:40px; }
+      .denver-address-status[data-state="working"] { color:#8a5c00 !important; font-weight:750; }
+      .denver-address-status[data-state="success"] { color:#17643f !important; font-weight:750; }
+      .denver-address-status[data-state="error"] { color:#922f28 !important; font-weight:750; }
+      .denver-address-status[data-state="waiting"] { color:#59697c !important; }
+      .denver-address-verify-links { display:flex; flex:1 1 100%; flex-wrap:wrap; gap:10px; margin-top:2px; }
+      .denver-address-verify-links a { color:#0b5b9f; font-size:10px; font-weight:850; text-decoration:none; }
+      .denver-address-verify-links a:hover { text-decoration:underline; }
+      @media (max-width:600px) {
+        .denver-address-tools > button { width:100%; }
+        .denver-address-coordinate-grid { grid-template-columns:1fr; }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+})();
