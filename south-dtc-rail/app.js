@@ -8,10 +8,31 @@ const PARTS = [
   'app.part7.txt'
 ];
 
-const version = 'south-dtc-rail-20260910-2';
+const version = 'south-dtc-rail-20260910-3';
+
+function installInitialCoordinateGuard() {
+  const address = document.getElementById('locationAddress');
+  const latitude = document.getElementById('locationLat');
+  const longitude = document.getElementById('locationLng');
+  const modal = document.getElementById('addLocationModal');
+  if (!address || !latitude || !longitude || !modal) return;
+
+  let clearOnFirstEdit = true;
+  address.addEventListener('input', () => {
+    if (!clearOnFirstEdit) return;
+    latitude.value = '';
+    longitude.value = '';
+    clearOnFirstEdit = false;
+  }, { capture: true });
+
+  new MutationObserver(() => {
+    if (modal.classList.contains('open')) clearOnFirstEdit = true;
+  }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+}
 
 try {
   await import(`./address-autofill.js?v=${version}`);
+  installInitialCoordinateGuard();
   const responses = await Promise.all(PARTS.map(name => fetch(`${name}?v=${version}`, { cache: 'no-store' })));
   const failed = responses.find(response => !response.ok);
   if (failed) throw new Error(`Application file could not be loaded (${failed.status}).`);
