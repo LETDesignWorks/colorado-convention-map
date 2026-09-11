@@ -1,0 +1,142 @@
+      state.bypassNextSubmit = false;
+      return;
+    }
+
+    const address = normalizeAddress(state.addressInput.value);
+    const coordinates = readCoordinates(state);
+    if (!address && coordinates) return;
+    if (address && coordinates && isResolvedForCurrentAddress(state)) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    state.pendingSubmitter = event.submitter || null;
+    clearTimeout(state.debounceTimer);
+    setStatus(state, 'Verifying the address before saving…', 'working');
+    geocodeAddress(state, { manual: true, resumeSubmit: true });
+  }
+
+  function isResolvedForCurrentAddress(state) {
+    const address = normalizeAddress(state.addressInput.value);
+    return Boolean(address && readCoordinates(state) && address.toLowerCase() === state.resolvedAddress.toLowerCase());
+  }
+
+  async function geocodeAddress(state, { manual = false, resumeSubmit = false } = {}) {
+    if (!isActive(state)) return false;
+    const address = normalizeAddress(state.addressInput.value);
+    const sequence = ++state.lookupSequence;
+
+    if (!address) {
+      setStatus(state, 'Enter a complete street address first.', 'error');
+      return false;
+    }
+    if (!manual && !looksComplete(address)) {
+      setStatus(state, 'Keep typing the complete street address, city, state, and ZIP.', 'waiting');
+      return false;
+    }
+
+    const cached = cachedResult(address);
+    if (cached) {
+      applyResult(state, address, cached, cached.source || 'the saved address cache');
+      if (resumeSubmit) resumeFormSubmit(state);
+      return true;
+    }
+
+    setStatus(state, manual ? 'Locating and verifying the address…' : 'Address looks complete—updating coordinates…', 'working');
+    state.lookupButton.disabled = true;
+
+    try {
+      const result = await censusGeocode(address, sequence, state);
+      if (sequence !== state.lookupSequence) return false;
+      writeCache(address, result);
+      applyResult(state, address, result, result.source);
+      if (resumeSubmit) resumeFormSubmit(state);
+      return true;
+    } catch (censusError) {
+      if (sequence !== state.lookupSequence) return false;
+      if (!manual) {
+        setStatus(state, 'The address was not matched automatically. Finish the address or select Refresh Address Coordinates for a second address search.', 'error');
+        return false;
+      }
+      try {
+        const result = await nominatimGeocode(address);
+        if (sequence !== state.lookupSequence) return false;
+        writeCache(address, result);
+        applyResult(state, address, result, result.source);
+        if (resumeSubmit) resumeFormSubmit(state);
+        return true;
+      } catch (fallbackError) {
+        setStatus(state, `The address could not be located. ${fallbackError.message || censusError.message}`, 'error');
+        return false;
+      }
+    } finally {
+      state.lookupButton.disabled = false;
+      state.lookupButton.textContent = 'Refresh Address Coordinates';
+    }
+  }
+
+  function resumeFormSubmit(state) {
+    window.setTimeout(() => {
+      state.bypassNextSubmit = true;
+      try {
+        if (state.pendingSubmitter && state.pendingSubmitter.form === state.form) state.form.requestSubmit(state.pendingSubmitter);
+        else state.form.requestSubmit();
+      } finally {
+        state.pendingSubmitter = null;
+      }
+    }, 0);
+  }
+
+  function applyResult(state, address, result, sourceLabel) {
+    const lat = Number(result.lat);
+    const lng = Number(result.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error('The address service returned invalid coordinates.');
+
+    writeCoordinates(state, { lat, lng });
+    state.resolvedAddress = address;
+    updateVerifyLinks(state, { ...result, lat, lng });
+    if (state.profile.preview) showPreview(state, { ...result, lat, lng });
+    setStatus(state, `Coordinates updated from ${sourceLabel}: ${result.matchedAddress || address}. Confirm the point before saving.`, 'success');
+  }
+
+  function readCoordinates(state) {
+    const latText = String(state.latInput.value ?? '').trim();
+    const lngText = String(state.lngInput.value ?? '').trim();
+    if (!latText || !lngText) return null;
+    const lat = Number(latText);
+    const lng = Number(lngText);
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
+
+  function writeCoordinates(state, coordinates) {
+    state.writingCoordinates = true;
+    state.latInput.value = Number(coordinates.lat).toFixed(6);
+    state.lngInput.value = Number(coordinates.lng).toFixed(6);
+    state.lastCoordinateSignature = coordinateSignature(coordinates);
+    for (const input of [state.latInput, state.lngInput]) {
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    state.writingCoordinates = false;
+  }
+
+  function clearCoordinates(state) {
+    state.writingCoordinates = true;
+    state.latInput.value = '';
+    state.lngInput.value = '';
+    state.lastCoordinateSignature = '';
+    for (const input of [state.latInput, state.lngInput]) input.dispatchEvent(new Event('input', { bubbles: true }));
+    state.writingCoordinates = false;
+  }
+
+  function markManualCoordinates(state, message) {
+    const coordinates = readCoordinates(state);
+    if (!coordinates) return;
+    const address = normalizeAddress(state.addressInput.value);
+    state.resolvedAddress = address;
+    state.lastCoordinateSignature = coordinateSignature(coordinates);
+    updateVerifyLinks(state, { ...coordinates, matchedAddress: address || 'Manual coordinates' });
+    if (state.profile.preview) showPreview(state, { ...coordinates, matchedAddress: address || 'Manual coordinates' });
+    setStatus(state, message, 'success');
+  }
+
+  function pollCoordinateChanges(state) {
