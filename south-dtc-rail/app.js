@@ -8,9 +8,10 @@ const PARTS = [
   'app.part7.txt'
 ];
 
-const version = 'south-dtc-rail-20260910-1';
+const version = 'south-dtc-rail-20260910-2';
 
 try {
+  await import(`./address-autofill.js?v=${version}`);
   const responses = await Promise.all(PARTS.map(name => fetch(`${name}?v=${version}`, { cache: 'no-store' })));
   const failed = responses.find(response => !response.ok);
   if (failed) throw new Error(`Application file could not be loaded (${failed.status}).`);
