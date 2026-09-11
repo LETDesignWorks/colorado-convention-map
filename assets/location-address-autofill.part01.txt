@@ -1,0 +1,163 @@
+(() => {
+  'use strict';
+
+  if (window.__denver2027LocationAddressAutofillInstalled) return;
+  window.__denver2027LocationAddressAutofillInstalled = true;
+
+  const AUTO_LOOKUP_DELAY_MS = 1250;
+  const REQUEST_TIMEOUT_MS = 10000;
+  const ADDRESS_MIN_LENGTH = 12;
+  const CACHE_KEY = 'denver2027AddressGeocodesV2';
+  const MAP_REGISTRY = new Map();
+  const PROFILE_STATES = new Map();
+  let lastNominatimRequestAt = 0;
+
+  installLeafletCapture();
+  installGeocodeFetchBridge();
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  } else {
+    initialize();
+  }
+
+  function initialize() {
+    injectSharedStyles();
+    const profiles = detectProfiles();
+    for (const profile of profiles) setupProfile(profile);
+  }
+
+  function detectProfiles() {
+    const profiles = [];
+
+    if (document.getElementById('locationForm') && document.getElementById('locationModal')) {
+      profiles.push({
+        key: 'bus-access-location',
+        formId: 'locationForm',
+        modalId: 'locationModal',
+        addressId: 'locationAddress',
+        latId: 'locationLat',
+        lngId: 'locationLng',
+        mapId: 'map',
+        toolsSelector: '#locationForm .coordinate-tools',
+        lookupButtonId: 'locationAddressLookupButton',
+        statusId: 'locationCoordinateMessage',
+        useMapCenterId: 'useMapCenter',
+        buttonClass: 'btn light',
+        helpText: 'The address lookup fills these coordinates automatically. Use the current map center only as a backup after positioning the map over the exact property or entrance.',
+        preview: true,
+        requireResolvedAddress: true,
+        contextActive: () => document.getElementById('locationModal')?.classList.contains('open')
+      });
+    }
+
+    if (document.getElementById('addLocationForm') && document.getElementById('addLocationModal')) {
+      profiles.push({
+        key: 'south-dtc-location',
+        formId: 'addLocationForm',
+        modalId: 'addLocationModal',
+        addressId: 'locationAddress',
+        latId: 'locationLat',
+        lngId: 'locationLng',
+        mapId: 'map',
+        toolsSelector: '#addLocationForm .coordinate-actions',
+        lookupButtonId: 'locationAddressButton',
+        statusId: 'coordinateMessage',
+        useMapCenterId: 'useMapCenterButton',
+        buttonClass: 'btn outline',
+        preview: true,
+        requireResolvedAddress: true,
+        contextActive: () => document.getElementById('addLocationModal')?.classList.contains('open')
+      });
+    }
+
+    if (
+      document.getElementById('plannerForm') &&
+      document.getElementById('customOriginWrap') &&
+      document.getElementById('customOriginAddress')
+    ) {
+      profiles.push({
+        key: 'route-custom-origin',
+        formId: 'plannerForm',
+        contextId: 'customOriginWrap',
+        addressId: 'customOriginAddress',
+        latId: 'customOriginLatAuto',
+        lngId: 'customOriginLngAuto',
+        createCoordinateInputs: true,
+        mapId: 'map',
+        insertAfterAddress: true,
+        lookupButtonId: 'customOriginAddressLookupButton',
+        statusId: 'customOriginCoordinateMessage',
+        buttonClass: 'btn outline',
+        preview: true,
+        requireResolvedAddress: true,
+        contextActive: () => {
+          const wrap = document.getElementById('customOriginWrap');
+          const select = document.getElementById('hotelSelect');
+          return Boolean(wrap && !wrap.hidden && select?.value === 'custom');
+        }
+      });
+    }
+
+    if (
+      document.getElementById('activityForm') &&
+      document.getElementById('customOriginWrap') &&
+      document.getElementById('customOriginAddress')
+    ) {
+      profiles.push({
+        key: 'activity-custom-origin',
+        formId: 'activityForm',
+        contextId: 'customOriginWrap',
+        addressId: 'customOriginAddress',
+        latId: 'activityCustomOriginLatAuto',
+        lngId: 'activityCustomOriginLngAuto',
+        createCoordinateInputs: true,
+        mapId: 'map',
+        insertAfterAddress: true,
+        lookupButtonId: 'activityCustomOriginAddressLookupButton',
+        statusId: 'activityCustomOriginCoordinateMessage',
+        buttonClass: 'btn outline',
+        preview: true,
+        requireResolvedAddress: true,
+        contextActive: () => {
+          const wrap = document.getElementById('customOriginWrap');
+          const select = document.getElementById('hotelSelect');
+          return Boolean(wrap && !wrap.hidden && select?.value === 'custom');
+        }
+      });
+    }
+
+    if (
+      document.getElementById('plannerForm') &&
+      document.getElementById('customDestinationAddress') &&
+      document.getElementById('customDestinationLat') &&
+      document.getElementById('customDestinationLng')
+    ) {
+      profiles.push({
+        key: 'route-custom-destination',
+        formId: 'plannerForm',
+        contextId: 'customDestinationWrap',
+        addressId: 'customDestinationAddress',
+        latId: 'customDestinationLat',
+        lngId: 'customDestinationLng',
+        mapId: 'map',
+        insertAfterAddress: true,
+        lookupButtonId: 'customDestinationAddressLookupButton',
+        statusId: 'customDestinationCoordinateMessage',
+        buttonClass: 'btn outline',
+        preview: false,
+        requireResolvedAddress: true,
+        allowMapCoordinates: true,
+        contextActive: () => {
+          const wrap = document.getElementById('customDestinationWrap');
+          const select = document.getElementById('destinationSelect');
+          return Boolean(wrap && !wrap.hidden && select?.value === 'custom-map-point');
+        }
+      });
+    }
+
+    return profiles;
+  }
+
+  function setupProfile(profile) {
+    const addressInput = document.getElementById(profile.addressId);
