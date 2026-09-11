@@ -1,4 +1,4 @@
-await import('../assets/location-address-autofill.js?v=20260910-2');
+await import('../assets/location-address-autofill.js?v=20260910-3');
 
 const enhancementStyles=document.createElement('link');
 enhancementStyles.rel='stylesheet';
