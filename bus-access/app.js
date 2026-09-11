@@ -1,3 +1,5 @@
+await import('../assets/location-address-autofill.js?v=20260910-1');
+
 const enhancementStyles=document.createElement('link');
 enhancementStyles.rel='stylesheet';
 enhancementStyles.href='enhancements.css';
