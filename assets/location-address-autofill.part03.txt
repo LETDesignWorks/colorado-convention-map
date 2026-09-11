@@ -1,5 +1,10 @@
     const addressField = addressInput.closest('.field') || addressInput.parentElement;
-    addressField?.insertAdjacentElement('afterend', container);
+    if (profile.contextId && addressField?.id === profile.contextId) {
+      container.className = 'denver-address-coordinate-field';
+      addressField.appendChild(container);
+    } else {
+      addressField?.insertAdjacentElement('afterend', container);
+    }
     return container;
   }
 
@@ -8,8 +13,9 @@
 
     if (!host && profile.insertAfterAddress) {
       host = document.createElement('div');
-      host.className = 'field full denver-address-tools';
       const addressField = addressInput.closest('.field') || addressInput.parentElement;
+      const nestedInContext = Boolean(coordinateContainer && coordinateContainer.parentElement === addressField);
+      host.className = nestedInContext ? 'denver-address-tools' : 'field full denver-address-tools';
       const anchor = coordinateContainer || addressField;
       anchor?.insertAdjacentElement('afterend', host);
     }
