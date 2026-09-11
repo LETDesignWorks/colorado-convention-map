@@ -1,0 +1,148 @@
+    const form = document.getElementById(profile.formId);
+    if (!addressInput || !form) return;
+
+    const coordinateContainer = profile.createCoordinateInputs ? ensureCoordinateInputs(profile, addressInput) : null;
+    const latInput = document.getElementById(profile.latId);
+    const lngInput = document.getElementById(profile.lngId);
+    if (!latInput || !lngInput) return;
+
+    const ui = ensureProfileUi(profile, addressInput, coordinateContainer);
+    if (!ui.lookupButton || !ui.status || !ui.verifyLinks) return;
+
+    const state = {
+      profile,
+      addressInput,
+      latInput,
+      lngInput,
+      form,
+      lookupButton: ui.lookupButton,
+      status: ui.status,
+      verifyLinks: ui.verifyLinks,
+      previewLayer: null,
+      debounceTimer: null,
+      lookupSequence: 0,
+      writingCoordinates: false,
+      bypassNextSubmit: false,
+      pendingSubmitter: null,
+      initialAddress: '',
+      initialCoordinates: null,
+      resolvedAddress: '',
+      lastCoordinateSignature: '',
+      activeLastTick: false,
+      coordinatePoll: null
+    };
+    PROFILE_STATES.set(profile.key, state);
+
+    state.lookupButton.textContent = 'Refresh Address Coordinates';
+    state.lookupButton.title = 'Locate the full street address and update latitude and longitude';
+    setStatus(state, 'Enter a complete U.S. street address. After you pause typing, latitude and longitude will update automatically.', 'waiting');
+
+    addressInput.addEventListener('input', () => scheduleAutomaticLookup(state));
+    addressInput.addEventListener('paste', () => setTimeout(() => scheduleAutomaticLookup(state), 0));
+    addressInput.addEventListener('blur', () => {
+      if (!isActive(state)) return;
+      clearTimeout(state.debounceTimer);
+      const address = normalizeAddress(addressInput.value);
+      if (looksComplete(address) && !isResolvedForCurrentAddress(state)) geocodeAddress(state, { manual: false });
+    });
+
+    state.lookupButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      clearTimeout(state.debounceTimer);
+      geocodeAddress(state, { manual: true });
+    }, true);
+
+    for (const input of [latInput, lngInput]) {
+      input.addEventListener('input', event => {
+        if (state.writingCoordinates || !event.isTrusted) return;
+        markManualCoordinates(state, 'Coordinates entered manually. Confirm the marker before saving.');
+      });
+      input.addEventListener('change', event => {
+        if (state.writingCoordinates || !event.isTrusted) return;
+        markManualCoordinates(state, 'Coordinates entered manually. Confirm the marker before saving.');
+      });
+    }
+
+    const useMapCenterButton = profile.useMapCenterId ? document.getElementById(profile.useMapCenterId) : null;
+    if (useMapCenterButton) {
+      useMapCenterButton.addEventListener('click', () => {
+        setTimeout(() => {
+          if (!isActive(state)) return;
+          markManualCoordinates(state, 'Map-center coordinates selected. Confirm the point before saving.');
+        }, 25);
+      });
+    }
+
+    form.addEventListener('submit', event => guardSubmit(state, event), true);
+    form.addEventListener('reset', () => setTimeout(() => resetState(state), 0));
+
+    if (profile.modalId) {
+      const modal = document.getElementById(profile.modalId);
+      if (modal) {
+        const observer = new MutationObserver(() => {
+          if (modal.classList.contains('open')) {
+            setTimeout(() => beginSession(state), 0);
+          } else {
+            endSession(state);
+          }
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+      }
+    }
+
+    if (profile.contextId) {
+      const context = document.getElementById(profile.contextId);
+      if (context) {
+        const observer = new MutationObserver(() => {
+          if (isActive(state)) beginSession(state);
+          else endSession(state);
+        });
+        observer.observe(context, { attributes: true, attributeFilter: ['hidden', 'class', 'style'] });
+      }
+      const destinationSelect = document.getElementById('destinationSelect');
+      destinationSelect?.addEventListener('change', () => setTimeout(() => {
+        if (isActive(state)) beginSession(state);
+        else endSession(state);
+      }, 0));
+    }
+
+    state.coordinatePoll = window.setInterval(() => pollCoordinateChanges(state), 350);
+    if (isActive(state)) beginSession(state);
+  }
+
+  function ensureCoordinateInputs(profile, addressInput) {
+    let container = document.getElementById(`${profile.key}-coordinate-fields`);
+    if (container) return container;
+
+    container = document.createElement('div');
+    container.id = `${profile.key}-coordinate-fields`;
+    container.className = 'field full denver-address-coordinate-field';
+
+    const grid = document.createElement('div');
+    grid.className = 'denver-address-coordinate-grid';
+
+    const latLabel = document.createElement('label');
+    latLabel.textContent = 'Latitude';
+    const latInput = document.createElement('input');
+    latInput.id = profile.latId;
+    latInput.type = 'number';
+    latInput.step = 'any';
+    latInput.inputMode = 'decimal';
+    latInput.readOnly = true;
+    latInput.placeholder = 'Updates from address';
+    latLabel.appendChild(latInput);
+
+    const lngLabel = document.createElement('label');
+    lngLabel.textContent = 'Longitude';
+    const lngInput = document.createElement('input');
+    lngInput.id = profile.lngId;
+    lngInput.type = 'number';
+    lngInput.step = 'any';
+    lngInput.inputMode = 'decimal';
+    lngInput.readOnly = true;
+    lngInput.placeholder = 'Updates from address';
+    lngLabel.appendChild(lngInput);
+
+    grid.append(latLabel, lngLabel);
+    container.appendChild(grid);
