@@ -7,10 +7,14 @@ const PARTS = [
   'location-address-autofill.part06.txt'
 ];
 
-const version = '20260910-2';
+const version = '20260910-3';
 
 try {
-  const responses = await Promise.all(PARTS.map(name => fetch(`${name}?v=${version}`, { cache: 'no-store' })));
+  const responses = await Promise.all(PARTS.map(name => {
+    const sourceUrl = new URL(name, import.meta.url);
+    sourceUrl.searchParams.set('v', version);
+    return fetch(sourceUrl, { cache: 'no-store' });
+  }));
   const failed = responses.find(response => !response.ok);
   if (failed) throw new Error(`Address geocoder source could not be loaded (${failed.status}).`);
   const source = (await Promise.all(responses.map(response => response.text()))).join('');
