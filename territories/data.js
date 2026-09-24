@@ -1,4 +1,4 @@
-const version = 'territories-20260923-3';
+const version = 'territories-20260923-4';
 const response = await fetch(`data.payload.txt?v=${version}`, { cache: 'no-store' });
 if (!response.ok) throw new Error(`Territory data module could not be loaded (${response.status}).`);
 if (typeof DecompressionStream !== 'function') throw new Error('This browser needs a newer version to open the territory planner.');
