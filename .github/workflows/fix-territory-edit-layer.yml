@@ -17,47 +17,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import base64
 
           path = Path('territories/app-main.js')
           text = path.read_text(encoding='utf-8')
-
-          old_save = """      const territory = territories.find(item => item.id === activeTerritoryEditId);
-      const layer = territoryEditGroup.getLayers()[0];
-      if (territory && layer) {
-        territory.geometry = layer.toGeoJSON().geometry;
-        territory.manualBoundary = true;
-      }
-"""
-          new_save = """      const territory = territories.find(item => item.id === activeTerritoryEditId);
-      const edited = territoryEditGroup.toGeoJSON();
-      const geometries = (edited.features || []).map(feature => feature.geometry).filter(Boolean);
-      if (territory && geometries.length) {
-        territory.geometry = geometries.length === 1
-          ? geometries[0]
-          : { type: 'MultiPolygon', coordinates: geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]) };
-        territory.manualBoundary = true;
-      }
-"""
-          if old_save not in text:
-              raise SystemExit('Could not find territory edit save block')
-          text = text.replace(old_save, new_save, 1)
-
-          old_layer = """  const layer = L.geoJSON(geometry, {
-    style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
-  }).addTo(territoryEditGroup);
-  if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [38, 38], maxZoom: 18 });
-  territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
-"""
-          new_layer = """  const editableGeoJson = L.geoJSON(geometry, {
-    style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
-  });
-  editableGeoJson.eachLayer(layer => territoryEditGroup.addLayer(layer));
-  if (territoryEditGroup.getBounds?.().isValid()) map.fitBounds(territoryEditGroup.getBounds(), { padding: [38, 38], maxZoom: 18 });
-  territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
-"""
-          if old_layer not in text:
-              raise SystemExit('Could not find territory edit layer block')
-          text = text.replace(old_layer, new_layer, 1)
+          old_save = base64.b64decode('ICAgICAgY29uc3QgdGVycml0b3J5ID0gdGVycml0b3JpZXMuZmluZChpdGVtID0+IGl0ZW0uaWQgPT09IGFjdGl2ZVRlcnJpdG9yeUVkaXRJZCk7CiAgICAgIGNvbnN0IGxheWVyID0gdGVycml0b3J5RWRpdEdyb3VwLmdldExheWVycygpWzBdOwogICAgICBpZiAodGVycml0b3J5ICYmIGxheWVyKSB7CiAgICAgICAgdGVycml0b3J5Lmdlb21ldHJ5ID0gbGF5ZXIudG9HZW9KU09OKCkuZ2VvbWV0cnk7CiAgICAgICAgdGVycml0b3J5Lm1hbnVhbEJvdW5kYXJ5ID0gdHJ1ZTsKICAgICAgfQo=').decode()
+          new_save = base64.b64decode('ICAgICAgY29uc3QgdGVycml0b3J5ID0gdGVycml0b3JpZXMuZmluZChpdGVtID0+IGl0ZW0uaWQgPT09IGFjdGl2ZVRlcnJpdG9yeUVkaXRJZCk7CiAgICAgIGNvbnN0IGVkaXRlZCA9IHRlcnJpdG9yeUVkaXRHcm91cC50b0dlb0pTT04oKTsKICAgICAgY29uc3QgZ2VvbWV0cmllcyA9IChlZGl0ZWQuZmVhdHVyZXMgfHwgW10pLm1hcChmZWF0dXJlID0+IGZlYXR1cmUuZ2VvbWV0cnkpLmZpbHRlcihCb29sZWFuKTsKICAgICAgaWYgKHRlcnJpdG9yeSAmJiBnZW9tZXRyaWVzLmxlbmd0aCkgewogICAgICAgIHRlcnJpdG9yeS5nZW9tZXRyeSA9IGdlb21ldHJpZXMubGVuZ3RoID09PSAxCiAgICAgICAgICA/IGdlb21ldHJpZXNbMF0KICAgICAgICAgIDogeyB0eXBlOiAnTXVsdGlQb2x5Z29uJywgY29vcmRpbmF0ZXM6IGdlb21ldHJpZXMuZmxhdE1hcChnZW9tZXRyeSA9PiBnZW9tZXRyeS50eXBlID09PSAnTXVsdGlQb2x5Z29uJyA/IGdlb21ldHJ5LmNvb3JkaW5hdGVzIDogW2dlb21ldHJ5LmNvb3JkaW5hdGVzXSkgfTsKICAgICAgICB0ZXJyaXRvcnkubWFudWFsQm91bmRhcnkgPSB0cnVlOwogICAgICB9Cg==').decode()
+          old_layer = base64.b64decode('ICBjb25zdCBsYXllciA9IEwuZ2VvSlNPTihnZW9tZXRyeSwgewogICAgc3R5bGU6IHsgY29sb3IsIHdlaWdodDogNCwgZmlsbENvbG9yOiBjb2xvciwgZmlsbE9wYWNpdHk6IC4xNiB9CiAgfSkuYWRkVG8odGVycml0b3J5RWRpdEdyb3VwKTsKICBpZiAobGF5ZXIuZ2V0Qm91bmRzPy4oKS5pc1ZhbGlkKCkpIG1hcC5maXRCb3VuZHMobGF5ZXIuZ2V0Qm91bmRzKCksIHsgcGFkZGluZzogWzM4LCAzOF0sIG1heFpvb206IDE4IH0pOwogIHRlcnJpdG9yeUVkaXRUb29sYmFyID0gbmV3IEwuRWRpdFRvb2xiYXIuRWRpdChtYXAsIHsgZmVhdHVyZUdyb3VwOiB0ZXJyaXRvcnlFZGl0R3JvdXAgfSk7Cg==').decode()
+          new_layer = base64.b64decode('ICBjb25zdCBlZGl0YWJsZUdlb0pzb24gPSBMLmdlb0pTT04oZ2VvbWV0cnksIHsKICAgIHN0eWxlOiB7IGNvbG9yLCB3ZWlnaHQ6IDQsIGZpbGxDb2xvcjogY29sb3IsIGZpbGxPcGFjaXR5OiAuMTYgfQogIH0pOwogIGVkaXRhYmxlR2VvSnNvbi5lYWNoTGF5ZXIobGF5ZXIgPT4gdGVycml0b3J5RWRpdEdyb3VwLmFkZExheWVyKGxheWVyKSk7CiAgaWYgKHRlcnJpdG9yeUVkaXRHcm91cC5nZXRCb3VuZHM/LigpLmlzVmFsaWQoKSkgbWFwLmZpdEJvdW5kcyh0ZXJyaXRvcnlFZGl0R3JvdXAuZ2V0Qm91bmRzKCksIHsgcGFkZGluZzogWzM4LCAzOF0sIG1heFpvb206IDE4IH0pOwogIHRlcnJpdG9yeUVkaXRUb29sYmFyID0gbmV3IEwuRWRpdFRvb2xiYXIuRWRpdChtYXAsIHsgZmVhdHVyZUdyb3VwOiB0ZXJyaXRvcnlFZGl0R3JvdXAgfSk7Cg==').decode()
+          if old_save not in text or old_layer not in text:
+              raise SystemExit('Expected territory edit blocks were not found')
+          text = text.replace(old_save, new_save, 1).replace(old_layer, new_layer, 1)
           path.write_text(text, encoding='utf-8')
           PY
       - name: Validate and commit
