@@ -1,0 +1,244 @@
+
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Ministry Territory Planner</h1>
+        <p>Build congregation-area boundaries, load public assessor/GIS address points, and organize compact field-service territories.</p>
+      </div>
+      <nav class="navlinks" aria-label="Convention planning navigation">
+        <a class="btn ghost" href="../">Full Planning Map</a>
+        <a class="btn ghost" href="../assignments/">Congregation Assignments</a>
+        <a class="btn ghost" href="../bus-access/">Bus Access Review</a>
+        <a class="btn ghost" href="../routes/">Bus Route Planner</a>
+        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="map-column">
+      <div class="map-card">
+        <div id="map" role="application" aria-label="Kingdom Hall, congregation boundary, residential address and territory map"></div>
+        <div class="map-legend">
+          <div><span class="legend-symbol hall-symbol">H</span>Kingdom Hall / meeting point</div>
+          <div><span class="legend-symbol house-symbol">•</span>Included house or address</div>
+          <div><span class="legend-symbol selected-symbol">•</span>Selected house</div>
+          <div><span class="legend-line boundary-line"></span>Congregation service-area boundary</div>
+          <div><span class="legend-fill territory-fill"></span>Territory boundary — automatic or manually edited</div>
+        </div>
+        <div class="map-note">Planning tool only. County assessor and GIS data can contain outdated, nonresidential, multi-unit, duplicate, or incomplete records. Confirm territory limits and individual addresses locally before use.</div>
+      </div>
+
+      <section class="card overview-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">BIG-PICTURE AREA</span><h2>Congregation boundary and territory summary</h2></div>
+          <span id="planStatusChip" class="status-chip">Not started</span>
+        </div>
+        <div class="summary-grid">
+          <article><span>Selected Hall</span><strong id="summaryHall">—</strong></article>
+          <article><span>Congregation</span><strong id="summaryCongregation">—</strong></article>
+          <article><span>Included addresses</span><strong id="summaryHouses">0</strong></article>
+          <article><span>Territories</span><strong id="summaryTerritories">0</strong></article>
+        </div>
+        <p>The blue congregation boundary is saved separately from the smaller territory groups. This prepares the data for later display on the larger convention planning map.</p>
+      </section>
+
+      <section class="card source-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">PUBLIC GIS SOURCES</span><h2>Current live address connections</h2></div>
+        </div>
+        <div class="source-grid">
+          <article><strong>Douglas County</strong><span>Official addressed-location point service. Best starting source for Highlands Ranch, Castle Rock, and much of Parker.</span></article>
+          <article><strong>Jefferson County</strong><span>Official Master Address point service for Golden, Wheat Ridge, Morrison, Arvada, and nearby areas.</span></article>
+          <article><strong>Denver</strong><span>Official Assessor parcel service. Each parcel is treated as one initial stop unless it is adjusted manually.</span></article>
+          <article><strong>Other counties</strong><span>Use CSV/GeoJSON import or add houses manually while additional official county connectors are reviewed.</span></article>
+        </div>
+      </section>
+    </section>
+
+    <aside class="side-panel">
+      <section class="card privacy-card" id="privacyCard">
+        <span class="eyebrow">PRIVATE PLANNING WORKSPACE</span>
+        <h2>House-level data requires sign-in</h2>
+        <p>Kingdom Hall markers are public. Assessor address points, saved boundaries, and saved territory plans are shown only after administrator sign-in and are stored in the private Firebase <code>reviews</code> collection.</p>
+      </section>
+
+      <section class="card setup-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">1 — AREA SETUP</span><h2>Select the Hall and congregation</h2></div>
+        </div>
+        <div class="field">
+          <label for="hallSelect">Kingdom Hall or meeting point</label>
+          <select id="hallSelect"></select>
+          <small id="hallDetail">Choose one of the current planning locations.</small>
+        </div>
+        <div class="field">
+          <label for="congregationSelect">Congregation</label>
+          <select id="congregationSelect"></select>
+        </div>
+        <div class="field">
+          <label for="planName">Territory-plan name</label>
+          <input id="planName" maxlength="140" placeholder="Example: Highlands Ranch — Convention Ministry Territories"/>
+        </div>
+        <div class="field">
+          <label for="territoryPrefix">Territory-number prefix</label>
+          <input id="territoryPrefix" maxlength="12" placeholder="Example: HR"/>
+        </div>
+      </section>
+
+      <section class="card boundary-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">2 — CONGREGATION BOUNDARY</span><h2>Define the big-picture service area</h2></div>
+          <span id="boundaryChip" class="count-chip">No boundary</span>
+        </div>
+        <p class="section-copy">Draw the outside boundary first. Assessor address searches and generated territories will be kept inside it.</p>
+        <div class="button-grid">
+          <button class="btn primary admin-control" id="drawBoundaryButton" type="button">Draw Boundary</button>
+          <button class="btn outline admin-control" id="editBoundaryButton" type="button">Edit Boundary</button>
+          <button class="btn outline admin-control" id="viewBoundaryButton" type="button">Use Current Map View</button>
+          <button class="btn danger admin-control" id="clearBoundaryButton" type="button">Clear Boundary</button>
+        </div>
+        <div class="field">
+          <label for="boundaryName">Boundary name</label>
+          <input id="boundaryName" maxlength="140" placeholder="Example: Highlands Ranch congregation service area"/>
+        </div>
+        <button class="btn save full admin-control" id="saveBoundaryButton" type="button">Save Congregation Boundary</button>
+        <small id="boundaryMessage">Select a Hall, then draw or load a boundary.</small>
+      </section>
+
+      <section class="card address-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">3 — HOUSES / ADDRESSES</span><h2>Load or add addresses</h2></div>
+          <span id="houseCountChip" class="count-chip">0 loaded</span>
+        </div>
+        <div class="field">
+          <label for="sourceSelect">Assessor / GIS source</label>
+          <select id="sourceSelect">
+            <option value="auto">Choose automatically for this Hall</option>
+            <option value="douglas">Douglas County Address Points</option>
+            <option value="jefferson">Jefferson County Master Address</option>
+            <option value="denver">Denver Assessor Parcels</option>
+            <option value="manual">Manual / CSV / GeoJSON only</option>
+          </select>
+          <small id="sourceDetail"></small>
+        </div>
+        <label class="check-row"><input id="residentialOnly" type="checkbox" checked/> Prefer residential records only</label>
+        <label class="check-row"><input id="separateUnits" type="checkbox"/> Count unit addresses separately when available</label>
+        <div class="button-grid">
+          <button class="btn primary admin-control" id="loadAddressesButton" type="button">Load Addresses Inside Boundary</button>
+          <button class="btn outline admin-control" id="addHouseButton" type="button">Add House by Map Click</button>
+          <label class="btn outline file-button admin-control">Import CSV / GeoJSON<input id="importFile" type="file" accept=".csv,.json,.geojson" hidden/></label>
+          <button class="btn danger admin-control" id="clearHousesButton" type="button">Clear Address Points</button>
+        </div>
+        <div class="progress" id="addressProgress" hidden><span></span></div>
+        <small id="addressMessage">Sign in, draw a boundary, and select a source.</small>
+      </section>
+
+      <section class="card grouping-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">4 — BUILD TERRITORIES</span><h2>Group houses into workable areas</h2></div>
+          <span id="territoryCountChip" class="count-chip">0 territories</span>
+        </div>
+        <div class="two-col">
+          <div class="field">
+            <label for="targetSize">Target houses per territory</label>
+            <select id="targetSize">
+              <option value="10">10 houses</option>
+              <option value="20">20 houses</option>
+              <option value="30" selected>30 houses</option>
+              <option value="40">40 houses</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="field" id="customTargetWrap" hidden>
+            <label for="customTarget">Custom target</label>
+            <input id="customTarget" type="number" min="1" max="200" value="25"/>
+          </div>
+        </div>
+        <div class="field">
+          <label for="groupingMethod">Automatic grouping method</label>
+          <select id="groupingMethod">
+            <option value="compact">Compact map groups</option>
+            <option value="street">Street-name and house-number order</option>
+          </select>
+          <small>Automatic groups are a starting point. Roads, gates, apartments, terrain, and safe access should be reviewed manually.</small>
+        </div>
+        <div class="button-grid">
+          <button class="btn primary admin-control" id="autoGroupButton" type="button">Create Automatic Territories</button>
+          <button class="btn save admin-control" id="drawTerritoryButton" type="button">Draw Territory Manually</button>
+          <button class="btn outline admin-control" id="selectAreaButton" type="button">Select Houses by Area</button>
+          <button class="btn outline admin-control" id="clearSelectionButton" type="button">Clear Selection</button>
+          <button class="btn danger admin-control" id="excludeSelectionButton" type="button">Include / Exclude Selected</button>
+        </div>
+        <div id="territoryEditMessage" class="territory-edit-message" hidden></div>
+        <div class="selection-panel">
+          <span id="selectionCount">0 houses selected</span>
+          <select id="assignTerritorySelect"></select>
+          <button class="btn save admin-control" id="assignSelectedButton" type="button">Assign Selected</button>
+          <button class="btn outline admin-control" id="newTerritoryButton" type="button">New Territory from Selected</button>
+        </div>
+      </section>
+
+      <section class="card territory-list-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">TERRITORY DIRECTORY</span><h2>Review, redraw, and print groups</h2></div>
+        </div>
+        <div id="territoryList" class="territory-list"><div class="empty">No territories have been created.</div></div>
+      </section>
+
+      <section class="card house-list-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">ADDRESS DIRECTORY</span><h2>Search and select houses</h2></div>
+        </div>
+        <input id="houseSearch" type="search" placeholder="Search address or territory"/>
+        <div id="houseList" class="house-list"><div class="empty">No addresses loaded.</div></div>
+      </section>
+
+      <section class="card save-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">5 — SAVE / EXPORT</span><h2>Store the plan in Firebase</h2></div>
+        </div>
+        <div class="field">
+          <label for="pdfTerritorySelect">Territory to print</label>
+          <select id="pdfTerritorySelect"><option value="">Create a territory first</option></select>
+          <small>The PDF includes the edited territory boundary, numbered home markers, the complete address list, and the Denver 2027 convention logo.</small>
+        </div>
+        <div class="button-grid">
+          <button class="btn save admin-control" id="savePlanButton" type="button">Save Territory Plan</button>
+          <button class="btn primary admin-control" id="exportTerritoryPdfButton" type="button">Export Branded Territory PDF</button>
+          <button class="btn outline" id="exportGeoJsonButton" type="button">Export GeoJSON</button>
+          <button class="btn outline" id="exportCsvButton" type="button">Export CSV</button>
+          <button class="btn outline admin-control" id="newPlanButton" type="button">Start New Plan</button>
+        </div>
+      </section>
+
+      <section class="card saved-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">SAVED FIREBASE RECORDS</span><h2>Boundaries and territory plans</h2></div>
+          <span class="private-chip">Administrator only</span>
+        </div>
+        <h3>Saved boundaries</h3>
+        <div id="savedBoundaries" class="saved-list"><div class="empty">Sign in to load saved boundaries.</div></div>
+        <h3>Saved plans</h3>
+        <div id="savedPlans" class="saved-list"><div class="empty">Sign in to load saved territory plans.</div></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>Sign in to load house-level assessor data, draw and save congregation boundaries, and manage territory plans.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required value="michaeltarin@hotmail.com"/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" type="password" autocomplete="current-password" required/></div>
+      <div class="modal-actions"><button class="btn outline" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="text-button" id="resetPassword" type="button">Send password reset email</button>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
