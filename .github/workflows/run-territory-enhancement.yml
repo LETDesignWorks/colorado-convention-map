@@ -1,0 +1,43 @@
+name: Run territory enhancement
+
+on:
+  push:
+    paths:
+      - '.github/workflows/run-territory-enhancement.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  enhance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute territory enhancement script
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/enhance-territory-boundaries-pdf.yml').read_text(encoding='utf-8')
+          marker = "          python - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY\n", start)
+          source = textwrap.dedent(workflow[start:end])
+          exec(compile(source, 'enhance_territories.py', 'exec'))
+          PY
+      - name: Validate generated files
+        run: |
+          node --check territories/app-main.js
+          node --check territories/bootstrap.js
+          grep -q 'Draw Territory Manually' territories/template.html
+          grep -q 'Export Branded Territory PDF' territories/template.html
+          grep -q 'function editTerritoryBoundary' territories/app-main.js
+          grep -q 'function exportTerritoryPdf' territories/app-main.js
+      - name: Commit enhanced planner
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/template.html territories/styles.css territories/bootstrap.js territories/index.html
+          git commit -m 'Add editable territory boundaries and branded PDF exports' || exit 0
+          git push
