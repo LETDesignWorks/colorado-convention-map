@@ -1,0 +1,70 @@
+name: Fix territory edit layer
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-territory-edit-layer.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch territory edit geometry handling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('territories/app-main.js')
+          text = path.read_text(encoding='utf-8')
+
+          old_save = """      const territory = territories.find(item => item.id === activeTerritoryEditId);
+      const layer = territoryEditGroup.getLayers()[0];
+      if (territory && layer) {
+        territory.geometry = layer.toGeoJSON().geometry;
+        territory.manualBoundary = true;
+      }
+"""
+          new_save = """      const territory = territories.find(item => item.id === activeTerritoryEditId);
+      const edited = territoryEditGroup.toGeoJSON();
+      const geometries = (edited.features || []).map(feature => feature.geometry).filter(Boolean);
+      if (territory && geometries.length) {
+        territory.geometry = geometries.length === 1
+          ? geometries[0]
+          : { type: 'MultiPolygon', coordinates: geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]) };
+        territory.manualBoundary = true;
+      }
+"""
+          if old_save not in text:
+              raise SystemExit('Could not find territory edit save block')
+          text = text.replace(old_save, new_save, 1)
+
+          old_layer = """  const layer = L.geoJSON(geometry, {
+    style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
+  }).addTo(territoryEditGroup);
+  if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [38, 38], maxZoom: 18 });
+  territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
+"""
+          new_layer = """  const editableGeoJson = L.geoJSON(geometry, {
+    style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
+  });
+  editableGeoJson.eachLayer(layer => territoryEditGroup.addLayer(layer));
+  if (territoryEditGroup.getBounds?.().isValid()) map.fitBounds(territoryEditGroup.getBounds(), { padding: [38, 38], maxZoom: 18 });
+  territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
+"""
+          if old_layer not in text:
+              raise SystemExit('Could not find territory edit layer block')
+          text = text.replace(old_layer, new_layer, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Validate and commit
+        run: |
+          node --check territories/app-main.js
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js
+          git commit -m 'Fix editable territory polygon handles' || exit 0
+          git push
