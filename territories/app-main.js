@@ -295,9 +295,12 @@ conflicts += 1;
   map.on(L.Draw.Event.EDITED, () => {
     if (activeTerritoryEditId) {
       const territory = territories.find(item => item.id === activeTerritoryEditId);
-      const layer = territoryEditGroup.getLayers()[0];
-      if (territory && layer) {
-        territory.geometry = layer.toGeoJSON().geometry;
+      const edited = territoryEditGroup.toGeoJSON();
+      const geometries = (edited.features || []).map(feature => feature.geometry).filter(Boolean);
+      if (territory && geometries.length) {
+        territory.geometry = geometries.length === 1
+          ? geometries[0]
+          : { type: 'MultiPolygon', coordinates: geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]) };
         territory.manualBoundary = true;
       }
       activeTerritoryEditId = null;
@@ -698,10 +701,11 @@ function editTerritoryBoundary(id) {
   territoryGroup.clearLayers();
   territoryEditGroup.clearLayers();
   const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
-  const layer = L.geoJSON(geometry, {
+  const editableGeoJson = L.geoJSON(geometry, {
     style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
-  }).addTo(territoryEditGroup);
-  if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [38, 38], maxZoom: 18 });
+  });
+  editableGeoJson.eachLayer(layer => territoryEditGroup.addLayer(layer));
+  if (territoryEditGroup.getBounds?.().isValid()) map.fitBounds(territoryEditGroup.getBounds(), { padding: [38, 38], maxZoom: 18 });
   territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
   territoryEditToolbar.enable();
   if (els.territoryEditMessage) {
