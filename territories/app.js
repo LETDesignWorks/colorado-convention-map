@@ -1,5 +1,5 @@
 const PARTS = Array.from({ length: 4 }, (_, index) => `app.payload.part${String(index).padStart(2, '0')}.txt`);
-const version = 'territories-20260923-3';
+const version = 'territories-20260923-4';
 
 try {
   if (typeof DecompressionStream !== 'function') throw new Error('This browser needs a newer version to open the territory planner.');
@@ -11,7 +11,7 @@ try {
   const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
   let source = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
   source = source
-    .replace("from '../bus-access/data.js'", `from 'https://letdesignworks.github.io/colorado-convention-map/bus-access/data.js?v=${version}'`)
+    .replace("from '../bus-access/data.js'", `from 'https://letdesignworks.github.io/colorado-convention-map/territories/halls.js?v=${version}'`)
     .replace("from './data.js'", `from 'https://letdesignworks.github.io/colorado-convention-map/territories/data.js?v=${version}'`);
   const moduleUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
   try { await import(moduleUrl); } finally { URL.revokeObjectURL(moduleUrl); }
