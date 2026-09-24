@@ -1,3 +1,5 @@
+import './territories-nav.js?v=territories-20260923-3';
+
 const PARTS = [
   'location-address-autofill.part01.txt',
   'location-address-autofill.part02.txt',
