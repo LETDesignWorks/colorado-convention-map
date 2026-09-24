@@ -17,13 +17,13 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import textwrap
 
           workflow = Path('.github/workflows/enhance-territory-boundaries-pdf.yml').read_text(encoding='utf-8')
           marker = "          python - <<'PY'\n"
           start = workflow.index(marker) + len(marker)
           end = workflow.index("\n          PY\n", start)
-          source = textwrap.dedent(workflow[start:end])
+          raw = workflow[start:end]
+          source = '\n'.join(line[10:] if line.startswith('          ') else line for line in raw.splitlines())
           exec(compile(source, 'enhance_territories.py', 'exec'))
           PY
       - name: Validate generated files
