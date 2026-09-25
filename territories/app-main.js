@@ -1325,6 +1325,10 @@ function territoryHousesSorted(territory) {
     return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
   });
 }
+function addressHouseNumber(address = '') {
+  const match = clean(address).match(/^\s*(\d+[A-Za-z]?)/);
+  return match ? match[1] : '';
+}
 async function imageDataUrl(url) {
   const response = await fetch(url, { cache: 'force-cache' });
   if (!response.ok) throw new Error(`Logo could not be loaded (${response.status}).`);
@@ -1529,6 +1533,37 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     doc.setFontSize(5.2);
     doc.setTextColor(255, 255, 255);
     doc.text(String(index + 1), x, y + .018, { align: 'center' });
+
+    const houseNumber = addressHouseNumber(house.address);
+    if (houseNumber) {
+      const mapCenterX = mapX + (mapW / 2);
+      const mapCenterY = mapY + (mapH / 2);
+      const placeRight = x >= mapCenterX;
+      const placeBelow = y >= mapCenterY;
+      const labelW = Math.max(.30, Math.min(.56, .12 + (houseNumber.length * .073)));
+      const labelH = .18;
+      const horizontalGap = .12;
+      const verticalGap = .08;
+      let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
+      let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
+      labelY += index % 2 === 0 ? -.018 : .018;
+      labelX = Math.max(mapX + .025, Math.min(mapX + mapW - labelW - .025, labelX));
+      labelY = Math.max(mapY + .025, Math.min(mapY + mapH - labelH - .025, labelY));
+      const connectorX = placeRight ? labelX : labelX + labelW;
+      const connectorY = labelY + (labelH / 2);
+
+      doc.setDrawColor(...color);
+      doc.setLineWidth(.011);
+      doc.line(x + (placeRight ? .085 : -.085), y, connectorX, connectorY);
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(...color);
+      doc.setLineWidth(.012);
+      doc.roundedRect(labelX, labelY, labelW, labelH, .035, .035, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.8);
+      doc.setTextColor(31, 52, 71);
+      doc.text(houseNumber, labelX + (labelW / 2), labelY + .122, { align: 'center' });
+    }
   });
   if (streetMap?.dataUrl) {
     doc.setFillColor(255, 255, 255);
