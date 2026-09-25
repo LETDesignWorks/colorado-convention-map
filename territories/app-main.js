@@ -114,6 +114,39 @@ function downloadText(filename, text, type = 'text/plain;charset=utf-8') {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
+function encodeGeometry(geometry) {
+  if (!geometry) return '';
+  try { return JSON.stringify(geometry); }
+  catch { return ''; }
+}
+function decodeGeometry(value, legacyValue = null) {
+  const candidate = value || legacyValue;
+  if (!candidate) return null;
+  if (typeof candidate === 'string') {
+    try {
+      const parsed = JSON.parse(candidate);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch { return null; }
+  }
+  if (typeof candidate === 'object') {
+    try { return JSON.parse(JSON.stringify(candidate)); }
+    catch { return null; }
+  }
+  return null;
+}
+function decodeTerritories(plan) {
+  if (typeof plan?.territoriesJson === 'string' && plan.territoriesJson) {
+    try {
+      const parsed = JSON.parse(plan.territoriesJson);
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* fall through to legacy records */ }
+  }
+  return Array.isArray(plan?.territories) ? plan.territories : [];
+}
+function savedTerritoryCount(plan) {
+  const storedCount = Number(plan?.territoryCount);
+  return Number.isFinite(storedCount) ? storedCount : decodeTerritories(plan).length;
+}
 function pointFeature(item) { return turf.point([Number(item.lng), Number(item.lat)]); }
 function boundaryFeature() { return boundaryGeometry ? turf.feature(boundaryGeometry) : null; }
 function pointInsideBoundary(item) {
@@ -1053,7 +1086,7 @@ function serializeBoundaryRecord() {
     hallName: selectedHall.name,
     hallAddress: selectedHall.address || '',
     congregation: selectedCongregation,
-    boundary: boundaryGeometry,
+    boundaryJson: encodeGeometry(boundaryGeometry),
     sourceHint: currentSourceKey(),
     updatedByEmail: currentUser.email,
     updatedAt: serverTimestamp()
@@ -1103,7 +1136,7 @@ async function savePlan() {
       hallAddress: selectedHall.address || '',
       congregation: selectedCongregation,
       territoryPrefix: clean(els.territoryPrefix.value).toUpperCase(),
-      boundary: boundaryGeometry,
+      boundaryJson: encodeGeometry(boundaryGeometry),
       boundaryName: clean(els.boundaryName.value) || `${selectedCongregation} service area`,
       sourceKey: currentSourceKey(),
       targetSize: targetSizeValue(),
@@ -1112,7 +1145,8 @@ async function savePlan() {
       separateUnits: els.separateUnits.checked,
       houseCount: houses.length,
       includedHouseCount: houses.filter(house => house.included).length,
-      territories: territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometry: item.geometry || null, manualBoundary: Boolean(item.geometry) })),
+      territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry) }))),
+      territoryCount: territories.length,
       chunkIds,
       chunkCount: chunkIds.length,
       updatedByEmail: currentUser.email,
@@ -1157,7 +1191,7 @@ function renderSavedRecords() {
   const boundaries = savedBoundaries();
   const plans = savedPlans();
   els.savedBoundaries.innerHTML = boundaries.length ? boundaries.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.name || item.congregation || 'Saved boundary')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-boundary="${item.id}">Load</button><button class="row-action danger" data-delete-boundary="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No congregation boundaries saved yet.</div>';
-  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${(item.houseCount || 0).toLocaleString()} addresses • ${(item.territories || []).length} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
+  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${(item.houseCount || 0).toLocaleString()} addresses • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
   els.savedBoundaries.querySelectorAll('[data-load-boundary]').forEach(button => button.addEventListener('click', () => loadBoundaryRecord(button.dataset.loadBoundary)));
   els.savedBoundaries.querySelectorAll('[data-delete-boundary]').forEach(button => button.addEventListener('click', () => deleteBoundaryRecord(button.dataset.deleteBoundary)));
   els.savedPlans.querySelectorAll('[data-load-plan]').forEach(button => button.addEventListener('click', () => loadPlanRecord(button.dataset.loadPlan)));
@@ -1171,14 +1205,15 @@ function restoreHallAndCongregation(hallId, congregation) {
 }
 function loadBoundaryRecord(id) {
   const item = reviewRecords.get(id);
-  if (!item?.boundary) return;
+  const savedBoundary = decodeGeometry(item?.boundaryJson, item?.boundary);
+  if (!savedBoundary) return;
   if ((houses.length || boundaryGeometry) && !confirm('Replace the current unsaved workspace with this saved boundary?')) return;
   clearPlanWorkspace(false);
   restoreHallAndCongregation(item.hallId, item.congregation);
   currentBoundaryId = item.id;
   els.boundaryName.value = item.name || '';
   els.sourceSelect.value = item.sourceHint && ASSESSOR_SOURCES[item.sourceHint] ? item.sourceHint : 'auto';
-  setBoundaryGeometry(item.boundary, true);
+  setBoundaryGeometry(savedBoundary, true);
   toast('Saved congregation boundary loaded.');
 }
 function loadPlanRecord(id) {
@@ -1201,14 +1236,18 @@ function loadPlanRecord(id) {
   const target = Number(plan.targetSize) || 30;
   if ([10, 20, 30, 40].includes(target)) els.targetSize.value = String(target);
   else { els.targetSize.value = 'custom'; els.customTarget.value = target; els.customTargetWrap.hidden = false; }
-  boundaryGeometry = plan.boundary || null;
+  boundaryGeometry = decodeGeometry(plan.boundaryJson, plan.boundary);
   if (boundaryGeometry) {
     boundaryGroup.clearLayers();
     const layer = L.geoJSON(boundaryGeometry, { style: { color: '#0b5b9f', weight: 3, dashArray: '9 7', fillColor: '#4d9cdb', fillOpacity: .08 } }).addTo(boundaryGroup);
     if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [28, 28], maxZoom: 15 });
   }
   houses = loadedHouses.map(item => ({ ...item, id: String(item.id), included: item.included !== false, territoryId: item.territoryId || null }));
-  territories = (plan.territories || []).map((item, index) => ({ id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry: item.geometry || null, manualBoundary: Boolean(item.geometry) }));
+  const savedTerritoriesForPlan = decodeTerritories(plan);
+  territories = savedTerritoriesForPlan.map((item, index) => {
+    const geometry = decodeGeometry(item.geometryJson, item.geometry);
+    return { id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry, manualBoundary: Boolean(geometry) };
+  });
   recalculateTerritoryHouseIds();
   selectedHouseIds.clear();
   updateBoundaryUi();
