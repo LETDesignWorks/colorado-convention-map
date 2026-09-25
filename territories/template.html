@@ -160,10 +160,10 @@
         <div class="field">
           <label for="groupingMethod">Automatic grouping method</label>
           <select id="groupingMethod">
-            <option value="compact">Compact map groups</option>
-            <option value="street">Street-name and house-number order</option>
-          </select>
-          <small>Automatic groups are a starting point. Roads, gates, apartments, terrain, and safe access should be reviewed manually.</small>
+  <option value="street" selected>Sequential street blocks (recommended)</option>
+  <option value="compact">Compact proximity groups</option>
+</select>
+<small>Sequential mode keeps house numbers in order on a continuous street run. Long streets are divided into adjacent number blocks; short streets are combined only with the closest available run. Every automatic territory should still be reviewed for roads, gates, apartments, terrain, and safe access.</small>
         </div>
         <div class="button-grid">
           <button class="btn primary admin-control" id="autoGroupButton" type="button">Create Automatic Territories</button>
@@ -203,7 +203,7 @@
         <div class="field">
           <label for="pdfTerritorySelect">Territory to print</label>
           <select id="pdfTerritorySelect"><option value="">Create a territory first</option></select>
-          <small>The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, each home's street number beside its marker, the complete address list, and the Denver 2027 convention logo.</small>
+          <small>The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, each home's street number in a light, unobtrusive label beside its marker, the complete address list, and the Denver 2027 convention logo.</small>
         </div>
         <div class="button-grid">
           <button class="btn save admin-control" id="savePlanButton" type="button">Save Territory Plan</button>

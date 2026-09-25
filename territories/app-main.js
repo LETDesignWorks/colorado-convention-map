@@ -910,14 +910,144 @@ function compactGroups(items, target) {
   }
   return groups;
 }
+function medianValue(values) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+function streetSequenceInfo(item) {
+  const address = clean(item.address || item.baseAddress || '');
+  const parsed = splitStreetSort(address) || {};
+  const fallbackNumber = Number(address.match(/^\s*(\d+)/)?.[1]) || 0;
+  const parsedNumber = Number(parsed.number);
+  const number = Number.isFinite(parsedNumber) && parsedNumber > 0 ? parsedNumber : fallbackNumber;
+  const street = clean(parsed.street || address.replace(/^\s*\d+[A-Za-z]?\s+/, ''));
+  const streetKey = street.toUpperCase().replace(/\s+/g, ' ') || `UNNAMED-${Number(item.lat).toFixed(4)}-${Number(item.lng).toFixed(4)}`;
+  return { street, streetKey, number };
+}
+function streetSequenceRuns(items) {
+  const byStreet = new Map();
+  for (const item of items) {
+    const info = streetSequenceInfo(item);
+    if (!byStreet.has(info.streetKey)) byStreet.set(info.streetKey, []);
+    byStreet.get(info.streetKey).push({ item, info });
+  }
+  const runs = [];
+  for (const entries of byStreet.values()) {
+    entries.sort((a, b) => a.info.number - b.info.number || a.item.address.localeCompare(b.item.address) || b.item.lat - a.item.lat || a.item.lng - b.item.lng);
+    const numberGaps = [];
+    for (let index = 1; index < entries.length; index += 1) {
+      const previous = entries[index - 1].info.number;
+      const current = entries[index].info.number;
+      if (previous > 0 && current > previous) numberGaps.push(current - previous);
+    }
+    const typicalGap = medianValue(numberGaps) || 10;
+    let run = [];
+    for (const entry of entries) {
+      const previous = run[run.length - 1];
+      if (previous) {
+        const mapGap = distanceMiles(previous.item, entry.item);
+        const numberGap = previous.info.number > 0 && entry.info.number > 0 ? Math.abs(entry.info.number - previous.info.number) : 0;
+        const numberBreak = numberGap > Math.max(120, typicalGap * 8);
+        const mapBreak = mapGap > 0.45;
+        if (numberBreak || mapBreak) {
+          runs.push(run.map(value => value.item));
+          run = [];
+        }
+      }
+      run.push(entry);
+    }
+    if (run.length) runs.push(run.map(value => value.item));
+  }
+  return runs;
+}
+function balancedStreetChunks(run, target) {
+  const maximumSize = Math.max(target, Math.round(target * 1.25));
+  const chunkCount = Math.max(1, Math.ceil(run.length / maximumSize));
+  const baseSize = Math.floor(run.length / chunkCount);
+  const remainder = run.length % chunkCount;
+  const chunks = [];
+  let cursor = 0;
+  for (let index = 0; index < chunkCount; index += 1) {
+    const size = baseSize + (index < remainder ? 1 : 0);
+    chunks.push(run.slice(cursor, cursor + size));
+    cursor += size;
+  }
+  return chunks.filter(chunk => chunk.length);
+}
+function sequenceGroupCenter(group) {
+  return {
+    lat: group.reduce((sum, item) => sum + Number(item.lat), 0) / group.length,
+    lng: group.reduce((sum, item) => sum + Number(item.lng), 0) / group.length
+  };
+}
+function endpointDistance(group, candidate) {
+  if (!group.length || !candidate.length) return Number.POSITIVE_INFINITY;
+  const groupEnds = [group[0], group[group.length - 1]];
+  const candidateEnds = [candidate[0], candidate[candidate.length - 1]];
+  let best = Number.POSITIVE_INFINITY;
+  for (const a of groupEnds) for (const b of candidateEnds) best = Math.min(best, distanceMiles(a, b));
+  return best;
+}
+function orientChunkToward(chunk, anchor) {
+  if (!anchor || chunk.length < 2) return [...chunk];
+  return distanceMiles(anchor, chunk[0]) <= distanceMiles(anchor, chunk[chunk.length - 1]) ? [...chunk] : [...chunk].reverse();
+}
+function orderTerritoryGroups(groups) {
+  const remaining = groups.map(group => [...group]);
+  const ordered = [];
+  let previous = null;
+  while (remaining.length) {
+    let chosenIndex = 0;
+    if (!previous) {
+      remaining.forEach((group, index) => {
+        const center = sequenceGroupCenter(group);
+        const chosenCenter = sequenceGroupCenter(remaining[chosenIndex]);
+        if (center.lat > chosenCenter.lat || (center.lat === chosenCenter.lat && center.lng < chosenCenter.lng)) chosenIndex = index;
+      });
+    } else {
+      let bestDistance = Number.POSITIVE_INFINITY;
+      remaining.forEach((group, index) => {
+        const distance = endpointDistance(previous, group);
+        if (distance < bestDistance) { bestDistance = distance; chosenIndex = index; }
+      });
+    }
+    let chosen = remaining.splice(chosenIndex, 1)[0];
+    if (previous?.length) chosen = orientChunkToward(chosen, previous[previous.length - 1]);
+    ordered.push(chosen);
+    previous = chosen;
+  }
+  return ordered;
+}
 function streetGroups(items, target) {
-  const sorted = [...items].sort((a, b) => {
-    const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
-    return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
+  const minimumStandalone = Math.max(4, Math.floor(target * 0.60));
+  const maximumSize = Math.max(target, Math.round(target * 1.25));
+  const chunks = streetSequenceRuns(items).flatMap(run => balancedStreetChunks(run, target));
+  const groups = chunks.filter(chunk => chunk.length >= minimumStandalone).map(chunk => [...chunk]);
+  const loose = chunks.filter(chunk => chunk.length < minimumStandalone).map(chunk => [...chunk]);
+
+  loose.sort((a, b) => {
+    const aa = sequenceGroupCenter(a), bb = sequenceGroupCenter(b);
+    return bb.lat - aa.lat || aa.lng - bb.lng;
   });
-  const groups = [];
-  for (let index = 0; index < sorted.length; index += target) groups.push(sorted.slice(index, index + target));
-  return groups;
+  while (loose.length) {
+    let group = loose.shift();
+    while (group.length < target && loose.length) {
+      let nearestIndex = -1;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      loose.forEach((candidate, index) => {
+        if (group.length + candidate.length > maximumSize) return;
+        const distance = endpointDistance(group, candidate);
+        if (distance < nearestDistance) { nearestDistance = distance; nearestIndex = index; }
+      });
+      if (nearestIndex < 0) break;
+      const candidate = loose.splice(nearestIndex, 1)[0];
+      group.push(...orientChunkToward(candidate, group[group.length - 1]));
+    }
+    groups.push(group);
+  }
+  return orderTerritoryGroups(groups);
 }
 function nextTerritoryName(index = territories.length) {
   const prefix = clean(els.territoryPrefix.value).toUpperCase() || initialPrefix(selectedCongregation);
@@ -939,7 +1069,7 @@ function automaticGrouping() {
   houses.forEach(house => { house.territoryId = house.included ? assignment.get(house.id) || null : null; });
   clearSelection();
   renderAllPlanningData();
-  toast(`${territories.length} territories created using a target of ${target} houses.`);
+  toast(`${territories.length} territories created using a target of ${target} houses. Sequential mode keeps each street in contiguous house-number blocks and combines only short nearby runs.`);
 }
 function recalculateTerritoryHouseIds() {
   for (const territory of territories) territory.houseIds = houses.filter(house => house.included && house.territoryId === territory.id).map(house => house.id);
@@ -1006,7 +1136,7 @@ function renderTerritoryList() {
     return;
   }
   els.territoryList.innerHTML = territories.map(territory => {
-    const included = houses.filter(house => house.included && house.territoryId === territory.id);
+    const included = territoryHousesSorted(territory);
     const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
     const boundaryLabel = territory.geometry ? 'Edited/manual boundary' : 'Automatic outline';
     return `<article class="territory-row"><span class="territory-swatch" style="background:${color}"></span><div class="territory-main"><strong>${escapeHtml(territory.name)}${territory.geometry ? '<span class="manual-boundary-chip">Manual</span>' : ''}</strong><small>${included.length.toLocaleString()} houses • ${boundaryLabel}${included.length ? ` • ${escapeHtml(included[0].address)}${included.length > 1 ? ` through ${escapeHtml(included[included.length - 1].address)}` : ''}` : ''}</small></div><div class="row-actions"><button class="row-action" data-territory-zoom="${territory.id}">Zoom</button><button class="row-action" data-territory-select="${territory.id}">Homes</button><button class="row-action" data-territory-boundary="${territory.id}">Edit Boundary</button><button class="row-action" data-territory-sync="${territory.id}">Sync Homes</button><button class="row-action" data-territory-pdf="${territory.id}">PDF</button>${territory.geometry ? `<button class="row-action" data-territory-reset="${territory.id}">Auto Outline</button>` : ''}<button class="row-action" data-territory-rename="${territory.id}">Rename</button><button class="row-action danger" data-territory-delete="${territory.id}">Delete</button></div></article>`;
@@ -1230,7 +1360,7 @@ function loadPlanRecord(id) {
   els.territoryPrefix.value = plan.territoryPrefix || initialPrefix(plan.congregation || 'T');
   els.boundaryName.value = plan.boundaryName || '';
   els.sourceSelect.value = plan.sourceKey && ASSESSOR_SOURCES[plan.sourceKey] ? plan.sourceKey : 'auto';
-  els.groupingMethod.value = plan.groupingMethod || 'compact';
+  els.groupingMethod.value = plan.groupingMethod || 'street';
   els.residentialOnly.checked = plan.residentialOnly !== false;
   els.separateUnits.checked = Boolean(plan.separateUnits);
   const target = Number(plan.targetSize) || 30;
@@ -1535,36 +1665,40 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     doc.text(String(index + 1), x, y + .018, { align: 'center' });
 
     const houseNumber = addressHouseNumber(house.address);
-    if (houseNumber) {
-      const mapCenterX = mapX + (mapW / 2);
-      const mapCenterY = mapY + (mapH / 2);
-      const placeRight = x >= mapCenterX;
-      const placeBelow = y >= mapCenterY;
-      const labelW = Math.max(.30, Math.min(.56, .12 + (houseNumber.length * .073)));
-      const labelH = .18;
-      const horizontalGap = .12;
-      const verticalGap = .08;
-      let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
-      let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
-      labelY += index % 2 === 0 ? -.018 : .018;
-      labelX = Math.max(mapX + .025, Math.min(mapX + mapW - labelW - .025, labelX));
-      labelY = Math.max(mapY + .025, Math.min(mapY + mapH - labelH - .025, labelY));
-      const connectorX = placeRight ? labelX : labelX + labelW;
-      const connectorY = labelY + (labelH / 2);
+  if (houseNumber) {
+    const mapCenterX = mapX + (mapW / 2);
+    const mapCenterY = mapY + (mapH / 2);
+    const placeRight = x >= mapCenterX;
+    const placeBelow = y >= mapCenterY;
+    const labelW = Math.max(.24, Math.min(.50, .09 + (houseNumber.length * .067)));
+    const labelH = .16;
+    const horizontalGap = .115;
+    const verticalGap = .065;
+    let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
+    let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
+    labelY += index % 2 === 0 ? -.015 : .015;
+    labelX = Math.max(mapX + .025, Math.min(mapX + mapW - labelW - .025, labelX));
+    labelY = Math.max(mapY + .025, Math.min(mapY + mapH - labelH - .025, labelY));
+    const connectorX = placeRight ? labelX : labelX + labelW;
+    const connectorY = labelY + (labelH / 2);
+    const textX = labelX + (labelW / 2);
+    const textY = labelY + .112;
 
-      doc.setDrawColor(...color);
-      doc.setLineWidth(.011);
-      doc.line(x + (placeRight ? .085 : -.085), y, connectorX, connectorY);
-      doc.setFillColor(255, 255, 255);
-      doc.setDrawColor(...color);
-      doc.setLineWidth(.012);
-      doc.roundedRect(labelX, labelY, labelW, labelH, .035, .035, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(5.8);
-      doc.setTextColor(31, 52, 71);
-      doc.text(houseNumber, labelX + (labelW / 2), labelY + .122, { align: 'center' });
-    }
-  });
+    doc.setDrawColor(181, 197, 209);
+    doc.setLineWidth(.006);
+    doc.line(x + (placeRight ? .082 : -.082), y, connectorX, connectorY);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.4);
+    doc.setTextColor(255, 255, 255);
+    const halo = .007;
+    doc.text(houseNumber, textX - halo, textY, { align: 'center' });
+    doc.text(houseNumber, textX + halo, textY, { align: 'center' });
+    doc.text(houseNumber, textX, textY - halo, { align: 'center' });
+    doc.text(houseNumber, textX, textY + halo, { align: 'center' });
+    doc.setTextColor(139, 160, 176);
+    doc.text(houseNumber, textX, textY, { align: 'center' });
+  }
+});
   if (streetMap?.dataUrl) {
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(195, 205, 214);
