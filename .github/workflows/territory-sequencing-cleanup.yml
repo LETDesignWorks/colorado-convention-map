@@ -1,0 +1,66 @@
+name: Territory sequencing cleanup
+
+on:
+  push:
+    paths:
+      - '.github/workflows/territory-sequencing-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Polish grouping message and remove one-time workflows
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app_path = Path('territories/app-main.js')
+          app = app_path.read_text(encoding='utf-8')
+          old = "toast(`${territories.length} territories created using a target of ${target} houses. Sequential mode keeps each street in contiguous house-number blocks and combines only short nearby runs.`);"
+          new = """const groupingNote = els.groupingMethod.value === 'street'
+            ? ' Sequential mode keeps each street in contiguous house-number blocks and combines only short nearby runs.'
+            : ' Compact mode groups the nearest available addresses and may require more manual boundary adjustment.';
+          toast(`${territories.length} territories created using a target of ${target} houses.${groupingNote}`);"""
+          if old not in app:
+              raise RuntimeError('Automatic-grouping toast anchor was not found')
+          app = app.replace(old, new, 1)
+          app_path.write_text(app, encoding='utf-8')
+
+          template_path = Path('territories/template.html')
+          template = template_path.read_text(encoding='utf-8')
+          template = template.replace(
+              '''          <select id="groupingMethod">
+  <option value="street" selected>Sequential street blocks (recommended)</option>
+  <option value="compact">Compact proximity groups</option>
+</select>
+<small>Sequential mode keeps house numbers in order on a continuous street run. Long streets are divided into adjacent number blocks; short streets are combined only with the closest available run. Every automatic territory should still be reviewed for roads, gates, apartments, terrain, and safe access.</small>''',
+              '''          <select id="groupingMethod">
+            <option value="street" selected>Sequential street blocks (recommended)</option>
+            <option value="compact">Compact proximity groups</option>
+          </select>
+          <small>Sequential mode keeps house numbers in order on a continuous street run. Long streets are divided into adjacent number blocks; short streets are combined only with the closest available run. Every automatic territory should still be reviewed for roads, gates, apartments, terrain, and safe access.</small>''',
+              1
+          )
+          template_path.write_text(template, encoding='utf-8')
+          PY
+
+          node --check territories/app-main.js
+          grep -q 'const groupingNote' territories/app-main.js
+          git rm -f \
+            .github/workflows/refine-territory-sequencing.yml \
+            .github/workflows/refine-territory-sequencing-v2.yml \
+            .github/workflows/refine-territory-sequencing-v3.yml \
+            .github/workflows/territory-sequencing-cleanup.yml
+
+      - name: Commit cleanup
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/template.html
+          git commit -m 'Polish sequential territory grouping update'
+          git push
