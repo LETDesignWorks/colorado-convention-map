@@ -1,0 +1,157 @@
+name: Fix Firestore boundary storage
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-firestore-boundary-storage.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Encode map geometry before saving to Firestore
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app_path = Path('territories/app-main.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          def require_once(text, needle, label):
+              count = text.count(needle)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected one match, found {count}')
+
+          helper_anchor = """function downloadText(filename, text, type = 'text/plain;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+"""
+          helpers = helper_anchor + """function encodeGeometry(geometry) {
+  if (!geometry) return '';
+  try { return JSON.stringify(geometry); }
+  catch { return ''; }
+}
+function decodeGeometry(value, legacyValue = null) {
+  const candidate = value || legacyValue;
+  if (!candidate) return null;
+  if (typeof candidate === 'string') {
+    try {
+      const parsed = JSON.parse(candidate);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch { return null; }
+  }
+  if (typeof candidate === 'object') {
+    try { return JSON.parse(JSON.stringify(candidate)); }
+    catch { return null; }
+  }
+  return null;
+}
+function decodeTerritories(plan) {
+  if (typeof plan?.territoriesJson === 'string' && plan.territoriesJson) {
+    try {
+      const parsed = JSON.parse(plan.territoriesJson);
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* fall through to legacy records */ }
+  }
+  return Array.isArray(plan?.territories) ? plan.territories : [];
+}
+function savedTerritoryCount(plan) {
+  const storedCount = Number(plan?.territoryCount);
+  return Number.isFinite(storedCount) ? storedCount : decodeTerritories(plan).length;
+}
+"""
+          if 'function encodeGeometry(geometry)' not in app:
+              require_once(app, helper_anchor, 'geometry helper insertion')
+              app = app.replace(helper_anchor, helpers, 1)
+
+          boundary_save_count = app.count('boundary: boundaryGeometry,')
+          if boundary_save_count not in (0, 2):
+              raise RuntimeError(f'boundary save fields: expected zero or two matches, found {boundary_save_count}')
+          app = app.replace('boundary: boundaryGeometry,', 'boundaryJson: encodeGeometry(boundaryGeometry),')
+
+          old_territory_save = "territories: territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometry: item.geometry || null, manualBoundary: Boolean(item.geometry) })),"
+          new_territory_save = "territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry) }))),\n      territoryCount: territories.length,"
+          if old_territory_save in app:
+              app = app.replace(old_territory_save, new_territory_save, 1)
+          elif 'territoriesJson: JSON.stringify(territories.map' not in app:
+              raise RuntimeError('territory-plan save field was not found')
+
+          old_load_boundary_start = """function loadBoundaryRecord(id) {
+  const item = reviewRecords.get(id);
+  if (!item?.boundary) return;
+"""
+          new_load_boundary_start = """function loadBoundaryRecord(id) {
+  const item = reviewRecords.get(id);
+  const savedBoundary = decodeGeometry(item?.boundaryJson, item?.boundary);
+  if (!savedBoundary) return;
+"""
+          if old_load_boundary_start in app:
+              app = app.replace(old_load_boundary_start, new_load_boundary_start, 1)
+          elif 'const savedBoundary = decodeGeometry(item?.boundaryJson, item?.boundary);' not in app:
+              raise RuntimeError('saved-boundary load start was not found')
+
+          if 'setBoundaryGeometry(item.boundary, true);' in app:
+              app = app.replace('setBoundaryGeometry(item.boundary, true);', 'setBoundaryGeometry(savedBoundary, true);', 1)
+          elif 'setBoundaryGeometry(savedBoundary, true);' not in app:
+              raise RuntimeError('saved-boundary geometry assignment was not found')
+
+          if 'boundaryGeometry = plan.boundary || null;' in app:
+              app = app.replace('boundaryGeometry = plan.boundary || null;', 'boundaryGeometry = decodeGeometry(plan.boundaryJson, plan.boundary);', 1)
+          elif 'boundaryGeometry = decodeGeometry(plan.boundaryJson, plan.boundary);' not in app:
+              raise RuntimeError('saved-plan boundary assignment was not found')
+
+          old_plan_territories = "territories = (plan.territories || []).map((item, index) => ({ id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry: item.geometry || null, manualBoundary: Boolean(item.geometry) }));"
+          new_plan_territories = "const savedTerritoriesForPlan = decodeTerritories(plan);\n  territories = savedTerritoriesForPlan.map((item, index) => {\n    const geometry = decodeGeometry(item.geometryJson, item.geometry);\n    return { id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry, manualBoundary: Boolean(geometry) };\n  });"
+          if old_plan_territories in app:
+              app = app.replace(old_plan_territories, new_plan_territories, 1)
+          elif 'const savedTerritoriesForPlan = decodeTerritories(plan);' not in app:
+              raise RuntimeError('saved-plan territory restoration was not found')
+
+          old_saved_count = "${(item.territories || []).length} territories"
+          if old_saved_count in app:
+              app = app.replace(old_saved_count, "${savedTerritoryCount(item)} territories", 1)
+          elif '${savedTerritoryCount(item)} territories' not in app:
+              raise RuntimeError('saved-plan territory count display was not found')
+
+          app_path.write_text(app, encoding='utf-8')
+
+          bootstrap_path = Path('territories/bootstrap.js')
+          bootstrap = bootstrap_path.read_text(encoding='utf-8').replace('territories-20260924-2', 'territories-20260924-3')
+          bootstrap_path.write_text(bootstrap, encoding='utf-8')
+
+          index_path = Path('territories/index.html')
+          index = index_path.read_text(encoding='utf-8').replace('territories-20260924-2', 'territories-20260924-3')
+          index_path.write_text(index, encoding='utf-8')
+          PY
+
+      - name: Validate the fix
+        run: |
+          node --check territories/app-main.js
+          grep -q 'boundaryJson: encodeGeometry(boundaryGeometry)' territories/app-main.js
+          grep -q 'territoriesJson: JSON.stringify' territories/app-main.js
+          grep -q 'decodeGeometry(plan.boundaryJson, plan.boundary)' territories/app-main.js
+          grep -q 'territories-20260924-3' territories/bootstrap.js
+          if grep -q 'boundary: boundaryGeometry,' territories/app-main.js; then
+            echo 'Raw nested boundary arrays are still being written.'
+            exit 1
+          fi
+
+      - name: Commit Firestore storage fix
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/bootstrap.js territories/index.html
+          git commit -m 'Fix Firestore saving for territory boundaries' || exit 0
+          git push
