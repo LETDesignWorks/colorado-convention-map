@@ -1336,6 +1336,110 @@ async function imageDataUrl(url) {
     reader.readAsDataURL(blob);
   });
 }
+function webMercatorWorldPoint(lng, lat, zoom) {
+  const worldSize = 256 * (2 ** zoom);
+  const safeLng = Number(lng);
+  const safeLat = Math.max(-85.05112878, Math.min(85.05112878, Number(lat)));
+  const radians = safeLat * Math.PI / 180;
+  return {
+    x: ((safeLng + 180) / 360) * worldSize,
+    y: ((1 - Math.log(Math.tan(radians) + (1 / Math.cos(radians))) / Math.PI) / 2) * worldSize
+  };
+}
+function territoryStreetMapPoints(territoryHouses, geometry) {
+  const rings = geometryRings(geometry?.geometry || geometry);
+  return [
+    ...rings.flat().map(point => [Number(point[0]), Number(point[1])]),
+    ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)])
+  ].filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+}
+function territoryStreetMapViewport(territoryHouses, geometry) {
+  const width = 1050;
+  const height = 992;
+  const padding = 72;
+  const points = territoryStreetMapPoints(territoryHouses, geometry);
+  if (!points.length) return null;
+  let selected = null;
+  for (let zoom = 18; zoom >= 11; zoom -= 1) {
+    const worldPoints = points.map(([lng, lat]) => webMercatorWorldPoint(lng, lat, zoom));
+    const minX = Math.min(...worldPoints.map(point => point.x));
+    const maxX = Math.max(...worldPoints.map(point => point.x));
+    const minY = Math.min(...worldPoints.map(point => point.y));
+    const maxY = Math.max(...worldPoints.map(point => point.y));
+    selected = { zoom, minX, maxX, minY, maxY };
+    if ((maxX - minX) <= width - (padding * 2) && (maxY - minY) <= height - (padding * 2)) break;
+  }
+  const centerX = (selected.minX + selected.maxX) / 2;
+  const centerY = (selected.minY + selected.maxY) / 2;
+  return {
+    width,
+    height,
+    zoom: selected.zoom,
+    left: centerX - (width / 2),
+    top: centerY - (height / 2)
+  };
+}
+async function loadStreetMapTile(url) {
+  const response = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
+  if (!response.ok) throw new Error(`Street-map tile could not be loaded (${response.status}).`);
+  const blob = await response.blob();
+  if (globalThis.createImageBitmap) return await createImageBitmap(blob);
+  return await new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(blob);
+    image.onload = () => { URL.revokeObjectURL(objectUrl); resolve(image); };
+    image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Street-map tile image could not be decoded.')); };
+    image.src = objectUrl;
+  });
+}
+async function buildTerritoryStreetMap(territoryHouses, geometry) {
+  const viewport = territoryStreetMapViewport(territoryHouses, geometry);
+  if (!viewport) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#f2efe9';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  const tileSize = 256;
+  const tileCount = 2 ** viewport.zoom;
+  const firstX = Math.floor(viewport.left / tileSize);
+  const lastX = Math.floor((viewport.left + viewport.width) / tileSize);
+  const firstY = Math.floor(viewport.top / tileSize);
+  const lastY = Math.floor((viewport.top + viewport.height) / tileSize);
+  const jobs = [];
+  for (let tileY = firstY; tileY <= lastY; tileY += 1) {
+    if (tileY < 0 || tileY >= tileCount) continue;
+    for (let tileX = firstX; tileX <= lastX; tileX += 1) {
+      const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
+      const drawX = (tileX * tileSize) - viewport.left;
+      const drawY = (tileY * tileSize) - viewport.top;
+      const url = `https://tile.openstreetmap.org/${viewport.zoom}/${wrappedX}/${tileY}.png`;
+      jobs.push(loadStreetMapTile(url).then(image => {
+        context.drawImage(image, drawX, drawY, tileSize, tileSize);
+        if (typeof image.close === 'function') image.close();
+        return true;
+      }).catch(error => {
+        console.warn('A street-map tile could not be loaded.', error);
+        return false;
+      }));
+    }
+  }
+  const results = await Promise.all(jobs);
+  if (!results.some(Boolean)) throw new Error('The street map could not be loaded.');
+  return {
+    ...viewport,
+    dataUrl: canvas.toDataURL('image/jpeg', 0.90)
+  };
+}
+function projectStreetMapPoint(streetMap, lng, lat, mapX, mapY, mapW, mapH) {
+  const point = webMercatorWorldPoint(lng, lat, streetMap.zoom);
+  return [
+    mapX + (((point.x - streetMap.left) / streetMap.width) * mapW),
+    mapY + (((point.y - streetMap.top) / streetMap.height) * mapH)
+  ];
+}
+
 function drawPdfHeader(doc, logoData, title, subtitle = '') {
   if (logoData) doc.addImage(logoData, 'PNG', 0.35, 0.22, 0.68, 0.68);
   doc.setTextColor(11, 68, 126);
@@ -1358,34 +1462,56 @@ function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
   doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.32, { align: 'right' });
 }
-function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry) {
+function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null) {
   const mapX = 0.42, mapY = 1.18, mapW = 7.05, mapH = 6.66;
-  doc.setFillColor(248, 250, 252);
+  if (streetMap?.dataUrl) {
+    doc.addImage(streetMap.dataUrl, 'JPEG', mapX, mapY, mapW, mapH, undefined, 'FAST');
+  } else {
+    doc.setFillColor(248, 250, 252);
+    doc.rect(mapX, mapY, mapW, mapH, 'F');
+  }
   doc.setDrawColor(174, 190, 204);
-  doc.roundedRect(mapX, mapY, mapW, mapH, 0.08, 0.08, 'FD');
+  doc.setLineWidth(.018);
+  doc.roundedRect(mapX, mapY, mapW, mapH, 0.08, 0.08, 'S');
   const rings = geometryRings(geometry.geometry || geometry);
   const allCoords = rings.flat();
   const points = [...allCoords, ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)])];
   if (!points.length) return;
-  let minLng = Math.min(...points.map(point => point[0]));
-  let maxLng = Math.max(...points.map(point => point[0]));
-  let minLat = Math.min(...points.map(point => point[1]));
-  let maxLat = Math.max(...points.map(point => point[1]));
-  const lngPad = Math.max((maxLng - minLng) * .08, .00035);
-  const latPad = Math.max((maxLat - minLat) * .08, .00035);
-  minLng -= lngPad; maxLng += lngPad; minLat -= latPad; maxLat += latPad;
-  const meanLat = ((minLat + maxLat) / 2) * Math.PI / 180;
-  const cosLat = Math.max(.2, Math.cos(meanLat));
-  const minX = minLng * cosLat, maxX = maxLng * cosLat;
-  const spanX = Math.max(maxX - minX, .000001), spanY = Math.max(maxLat - minLat, .000001);
-  const scale = Math.min((mapW - .30) / spanX, (mapH - .38) / spanY);
-  const usedW = spanX * scale, usedH = spanY * scale;
-  const offsetX = mapX + (mapW - usedW) / 2;
-  const offsetY = mapY + (mapH - usedH) / 2;
-  const project = ([lng, lat]) => [offsetX + ((lng * cosLat) - minX) * scale, offsetY + (maxLat - lat) * scale];
+  let project;
+  if (streetMap?.dataUrl) {
+    project = ([lng, lat]) => projectStreetMapPoint(streetMap, lng, lat, mapX, mapY, mapW, mapH);
+  } else {
+    let minLng = Math.min(...points.map(point => point[0]));
+    let maxLng = Math.max(...points.map(point => point[0]));
+    let minLat = Math.min(...points.map(point => point[1]));
+    let maxLat = Math.max(...points.map(point => point[1]));
+    const lngPad = Math.max((maxLng - minLng) * .08, .00035);
+    const latPad = Math.max((maxLat - minLat) * .08, .00035);
+    minLng -= lngPad; maxLng += lngPad; minLat -= latPad; maxLat += latPad;
+    const meanLat = ((minLat + maxLat) / 2) * Math.PI / 180;
+    const cosLat = Math.max(.2, Math.cos(meanLat));
+    const minX = minLng * cosLat, maxX = maxLng * cosLat;
+    const spanX = Math.max(maxX - minX, .000001), spanY = Math.max(maxLat - minLat, .000001);
+    const scale = Math.min((mapW - .30) / spanX, (mapH - .38) / spanY);
+    const usedW = spanX * scale, usedH = spanY * scale;
+    const offsetX = mapX + (mapW - usedW) / 2;
+    const offsetY = mapY + (mapH - usedH) / 2;
+    project = ([lng, lat]) => [offsetX + ((lng * cosLat) - minX) * scale, offsetY + (maxLat - lat) * scale];
+  }
   const color = hexRgb(TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length]);
+  if (streetMap?.dataUrl) {
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(.060);
+    for (const ring of rings) {
+      for (let index = 1; index < ring.length; index += 1) {
+        const [x1, y1] = project(ring[index - 1]);
+        const [x2, y2] = project(ring[index]);
+        doc.line(x1, y1, x2, y2);
+      }
+    }
+  }
   doc.setDrawColor(...color);
-  doc.setLineWidth(.025);
+  doc.setLineWidth(.030);
   for (const ring of rings) {
     for (let index = 1; index < ring.length; index += 1) {
       const [x1, y1] = project(ring[index - 1]);
@@ -1397,13 +1523,25 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry) {
     const [x, y] = project([Number(house.lng), Number(house.lat)]);
     doc.setFillColor(...color);
     doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(.012);
-    doc.circle(x, y, .085, 'FD');
+    doc.setLineWidth(.016);
+    doc.circle(x, y, .092, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(5.2);
     doc.setTextColor(255, 255, 255);
     doc.text(String(index + 1), x, y + .018, { align: 'center' });
   });
+  if (streetMap?.dataUrl) {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(195, 205, 214);
+    doc.roundedRect(mapX + .07, mapY + mapH - .23, 1.68, .16, .03, .03, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.2);
+    doc.setTextColor(73, 86, 101);
+    doc.text('© OpenStreetMap contributors', mapX + .13, mapY + mapH - .12);
+  }
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(193, 204, 214);
+  doc.circle(mapX + mapW - .23, mapY + .36, .18, 'FD');
   doc.setTextColor(31, 52, 71);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
@@ -1456,9 +1594,12 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   try {
     let logoData = null;
     try { logoData = await imageDataUrl(new URL('../assets/denver-2027-logo.png', import.meta.url).href); } catch { /* PDF remains usable without image */ }
+    let streetMap = null;
+    try { streetMap = await buildTerritoryStreetMap(territoryHouses, geometry); }
+    catch (error) { console.warn('Street background could not be included in this PDF.', error); }
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
     drawPdfHeader(doc, logoData, territory.name, `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses`);
-    drawTerritoryPdfMap(doc, territory, territoryHouses, geometry);
+    drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap);
     const panelX = 7.72;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -1506,7 +1647,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       drawPdfFooter(doc, page, pageCount);
     }
     doc.save(`${slug(selectedCongregation)}-${slug(territory.name)}-territory.pdf`);
-    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses.`);
+    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${streetMap ? ' and street labels' : ''}.`);
   } catch (error) {
     toast(`Could not create the territory PDF: ${friendlyError(error)}`, true);
   } finally {
