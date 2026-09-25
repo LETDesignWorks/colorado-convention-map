@@ -1,0 +1,127 @@
+name: Add house numbers to territory PDFs
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-territory-house-number-labels.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add address-number labels beside PDF home markers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path = Path('territories/app-main.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          helper_anchor = """function territoryHousesSorted(territory) {
+  return houses.filter(house => house.included && house.territoryId === territory.id).sort((a, b) => {
+    const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
+    return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
+  });
+}
+"""
+          helper_replacement = helper_anchor + """function addressHouseNumber(address = '') {
+  const match = clean(address).match(/^\\s*(\\d+[A-Za-z]?)/);
+  return match ? match[1] : '';
+}
+"""
+          if 'function addressHouseNumber(' not in app:
+              if app.count(helper_anchor) != 1:
+                  raise RuntimeError(f'House-number helper anchor expected one match, found {app.count(helper_anchor)}')
+              app = app.replace(helper_anchor, helper_replacement, 1)
+
+          marker_anchor = """    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.2);
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(index + 1), x, y + .018, { align: 'center' });
+  });
+"""
+          marker_replacement = """    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.2);
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(index + 1), x, y + .018, { align: 'center' });
+
+    const houseNumber = addressHouseNumber(house.address);
+    if (houseNumber) {
+      const mapCenterX = mapX + (mapW / 2);
+      const mapCenterY = mapY + (mapH / 2);
+      const placeRight = x >= mapCenterX;
+      const placeBelow = y >= mapCenterY;
+      const labelW = Math.max(.30, Math.min(.56, .12 + (houseNumber.length * .073)));
+      const labelH = .18;
+      const horizontalGap = .12;
+      const verticalGap = .08;
+      let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
+      let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
+      labelY += index % 2 === 0 ? -.018 : .018;
+      labelX = Math.max(mapX + .025, Math.min(mapX + mapW - labelW - .025, labelX));
+      labelY = Math.max(mapY + .025, Math.min(mapY + mapH - labelH - .025, labelY));
+      const connectorX = placeRight ? labelX : labelX + labelW;
+      const connectorY = labelY + (labelH / 2);
+
+      doc.setDrawColor(...color);
+      doc.setLineWidth(.011);
+      doc.line(x + (placeRight ? .085 : -.085), y, connectorX, connectorY);
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(...color);
+      doc.setLineWidth(.012);
+      doc.roundedRect(labelX, labelY, labelW, labelH, .035, .035, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.8);
+      doc.setTextColor(31, 52, 71);
+      doc.text(houseNumber, labelX + (labelW / 2), labelY + .122, { align: 'center' });
+    }
+  });
+"""
+          if 'const houseNumber = addressHouseNumber(house.address);' not in app:
+              if app.count(marker_anchor) != 1:
+                  raise RuntimeError(f'PDF marker anchor expected one match, found {app.count(marker_anchor)}')
+              app = app.replace(marker_anchor, marker_replacement, 1)
+
+          app = app.replace(
+              "toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${streetMap ? ' and street labels' : ''}.`);",
+              "toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${streetMap ? ', street labels, and house numbers' : ' and house numbers'}.`);",
+              1
+          )
+          app_path.write_text(app, encoding='utf-8')
+
+          template_path = Path('territories/template.html')
+          template = template_path.read_text(encoding='utf-8')
+          template = template.replace(
+              'The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, the complete address list, and the Denver 2027 convention logo.',
+              'The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, each home\'s street number beside its marker, the complete address list, and the Denver 2027 convention logo.'
+          )
+          template_path.write_text(template, encoding='utf-8')
+
+          new_version = 'territories-20260925-2'
+          for path in [Path('territories/bootstrap.js'), Path('territories/index.html')]:
+              text = path.read_text(encoding='utf-8')
+              text = re.sub(r'territories-\\d{8}-\\d+', new_version, text)
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate house-number label update
+        run: |
+          node --check territories/app-main.js
+          grep -q 'function addressHouseNumber' territories/app-main.js
+          grep -q 'const houseNumber = addressHouseNumber(house.address)' territories/app-main.js
+          grep -q "street number beside its marker" territories/template.html
+          grep -q 'territories-20260925-2' territories/bootstrap.js
+
+      - name: Commit PDF house-number labels
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/template.html territories/bootstrap.js territories/index.html
+          git commit -m 'Add house numbers to printable territory maps' || exit 0
+          git push
