@@ -45,7 +45,7 @@ const els = Object.fromEntries([
   'loginButton','signOutButton','addLocationButton','showHotels','showStations','showRailLines','showSmpw',
   'fitAllButton','fitSmpwButton','hotelCount','stationCount','locationCount','approvedCount','directoryCount',
   'locationSearch','statusFilter','locationList','loginModal','loginForm','loginEmail','loginPassword',
-  'cancelLogin','resetPassword','locationModal','locationModalTitle','closeLocationModal','locationForm',
+  'cancelLogin','resetPassword','smpwLocationModal','locationModalTitle','closeLocationModal','smpwLocationForm',
   'locationId','markerLabel','locationStatus','locationName','locationAddress','addressStatus','locationLat','locationLng',
   'locateAddressButton','useMapCenterButton','verifyGoogleLink','verifyAppleLink','cartCount','locationSchedule',
   'locationContact','locationNotes','cancelLocation','saveLocationButton','toast'
@@ -319,7 +319,7 @@ function openLocationModal(id = null) {
   if (!isAdmin()) { openLogin(); return; }
   clearTimeout(geocodeTimer);
   clearPreview();
-  els.locationForm.reset();
+  els.smpwLocationForm.reset();
   els.locationId.value = '';
   els.markerLabel.value = nextMarkerLabel();
   els.locationStatus.value = 'proposed';
@@ -328,7 +328,7 @@ function openLocationModal(id = null) {
   els.addressStatus.dataset.state = 'waiting';
   const record = id ? locations.find(item => item.id === id) : null;
   if (record) {
-    els.locationModalTitle.textContent = 'Edit SMPW Cart Location';
+    els.smpwLocationModalTitle.textContent = 'Edit SMPW Cart Location';
     els.locationId.value = record.id;
     els.markerLabel.value = record.markerLabel || '';
     els.locationStatus.value = record.status || 'proposed';
@@ -342,17 +342,17 @@ function openLocationModal(id = null) {
     els.locationNotes.value = record.notes || '';
     setPreview(record.lat, record.lng, false);
   } else {
-    els.locationModalTitle.textContent = 'Add SMPW Cart Location';
+    els.smpwLocationModalTitle.textContent = 'Add SMPW Cart Location';
     const center = map.getCenter();
     els.locationLat.value = center.lat.toFixed(6);
     els.locationLng.value = center.lng.toFixed(6);
   }
   updateVerifyLinks();
-  els.locationModal.classList.add('open');
+  els.smpwLocationModal.classList.add('open');
   setTimeout(() => els.locationName.focus(), 60);
 }
 function closeLocationModal() {
-  els.locationModal.classList.remove('open');
+  els.smpwLocationModal.classList.remove('open');
   clearTimeout(geocodeTimer);
   clearPreview();
 }
@@ -554,8 +554,8 @@ function wireEvents() {
   els.addLocationButton.addEventListener('click', () => openLocationModal());
   els.closeLocationModal.addEventListener('click', closeLocationModal);
   els.cancelLocation.addEventListener('click', closeLocationModal);
-  els.locationModal.addEventListener('click', event => { if (event.target === els.locationModal) closeLocationModal(); });
-  els.locationForm.addEventListener('submit', saveLocation);
+  els.smpwLocationModal.addEventListener('click', event => { if (event.target === els.smpwLocationModal) closeLocationModal(); });
+  els.smpwLocationForm.addEventListener('submit', saveLocation);
   els.locationAddress.addEventListener('input', scheduleAutomaticGeocode);
   els.locationName.addEventListener('input', updateVerifyLinks);
   els.locationLat.addEventListener('input', () => {
