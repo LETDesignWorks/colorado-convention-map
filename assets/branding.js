@@ -1,4 +1,4 @@
-import './denver-2027-circular-nav.js?v=20260926-1';
+import './denver-2027-circular-nav.js?v=sitewide-circles-20260926-2';
 import './location-address-autofill.js?v=20260910-3';
 
 const logoUrl = new URL('./denver-2027-logo.png', import.meta.url).href;

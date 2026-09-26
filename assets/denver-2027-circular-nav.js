@@ -174,6 +174,20 @@ function installStyles() {
         font-size: 9px !important;
         scroll-snap-align: start;
       }
+
+      /* A simple full-screen header can be both the header and navigation
+         host. Keep its title and circular return button on one row. */
+      .${HEADER_CLASS}.${NAV_CLASS} {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow: visible !important;
+      }
+
+      .${HEADER_CLASS}.${NAV_CLASS} > .brand {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+      }
     }
 
     @media (max-width: 560px) {
@@ -231,7 +245,17 @@ function findNavigationHosts() {
     'header.nav > .actions'
   ];
 
-  return Array.from(document.querySelectorAll(selectors.join(',')));
+  const hosts = Array.from(document.querySelectorAll(selectors.join(',')));
+
+  /* Some full-screen map pages place one or more .btn links directly inside
+     <header class="nav"> without a separate nav/actions wrapper. */
+  document.querySelectorAll('header.nav').forEach(header => {
+    if (Array.from(header.children).some(child => child.classList?.contains('btn'))) {
+      hosts.push(header);
+    }
+  });
+
+  return Array.from(new Set(hosts));
 }
 
 function enhanceNavigation() {

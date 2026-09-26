@@ -1,4 +1,4 @@
-const version = 'territories-20260926-2';
+const version = 'territories-20260926-3';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -16,7 +16,7 @@ try {
   style.textContent = `${styles}\n${circleNavStyles}`;
   document.head.appendChild(style);
   document.body.innerHTML = template;
-  await import('../assets/branding.js?v=territories-20260926-2');
+  await import('../assets/branding.js?v=sitewide-circles-20260926-2');
   await import('./app-main.js?v=territories-20260926-2');
 } catch (error) {
   console.error(error);
