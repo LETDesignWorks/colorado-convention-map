@@ -1,0 +1,22 @@
+name: Validate SMPW Planner
+
+on:
+  push:
+    paths:
+      - '.github/workflows/validate-smpw.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript syntax
+        run: |
+          node --check smpw/app.js
+          node --check smpw/data.js
+      - name: Check required files
+        run: |
+          test -f smpw/index.html
+          test -f smpw/styles.css
+          grep -q 'SMPW Cart Location Planner' smpw/index.html
+          grep -q "recordType:'smpw-location'" smpw/app.js
