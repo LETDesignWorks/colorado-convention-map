@@ -1,0 +1,139 @@
+/* Circular header navigation for the Ministry Territory Planner */
+.topbar .topbar-inner {
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar .topbar-inner > .brand {
+  flex: 1 1 260px;
+  min-width: 230px;
+  max-width: 360px;
+}
+
+.topbar .navlinks {
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.topbar .navlinks .btn {
+  width: 84px;
+  height: 84px;
+  min-width: 84px;
+  min-height: 84px;
+  flex: 0 0 84px;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  padding: 10px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.12;
+  font-size: 10.5px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+  box-shadow: 0 4px 13px rgba(0, 28, 58, .22);
+  transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.topbar .navlinks .btn.ghost,
+.topbar .navlinks .btn.light {
+  color: #fff;
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .48);
+}
+
+.topbar .navlinks .btn.white {
+  color: var(--navy);
+  background: #fff;
+  border-color: #fff;
+}
+
+.topbar .navlinks .btn:hover,
+.topbar .navlinks .btn:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 17px rgba(0, 28, 58, .30);
+}
+
+.topbar .navlinks .btn:focus-visible {
+  outline: 3px solid #ffd86a;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1260px) {
+  .topbar .topbar-inner > .brand {
+    min-width: 195px;
+    max-width: 285px;
+  }
+
+  .topbar .navlinks {
+    gap: 7px;
+  }
+
+  .topbar .navlinks .btn {
+    width: 76px;
+    height: 76px;
+    min-width: 76px;
+    min-height: 76px;
+    flex-basis: 76px;
+    padding: 8px;
+    font-size: 9.5px;
+  }
+}
+
+@media (max-width: 880px) {
+  .topbar .topbar-inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .topbar .topbar-inner > .denver-2027-brand-link {
+    grid-column: 1;
+    grid-row: 1;
+    float: none !important;
+    margin: 0 10px 0 0 !important;
+  }
+
+  .topbar .topbar-inner > .brand {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .topbar .topbar-inner > .navlinks {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    margin-top: 10px;
+    padding: 2px 2px 7px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    scroll-snap-type: x proximity;
+  }
+
+  .topbar .navlinks .btn {
+    width: 72px;
+    height: 72px;
+    min-width: 72px;
+    min-height: 72px;
+    flex-basis: 72px;
+    font-size: 9px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar .navlinks .btn {
+    width: 66px;
+    height: 66px;
+    min-width: 66px;
+    min-height: 66px;
+    flex-basis: 66px;
+    padding: 7px;
+    font-size: 8.5px;
+  }
+}
