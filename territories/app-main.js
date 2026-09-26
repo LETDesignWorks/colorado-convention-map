@@ -22,7 +22,9 @@ const firebaseConfig = {
   measurementId: 'G-054BLBBE0F'
 };
 const ADMIN_EMAIL = 'michaeltarin@hotmail.com';
-const MAX_ADDRESS_RECORDS = 6000;
+const MAX_ADDRESS_RECORDS = 50000;
+const ARCGIS_PAGE_SIZE = 1000;
+const MAX_ARCGIS_PAGES_PER_TILE = 50;
 const FIRESTORE_HOUSE_CHUNK_SIZE = 350;
 const HOUSE_LIST_LIMIT = 350;
 const AVOID_GEOCODE_TIMEOUT_MS = 12000;
@@ -639,7 +641,7 @@ async function requestArcGisPage(source, offset, forceGeometry = false, envelope
     spatialRel: 'esriSpatialRelIntersects',
     geometry: JSON.stringify(envelope),
     resultOffset: String(offset),
-    resultRecordCount: '1000',
+    resultRecordCount: String(ARCGIS_PAGE_SIZE),
     geometryPrecision: '6'
   });
   if (forceGeometry || source.returnGeometry) params.set('maxAllowableOffset', '0.00008');
@@ -680,11 +682,16 @@ async function queryArcGisSource(source, forceGeometry = false) {
   const features = [];
   const seen = new Set();
   const envelopes = boundaryQueryEnvelopes(source);
-  for (let tileIndex = 0; tileIndex < envelopes.length && features.length < MAX_ADDRESS_RECORDS; tileIndex += 1) {
+  let truncated = false;
+  for (let tileIndex = 0; tileIndex < envelopes.length; tileIndex += 1) {
+    if (features.length >= MAX_ADDRESS_RECORDS) { truncated = true; break; }
     const envelope = envelopes[tileIndex];
-    if (els?.addressMessage) els.addressMessage.textContent = `Loading ${source.label}: area ${tileIndex + 1} of ${envelopes.length}…`;
+    if (els?.addressMessage) {
+      els.addressMessage.textContent = `Loading ${source.label}: area ${tileIndex + 1} of ${envelopes.length} — ${features.length.toLocaleString()} records found…`;
+    }
     let offset = 0;
-    for (let page = 0; page < 8 && features.length < MAX_ADDRESS_RECORDS; page += 1) {
+    let tileComplete = false;
+    for (let page = 0; page < MAX_ARCGIS_PAGES_PER_TILE; page += 1) {
       const payload = await requestArcGisPage(source, offset, forceGeometry, envelope);
       if (payload?.error) throw new Error(payload.error.message || `${source.label} returned an error.`);
       const pageFeatures = Array.isArray(payload?.features) ? payload.features : [];
@@ -693,12 +700,21 @@ async function queryArcGisSource(source, forceGeometry = false) {
         if (seen.has(key)) continue;
         seen.add(key);
         features.push(feature);
-        if (features.length >= MAX_ADDRESS_RECORDS) break;
+        if (features.length >= MAX_ADDRESS_RECORDS) { truncated = true; break; }
       }
+      if (truncated) break;
       offset += pageFeatures.length;
       const exceeded = Boolean(payload?.exceededTransferLimit);
-      if (!exceeded || !pageFeatures.length) break;
+      if (!exceeded || !pageFeatures.length) { tileComplete = true; break; }
+      if (page === MAX_ARCGIS_PAGES_PER_TILE - 1) truncated = true;
     }
+    if (!tileComplete && !truncated) truncated = true;
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  if (els?.addressMessage) {
+    els.addressMessage.textContent = truncated
+      ? `${source.label} reached the ${MAX_ADDRESS_RECORDS.toLocaleString()}-record safety limit. Use a smaller boundary for complete coverage.`
+      : `${source.label} scan complete: ${features.length.toLocaleString()} records found across ${envelopes.length} map areas.`;
   }
   return features.slice(0, MAX_ADDRESS_RECORDS);
 }
@@ -835,7 +851,7 @@ async function fillAddressGaps() {
   if (!boundaryGeometry) { toast('Draw or load the congregation boundary before checking for missing addresses.', true); return; }
   const button = els.gapFillButton;
   button.disabled = true;
-  button.textContent = 'Checking Sources…';
+  button.textContent = 'Scanning Entire Boundary…';
   els.addressProgress.hidden = false;
   els.gapFillMessage.dataset.state = 'working';
   const results = [];
@@ -845,7 +861,9 @@ async function fillAddressGaps() {
     const current = currentSourceKey();
     const inferred = inferSourceForLocation(selectedHall);
     const pointSourceKeys = [];
-    if (!houses.length && current && current !== 'manual') pointSourceKeys.push(current);
+    // Always rescan the primary source. Earlier versions stopped at 6,000 records,
+    // which could leave the later map tiles blank even though the county had data.
+    if (current && current !== 'manual') pointSourceKeys.push(current);
     if (current !== 'colorado') pointSourceKeys.push('colorado');
     else if (inferred && !['manual','colorado'].includes(inferred)) pointSourceKeys.push(inferred);
     for (const sourceKey of [...new Set(pointSourceKeys)]) {
@@ -887,7 +905,7 @@ async function fillAddressGaps() {
   } finally {
     els.addressProgress.hidden = true;
     button.disabled = !isAdmin();
-    button.textContent = 'Search Other Official Address Sources';
+    button.textContent = 'Complete Boundary Scan & Fill Gaps';
   }
 }
 async function addMissingAddress() {

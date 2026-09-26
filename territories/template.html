@@ -125,7 +125,7 @@
             <option value="denver">Denver Assessor Parcels</option>
             <option value="manual">Manual / CSV / GeoJSON only</option>
           </select>
-          <small id="sourceDetail"></small><small>Large boundaries are queried in smaller sections. If the first source is incomplete, use Fill Missing Address Gaps to merge the other official address source and statewide parcel situs addresses without replacing existing work.</small>
+          <small id="sourceDetail"></small><small>Large boundaries are queried in smaller sections and the planner now scans the entire boundary instead of stopping after the first 6,000 records. If the first source is incomplete, use Complete Boundary Scan & Fill Gaps to rescan the primary source and merge the other official address and parcel sources without replacing existing work.</small>
         </div>
         <label class="check-row"><input id="residentialOnly" type="checkbox" checked/> Prefer residential records only</label>
         <label class="check-row"><input id="separateUnits" type="checkbox"/> Count unit addresses separately when available</label>
@@ -138,8 +138,8 @@
         <div class="gap-fill-panel">
           <div class="gap-fill-heading"><strong>Fill missing address gaps</strong><span>Does not replace existing territory work</span></div>
           <p>Search the alternate official county/state address points and the Colorado public parcel situs-address layer. New unique addresses are added as unassigned homes.</p>
-          <button class="btn outline full admin-control" id="gapFillButton" type="button">Search Other Official Address Sources</button>
-          <small id="gapFillMessage" data-state="waiting">Search the other official address and parcel sources after the first address load.</small>
+          <button class="btn outline full admin-control" id="gapFillButton" type="button">Complete Boundary Scan &amp; Fill Gaps</button>
+          <small id="gapFillMessage" data-state="waiting">Use this when dots stop abruptly in one part of the boundary or when known streets are missing. It rescans the primary source and then checks the alternate official address and parcel sources.</small>
           <div class="field gap-manual-field">
             <label for="missingAddressInput">Add a known missing address</label>
             <div class="gap-address-entry">
