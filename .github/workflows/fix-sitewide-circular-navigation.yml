@@ -1,0 +1,41 @@
+name: Fix site-wide circular navigation
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-sitewide-circular-navigation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply the circular-navigation repair
+        run: python .github/scripts/fix_sitewide_circular_navigation.py
+
+      - name: Validate updated navigation files
+        run: |
+          node --check assets/denver-2027-circular-nav.js
+          node --check assets/branding.js
+          node --check branding.js
+          node --check territories/bootstrap.js
+          grep -q 'sitewide-circles-20260926-2' assets/branding.js
+          grep -q 'sitewide-circles-20260926-2' bus-access/index.html
+          grep -q 'sitewide-circles-20260926-2' routes/index.html
+          grep -q 'sitewide-circles-20260926-2' team/seth.html
+          grep -q 'sitewide-circles-20260926-2' team/johnathan.html
+          grep -q 'sitewide-circles-20260926-2' team/michael.html
+          grep -q 'territories-20260926-3' territories/index.html
+          grep -q 'directly inside' assets/denver-2027-circular-nav.js
+
+      - name: Commit the repair
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add assets/branding.js assets/denver-2027-circular-nav.js branding.js '*.html' assignments activities bus-access routes smpw south-dtc-rail team territories
+          git commit -m 'Apply circular navigation across all planning maps' || exit 0
+          git push
