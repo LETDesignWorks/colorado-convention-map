@@ -1,4 +1,4 @@
-const version = 'territories-20260926-1';
+const version = 'territories-20260926-2';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -7,16 +7,17 @@ async function fetchText(path) {
 }
 
 try {
-  const [template, styles] = await Promise.all([
+  const [template, styles, circleNavStyles] = await Promise.all([
     fetchText('template.html'),
-    fetchText('styles.css')
+    fetchText('styles.css'),
+    fetchText('circle-nav.css')
   ]);
   const style = document.createElement('style');
-  style.textContent = styles;
+  style.textContent = `${styles}\n${circleNavStyles}`;
   document.head.appendChild(style);
   document.body.innerHTML = template;
-  await import('../assets/branding.js?v=territories-20260926-1');
-  await import('./app-main.js?v=territories-20260926-1');
+  await import('../assets/branding.js?v=territories-20260926-2');
+  await import('./app-main.js?v=territories-20260926-2');
 } catch (error) {
   console.error(error);
   document.body.innerHTML = `<div style="margin:18px;padding:16px;border:1px solid #d89b96;border-radius:12px;background:#fff2f1;color:#7f2d28;font:600 14px/1.5 system-ui,sans-serif">The Ministry Territory Planner could not start: ${String(error?.message || error)}</div>`;
