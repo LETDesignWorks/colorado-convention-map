@@ -25,6 +25,7 @@ const ADMIN_EMAIL = 'michaeltarin@hotmail.com';
 const MAX_ADDRESS_RECORDS = 6000;
 const FIRESTORE_HOUSE_CHUNK_SIZE = 350;
 const HOUSE_LIST_LIMIT = 350;
+const AVOID_GEOCODE_TIMEOUT_MS = 12000;
 
 let app;
 let auth;
@@ -43,6 +44,8 @@ let hallGroup;
 let selectionLayer = null;
 let drawMode = null;
 let manualHouseMode = false;
+let avoidGeocodeSequence = 0;
+let lastAvoidNominatimRequestAt = 0;
 let hallLocations = [];
 let selectedHall = null;
 let selectedCongregation = '';
@@ -60,13 +63,13 @@ const houseMarkers = new Map();
 const territoryLayers = new Map();
 
 const els = Object.fromEntries([
-  'loginButton','signOutButton','planStatusChip','summaryHall','summaryCongregation','summaryHouses','summaryTerritories',
+  'loginButton','signOutButton','planStatusChip','summaryHall','summaryCongregation','summaryHouses','summaryAvoid','summaryTerritories',
   'privacyCard','hallSelect','hallDetail','congregationSelect','planName','territoryPrefix','boundaryChip','drawBoundaryButton',
   'editBoundaryButton','viewBoundaryButton','clearBoundaryButton','boundaryName','saveBoundaryButton','boundaryMessage',
   'houseCountChip','sourceSelect','sourceDetail','residentialOnly','separateUnits','loadAddressesButton','addHouseButton',
-  'importFile','clearHousesButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
+  'importFile','clearHousesButton','avoidAddressInput','avoidAddressMessage','addAvoidAddressButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
   'customTarget','groupingMethod','autoGroupButton','drawTerritoryButton','selectAreaButton','clearSelectionButton','excludeSelectionButton',
-  'selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryList','houseSearch','houseList',
+  'markAvoidButton','restoreAvoidButton','selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryList','houseSearch','houseList',
   'savePlanButton','pdfTerritorySelect','exportTerritoryPdfButton','exportGeoJsonButton','exportCsvButton','newPlanButton','savedBoundaries','savedPlans','loginModal',
   'loginForm','loginEmail','loginPassword','cancelLogin','resetPassword','toast'
 ].map(id => [id, document.getElementById(id)]));
@@ -114,6 +117,90 @@ function downloadText(filename, text, type = 'text/plain;charset=utf-8') {
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
+function avoidCensusGeocode(address, sequence) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `__denver2027AvoidGeocode_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement('script');
+    let finished = false;
+    let timeout;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      script.remove();
+      try { delete window[callbackName]; } catch { window[callbackName] = undefined; }
+    };
+    timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('The U.S. Census address service timed out.'));
+    }, AVOID_GEOCODE_TIMEOUT_MS);
+    window[callbackName] = payload => {
+      if (sequence !== avoidGeocodeSequence) {
+        cleanup();
+        reject(new Error('The address changed before the lookup finished.'));
+        return;
+      }
+      const match = payload?.result?.addressMatches?.[0];
+      const coordinates = match?.coordinates;
+      cleanup();
+      if (!coordinates) {
+        reject(new Error('No U.S. Census address match was found.'));
+        return;
+      }
+      resolve({
+        lat: Number(coordinates.y),
+        lng: Number(coordinates.x),
+        matchedAddress: match.matchedAddress || address,
+        source: 'U.S. Census Geocoder'
+      });
+    };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('The U.S. Census address service could not be reached.'));
+    };
+    const url = new URL('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress');
+    url.searchParams.set('address', address);
+    url.searchParams.set('benchmark', 'Public_AR_Current');
+    url.searchParams.set('format', 'jsonp');
+    url.searchParams.set('callback', callbackName);
+    script.src = url.href;
+    document.head.appendChild(script);
+  });
+}
+async function avoidNominatimGeocode(address) {
+  const wait = Math.max(0, 1100 - (Date.now() - lastAvoidNominatimRequestAt));
+  if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+  lastAvoidNominatimRequestAt = Date.now();
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('limit', '1');
+  url.searchParams.set('countrycodes', 'us');
+  url.searchParams.set('addressdetails', '1');
+  url.searchParams.set('q', address);
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`OpenStreetMap address service returned ${response.status}.`);
+  const results = await response.json();
+  if (!results.length) throw new Error('No address match was found.');
+  return {
+    lat: Number(results[0].lat),
+    lng: Number(results[0].lon),
+    matchedAddress: results[0].display_name || address,
+    source: 'OpenStreetMap address search'
+  };
+}
+async function geocodeAvoidAddress(address) {
+  const sequence = ++avoidGeocodeSequence;
+  try {
+    return await avoidCensusGeocode(address, sequence);
+  } catch (censusError) {
+    if (sequence !== avoidGeocodeSequence) throw censusError;
+    try { return await avoidNominatimGeocode(address); }
+    catch (fallbackError) {
+      throw new Error(`${censusError.message} ${fallbackError.message}`.trim());
+    }
+  }
+}
+
 function encodeGeometry(geometry) {
   if (!geometry) return '';
   try { return JSON.stringify(geometry); }
@@ -306,7 +393,7 @@ function initMap() {
       let assigned = 0;
       let conflicts = 0;
       for (const house of houses) {
-        if (!house.included) continue;
+        if (!house.included || house.avoid) continue;
         let inside = false;
         try { inside = turf.booleanPointInPolygon(pointFeature(house), turf.feature(geometry)); } catch { inside = false; }
         if (!inside) continue;
@@ -627,10 +714,35 @@ function dedupeAddressRecords(records) {
     if (els.residentialOnly.checked && record.residential === false) continue;
     const key = normalizeAddressKey(includeUnits ? record.address : (record.baseAddress || record.address), includeUnits);
     if (!key) continue;
-    if (!seen.has(key)) seen.set(key, { ...record, included: true, territoryId: null });
+    if (!seen.has(key)) seen.set(key, { ...record, avoid: Boolean(record.avoid), included: record.avoid ? false : true, territoryId: null });
   }
   return [...seen.values()];
 }
+function mergeAvoidAddresses(records, existingAvoids) {
+  const merged = records.map(record => ({ ...record, avoid: Boolean(record.avoid), included: record.avoid ? false : record.included !== false, territoryId: record.avoid ? null : record.territoryId || null }));
+  for (const avoid of existingAvoids) {
+    if (!pointInsideBoundary(avoid)) continue;
+    const avoidKey = normalizeAddressKey(avoid.baseAddress || avoid.address, false);
+    let match = merged.find(record => normalizeAddressKey(record.baseAddress || record.address, false) === avoidKey);
+    if (!match) {
+      const parsed = splitStreetSort(avoid.address || '');
+      match = merged.find(record => {
+        const candidate = splitStreetSort(record.address || '');
+        return parsed.number && candidate.number === parsed.number && parsed.street && candidate.street === parsed.street && distanceMiles(record, avoid) <= 0.08;
+      });
+    }
+    if (match) {
+      match.avoid = true;
+      match.included = false;
+      match.territoryId = null;
+      match.avoidSource = avoid.avoidSource || avoid.source || '';
+    } else {
+      merged.push({ ...avoid, avoid: true, included: false, territoryId: null });
+    }
+  }
+  return merged;
+}
+
 async function loadAddresses() {
   if (!requireAdmin()) return;
   if (!boundaryGeometry) { toast('Draw or load the congregation boundary first.', true); return; }
@@ -644,6 +756,7 @@ async function loadAddresses() {
   els.addressProgress.hidden = false;
   els.loadAddressesButton.disabled = true;
   els.addressMessage.textContent = `Loading ${source.label} records inside the boundary…`;
+  const retainedAvoids = houses.filter(house => house.avoid).map(house => ({ ...house }));
   try {
   let result;
   let fallbackUsed = false;
@@ -664,7 +777,8 @@ async function loadAddresses() {
     }
   }
   if (!result) throw primaryError || new Error(`${source.label} returned no data.`);
-  houses = dedupeAddressRecords(result.parsed).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
+  const refreshedAddresses = dedupeAddressRecords(result.parsed);
+  houses = mergeAvoidAddresses(refreshedAddresses, retainedAvoids).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
   territories = [];
   selectedHouseIds.clear();
   currentPlanId = null;
@@ -674,8 +788,9 @@ async function loadAddresses() {
     els.addressMessage.textContent = `The ${sourceNote} responded, but no usable address points were found inside this boundary. Confirm the boundary is over the intended neighborhood, or try the Colorado Public Address Composite from the source menu.`;
     toast('The GIS service responded, but no addresses were found inside this boundary.', true);
   } else {
-    els.addressMessage.textContent = `${houses.length.toLocaleString()} address or parcel records loaded from ${sourceNote}. Review duplicates, apartments, commercial records, access, and local territory limits before use.`;
-    toast(`${houses.length.toLocaleString()} address records loaded${fallbackUsed ? ' using the statewide fallback' : ''}.`);
+    const avoidCount = houses.filter(house => house.avoid).length;
+    els.addressMessage.textContent = `${houses.length.toLocaleString()} address or parcel records loaded from ${sourceNote}${avoidCount ? `, including ${avoidCount.toLocaleString()} retained avoid address${avoidCount === 1 ? '' : 'es'}` : ''}. Review duplicates, apartments, commercial records, access, and local territory limits before use.`;
+    toast(`${houses.length.toLocaleString()} address records loaded${fallbackUsed ? ' using the statewide fallback' : ''}${avoidCount ? `; ${avoidCount} avoid address${avoidCount === 1 ? '' : 'es'} retained` : ''}.`);
   }
 } catch (error) {
   els.addressMessage.textContent = `Address loading failed: ${friendlyError(error)}`;
@@ -688,8 +803,118 @@ async function loadAddresses() {
 function addHouseRecord(record) {
   const key = normalizeAddressKey(record.address, true);
   if (houses.some(item => normalizeAddressKey(item.address, true) === key && Math.abs(item.lat - record.lat) < .00001 && Math.abs(item.lng - record.lng) < .00001)) return false;
-  houses.push({ ...record, id: String(record.id || uniqueId('address')), included: record.included !== false, territoryId: record.territoryId || null });
+  const avoid = Boolean(record.avoid);
+  houses.push({
+    ...record,
+    id: String(record.id || uniqueId('address')),
+    avoid,
+    included: avoid ? false : record.included !== false,
+    territoryId: avoid ? null : record.territoryId || null
+  });
   return true;
+}
+function findExistingHouseForAvoid(address, candidate) {
+  const key = normalizeAddressKey(address, false);
+  let match = houses.find(house => normalizeAddressKey(house.baseAddress || house.address, false) === key);
+  if (match) return match;
+  const target = splitStreetSort(address || '');
+  if (!target.number || !target.street) return null;
+  const nearby = houses
+    .filter(house => {
+      const parsed = splitStreetSort(house.address || '');
+      return parsed.number === target.number && parsed.street === target.street;
+    })
+    .map(house => ({ house, miles: distanceMiles(house, candidate) }))
+    .sort((a, b) => a.miles - b.miles);
+  return nearby[0]?.miles <= 0.08 ? nearby[0].house : null;
+}
+function markHouseAvoid(house) {
+  house.avoid = true;
+  house.included = false;
+  house.territoryId = null;
+  house.classification = house.classification || 'Avoid / do not visit';
+}
+function markSelectedAvoid() {
+  if (!requireAdmin() || !selectedHouseIds.size) return;
+  const selected = houses.filter(house => selectedHouseIds.has(house.id) && !house.avoid);
+  if (!selected.length) { toast('All selected addresses are already marked to avoid.', true); return; }
+  if (!confirm(`Mark ${selected.length} selected address${selected.length === 1 ? '' : 'es'} as Avoid / Do Not Visit? They will be removed from territory assignments.`)) return;
+  selected.forEach(markHouseAvoid);
+  recalculateTerritoryHouseIds();
+  renderAllPlanningData();
+  toast(`${selected.length} address${selected.length === 1 ? '' : 'es'} marked with red avoid dots.`);
+}
+function restoreSelectedAvoid() {
+  if (!requireAdmin() || !selectedHouseIds.size) return;
+  const selected = houses.filter(house => selectedHouseIds.has(house.id) && house.avoid);
+  if (!selected.length) { toast('Select one or more red avoid addresses first.', true); return; }
+  if (!confirm(`Restore ${selected.length} avoid address${selected.length === 1 ? '' : 'es'} to the unassigned address list?`)) return;
+  for (const house of selected) {
+    house.avoid = false;
+    house.included = true;
+    house.territoryId = null;
+    if (house.classification === 'Avoid / do not visit') house.classification = 'Manual address';
+  }
+  renderAllPlanningData();
+  toast(`${selected.length} address${selected.length === 1 ? '' : 'es'} restored as unassigned.`);
+}
+async function addAvoidAddress() {
+  if (!requireAdmin()) return;
+  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before adding an avoid address.', true); return; }
+  const address = clean(els.avoidAddressInput.value);
+  if (!address) { toast('Enter the complete address to avoid.', true); els.avoidAddressInput.focus(); return; }
+  const button = els.addAvoidAddressButton;
+  button.disabled = true;
+  button.textContent = 'Locating…';
+  els.avoidAddressMessage.textContent = 'Locating the address and checking the current congregation boundary…';
+  els.avoidAddressMessage.dataset.state = 'working';
+  try {
+    const result = await geocodeAvoidAddress(address);
+    const candidate = { lat: Number(result.lat), lng: Number(result.lng) };
+    if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lng)) throw new Error('The address service returned invalid coordinates.');
+    if (!pointInsideBoundary(candidate)) {
+      throw new Error('The matched address is outside the current congregation boundary. Verify the address or enlarge the boundary first.');
+    }
+    let house = findExistingHouseForAvoid(result.matchedAddress || address, candidate);
+    let added = false;
+    if (!house) {
+      const record = {
+        id: uniqueId('avoid'),
+        address: result.matchedAddress || address,
+        baseAddress: result.matchedAddress || address,
+        unit: '',
+        lat: candidate.lat,
+        lng: candidate.lng,
+        source: `Manual avoid address — ${result.source}`,
+        avoidSource: result.source,
+        residential: true,
+        classification: 'Avoid / do not visit',
+        avoid: true,
+        included: false,
+        territoryId: null
+      };
+      added = addHouseRecord(record);
+      house = houses.find(item => item.id === record.id) || findExistingHouseForAvoid(record.address, candidate);
+    }
+    if (!house) throw new Error('The address could not be added to the map.');
+    markHouseAvoid(house);
+    selectedHouseIds = new Set([house.id]);
+    recalculateTerritoryHouseIds();
+    renderAllPlanningData();
+    map?.setView([house.lat, house.lng], Math.max(map.getZoom(), 17), { animate: true });
+    houseMarkers.get(house.id)?.openPopup();
+    els.avoidAddressInput.value = '';
+    els.avoidAddressMessage.textContent = `${house.address} is marked Avoid / Do Not Visit with a red dot.`;
+    els.avoidAddressMessage.dataset.state = 'success';
+    toast(`${added ? 'Added' : 'Updated'} avoid address: ${house.address}`);
+  } catch (error) {
+    els.avoidAddressMessage.textContent = `Could not add the avoid address: ${friendlyError(error)}`;
+    els.avoidAddressMessage.dataset.state = 'error';
+    toast(`Could not add the avoid address: ${friendlyError(error)}`, true);
+  } finally {
+    button.disabled = !isAdmin();
+    button.textContent = 'Locate & Add Avoid Address';
+  }
 }
 function toggleManualHouseMode() {
   if (!requireAdmin()) return;
@@ -772,6 +997,10 @@ async function importAddressFile(file) {
 }
 
 function houseStyle(house) {
+  if (house.avoid) {
+    if (selectedHouseIds.has(house.id)) return { radius: 8, color: '#ffbd00', weight: 3, fillColor: '#c9362b', fillOpacity: 1 };
+    return { radius: 6, color: '#fff', weight: 2.2, fillColor: '#c9362b', fillOpacity: 1 };
+  }
   if (!house.included) return { radius: 4, color: '#fff', weight: 1.5, fillColor: '#b44b43', fillOpacity: .35 };
   if (selectedHouseIds.has(house.id)) return { radius: 7, color: '#fff', weight: 2.5, fillColor: '#ffbd00', fillOpacity: 1 };
   const territory = territories.find(item => item.id === house.territoryId);
@@ -784,7 +1013,8 @@ function renderHouseMarkers() {
   houseMarkers.clear();
   for (const house of houses) {
     const marker = L.circleMarker([house.lat, house.lng], { renderer: canvasRenderer, ...houseStyle(house) }).addTo(houseGroup);
-    marker.bindPopup(`<div class="house-popup"><strong>${escapeHtml(house.address)}</strong><br>${escapeHtml(house.source || '')}<br><small>${escapeHtml(house.classification || '')}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div>`);
+    const avoidNotice = house.avoid ? '<br><span class="avoid-popup-badge">AVOID / DO NOT VISIT</span>' : '';
+    marker.bindPopup(`<div class="house-popup"><strong>${escapeHtml(house.address)}</strong>${avoidNotice}<br>${escapeHtml(house.source || '')}<br><small>${escapeHtml(house.classification || '')}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div>`);
     marker.on('click', event => {
       L.DomEvent.stopPropagation(event);
       toggleHouseSelection(house.id);
@@ -863,7 +1093,7 @@ function syncTerritoryHomesToBoundary(id) {
   if (!geometry) { toast('This territory does not have a usable boundary.', true); return; }
   const insideIds = new Set();
   for (const house of houses) {
-    if (!house.included) continue;
+    if (!house.included || house.avoid) continue;
     try {
       if (turf.booleanPointInPolygon(pointFeature(house), geometry)) insideIds.add(house.id);
     } catch { /* no-op */ }
@@ -875,7 +1105,7 @@ function syncTerritoryHomesToBoundary(id) {
     `${removing ? ` It will leave ${removing} address(es) outside the boundary unassigned.` : ''}`;
   if (!confirm(message)) return;
   for (const house of houses) {
-    if (!house.included) continue;
+    if (!house.included || house.avoid) continue;
     if (insideIds.has(house.id)) house.territoryId = territory.id;
     else if (house.territoryId === territory.id) house.territoryId = null;
   }
@@ -887,7 +1117,7 @@ function syncTerritoryHomesToBoundary(id) {
 
 function territoryGeometry(territory) {
   if (territory?.geometry) return turf.feature(JSON.parse(JSON.stringify(territory.geometry)));
-  const points = houses.filter(house => house.included && house.territoryId === territory.id).map(pointFeature);
+  const points = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).map(pointFeature);
   if (!points.length) return null;
   try {
     if (points.length === 1) return turf.buffer(points[0], .045, { units: 'kilometers', steps: 16 });
@@ -943,7 +1173,7 @@ function clearSelection(removeLayer = true) {
 function selectHousesWithin(feature) {
   selectedHouseIds.clear();
   for (const house of houses) {
-    if (!house.included) continue;
+    if (!house.included || house.avoid) continue;
     try { if (turf.booleanPointInPolygon(pointFeature(house), feature)) selectedHouseIds.add(house.id); } catch { /* ignore */ }
   }
   renderHouseMarkers();
@@ -968,14 +1198,20 @@ function selectTerritoryHouses(territoryId) {
   updateSelectionUi();
 }
 function updateSelectionUi() {
-  els.selectionCount.textContent = `${selectedHouseIds.size.toLocaleString()} house${selectedHouseIds.size === 1 ? '' : 's'} selected`;
-  els.assignSelectedButton.disabled = !selectedHouseIds.size || !isAdmin();
-  els.newTerritoryButton.disabled = !selectedHouseIds.size || !isAdmin();
-  els.excludeSelectionButton.disabled = !selectedHouseIds.size || !isAdmin();
+  const selected = houses.filter(house => selectedHouseIds.has(house.id));
+  const selectedAvoid = selected.filter(house => house.avoid).length;
+  const eligible = selected.filter(house => house.included && !house.avoid).length;
+  els.selectionCount.textContent = `${selected.length.toLocaleString()} house${selected.length === 1 ? '' : 's'} selected${selectedAvoid ? ` • ${selectedAvoid} avoid` : ''}`;
+  els.assignSelectedButton.disabled = !eligible || !isAdmin();
+  els.newTerritoryButton.disabled = !eligible || !isAdmin();
+  els.excludeSelectionButton.disabled = !selected.some(house => !house.avoid) || !isAdmin();
+  els.markAvoidButton.disabled = !selected.some(house => !house.avoid) || !isAdmin();
+  els.restoreAvoidButton.disabled = !selectedAvoid || !isAdmin();
 }
 function includeExcludeSelected() {
   if (!requireAdmin() || !selectedHouseIds.size) return;
-  const selected = houses.filter(house => selectedHouseIds.has(house.id));
+  const selected = houses.filter(house => selectedHouseIds.has(house.id) && !house.avoid);
+  if (!selected.length) { toast('Avoid addresses must be restored with the Restore Selected button.', true); return; }
   const shouldInclude = selected.every(house => !house.included);
   for (const house of selected) {
     house.included = shouldInclude;
@@ -1153,7 +1389,7 @@ function nextTerritoryName(index = territories.length) {
 }
 function automaticGrouping() {
   if (!requireAdmin()) return;
-  const included = houses.filter(house => house.included);
+  const included = houses.filter(house => house.included && !house.avoid);
   if (!included.length) { toast('Load or add included addresses first.', true); return; }
   if (territories.length && !confirm('Replace the existing territory groups with new automatic groups?')) return;
   const target = targetSizeValue();
@@ -1164,13 +1400,13 @@ function automaticGrouping() {
   }));
   const assignment = new Map();
   territories.forEach(territory => territory.houseIds.forEach(id => assignment.set(id, territory.id)));
-  houses.forEach(house => { house.territoryId = house.included ? assignment.get(house.id) || null : null; });
+  houses.forEach(house => { house.territoryId = house.included && !house.avoid ? assignment.get(house.id) || null : null; });
   clearSelection();
   renderAllPlanningData();
   toast(`${territories.length} territories created using a target of ${target} houses. Sequential mode keeps each street in contiguous house-number blocks and combines only short nearby runs.`);
 }
 function recalculateTerritoryHouseIds() {
-  for (const territory of territories) territory.houseIds = houses.filter(house => house.included && house.territoryId === territory.id).map(house => house.id);
+  for (const territory of territories) territory.houseIds = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).map(house => house.id);
   territories = territories.filter(territory => territory.houseIds.length || territory.geometry);
 }
 function updateAssignmentSelector() {
@@ -1189,14 +1425,14 @@ function updateAssignmentSelector() {
 function assignSelected() {
   if (!requireAdmin() || !selectedHouseIds.size) return;
   const territoryId = els.assignTerritorySelect.value || null;
-  for (const house of houses) if (selectedHouseIds.has(house.id) && house.included) house.territoryId = territoryId;
+  for (const house of houses) if (selectedHouseIds.has(house.id) && house.included && !house.avoid) house.territoryId = territoryId;
   recalculateTerritoryHouseIds();
   renderAllPlanningData();
   toast(territoryId ? 'Selected houses assigned to the chosen territory.' : 'Selected houses moved to Unassigned.');
 }
 function newTerritoryFromSelected() {
   if (!requireAdmin() || !selectedHouseIds.size) return;
-  const selected = houses.filter(house => selectedHouseIds.has(house.id) && house.included);
+  const selected = houses.filter(house => selectedHouseIds.has(house.id) && house.included && !house.avoid);
   if (!selected.length) { toast('No included houses are selected.', true); return; }
   const suggested = nextTerritoryName();
   const name = clean(prompt('Territory name:', suggested));
@@ -1253,8 +1489,8 @@ function renderHouseList() {
   const territoryById = new Map(territories.map(item => [item.id, item]));
   const filtered = houses.filter(house => {
     const territory = territoryById.get(house.territoryId);
-    return !query || `${house.address} ${territory?.name || ''} ${house.source || ''}`.toLowerCase().includes(query);
-  });
+    return !query || `${house.address} ${territory?.name || ''} ${house.source || ''} ${house.avoid ? 'avoid do not visit' : ''}`.toLowerCase().includes(query);
+  }).sort((a, b) => Number(Boolean(b.avoid)) - Number(Boolean(a.avoid)) || a.address.localeCompare(b.address, undefined, { numeric: true }));
   const shown = filtered.slice(0, HOUSE_LIST_LIMIT);
   if (!shown.length) {
     els.houseList.innerHTML = `<div class="empty">${houses.length ? 'No addresses match this search.' : 'No addresses loaded.'}</div>`;
@@ -1262,19 +1498,23 @@ function renderHouseList() {
   }
   els.houseList.innerHTML = shown.map(house => {
     const territory = territoryById.get(house.territoryId);
-    const color = territory ? TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length] : house.included ? '#6b7c8f' : '#b44b43';
-    return `<article class="house-row${selectedHouseIds.has(house.id) ? ' selected' : ''}${house.included ? '' : ' excluded'}" data-house-id="${escapeHtml(house.id)}"><span class="house-dot" style="background:${color}"></span><div><strong>${escapeHtml(house.address)}</strong><small>${escapeHtml(house.source || '')}${house.classification ? ` • ${escapeHtml(house.classification)}` : ''}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div><span class="territory-tag">${escapeHtml(house.included ? territory?.name || 'Unassigned' : 'Excluded')}</span></article>`;
+    const color = house.avoid ? '#c9362b' : territory ? TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length] : house.included ? '#6b7c8f' : '#b44b43';
+    const rowClass = `${selectedHouseIds.has(house.id) ? ' selected' : ''}${house.avoid ? ' avoid' : house.included ? '' : ' excluded'}`;
+    const status = house.avoid ? 'Avoid' : house.included ? territory?.name || 'Unassigned' : 'Excluded';
+    return `<article class="house-row${rowClass}" data-house-id="${escapeHtml(house.id)}"><span class="house-dot" style="background:${color}"></span><div><strong>${escapeHtml(house.address)}</strong><small>${escapeHtml(house.source || '')}${house.classification ? ` • ${escapeHtml(house.classification)}` : ''}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div><span class="territory-tag">${escapeHtml(status)}</span></article>`;
   }).join('') + (filtered.length > HOUSE_LIST_LIMIT ? `<div class="list-limit">Showing the first ${HOUSE_LIST_LIMIT.toLocaleString()} of ${filtered.length.toLocaleString()} matching addresses. Use search or the map to narrow the list.</div>` : '');
   els.houseList.querySelectorAll('[data-house-id]').forEach(row => row.addEventListener('click', () => toggleHouseSelection(row.dataset.houseId)));
 }
 
 function updateSummary() {
-  const includedCount = houses.filter(house => house.included).length;
+  const includedCount = houses.filter(house => house.included && !house.avoid).length;
+  const avoidCount = houses.filter(house => house.avoid).length;
   els.summaryHall.textContent = selectedHall ? `${markerLabel(selectedHall)} — ${selectedHall.name}` : '—';
   els.summaryCongregation.textContent = selectedCongregation || '—';
   els.summaryHouses.textContent = includedCount.toLocaleString();
+  els.summaryAvoid.textContent = avoidCount.toLocaleString();
   els.summaryTerritories.textContent = territories.length.toLocaleString();
-  els.houseCountChip.textContent = `${houses.length.toLocaleString()} loaded`;
+  els.houseCountChip.textContent = `${houses.length.toLocaleString()} loaded${avoidCount ? ` • ${avoidCount.toLocaleString()} avoid` : ''}`;
   els.territoryCountChip.textContent = `${territories.length.toLocaleString()} territor${territories.length === 1 ? 'y' : 'ies'}`;
   els.planStatusChip.textContent = currentPlanId ? 'Saved plan loaded' : boundaryGeometry || houses.length ? 'Unsaved work' : 'Not started';
   els.planStatusChip.className = `status-chip${currentPlanId ? ' ready' : boundaryGeometry || houses.length ? ' working' : ''}`;
@@ -1338,7 +1578,8 @@ function serializeHouse(house) {
     id: house.id, address: house.address, baseAddress: house.baseAddress || house.address, unit: house.unit || '',
     lat: Number(house.lat), lng: Number(house.lng), source: house.source || '', residential: house.residential !== false,
     classification: house.classification || '', unitCount: Number(house.unitCount) || 1, included: house.included !== false,
-    territoryId: house.territoryId || null, rawId: house.rawId ?? null
+    avoid: Boolean(house.avoid), avoidSource: house.avoidSource || '', territoryId: house.avoid ? null : house.territoryId || null,
+    rawId: house.rawId ?? null
   };
 }
 async function savePlan() {
@@ -1372,7 +1613,8 @@ async function savePlan() {
       residentialOnly: els.residentialOnly.checked,
       separateUnits: els.separateUnits.checked,
       houseCount: houses.length,
-      includedHouseCount: houses.filter(house => house.included).length,
+      includedHouseCount: houses.filter(house => house.included && !house.avoid).length,
+      avoidHouseCount: houses.filter(house => house.avoid).length,
       territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry) }))),
       territoryCount: territories.length,
       chunkIds,
@@ -1419,7 +1661,7 @@ function renderSavedRecords() {
   const boundaries = savedBoundaries();
   const plans = savedPlans();
   els.savedBoundaries.innerHTML = boundaries.length ? boundaries.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.name || item.congregation || 'Saved boundary')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-boundary="${item.id}">Load</button><button class="row-action danger" data-delete-boundary="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No congregation boundaries saved yet.</div>';
-  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${(item.houseCount || 0).toLocaleString()} addresses • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
+  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${(item.houseCount || 0).toLocaleString()} addresses${item.avoidHouseCount ? ` • ${Number(item.avoidHouseCount).toLocaleString()} avoid` : ''} • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
   els.savedBoundaries.querySelectorAll('[data-load-boundary]').forEach(button => button.addEventListener('click', () => loadBoundaryRecord(button.dataset.loadBoundary)));
   els.savedBoundaries.querySelectorAll('[data-delete-boundary]').forEach(button => button.addEventListener('click', () => deleteBoundaryRecord(button.dataset.deleteBoundary)));
   els.savedPlans.querySelectorAll('[data-load-plan]').forEach(button => button.addEventListener('click', () => loadPlanRecord(button.dataset.loadPlan)));
@@ -1470,7 +1712,10 @@ function loadPlanRecord(id) {
     const layer = L.geoJSON(boundaryGeometry, { style: { color: '#0b5b9f', weight: 3, dashArray: '9 7', fillColor: '#4d9cdb', fillOpacity: .08 } }).addTo(boundaryGroup);
     if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [28, 28], maxZoom: 15 });
   }
-  houses = loadedHouses.map(item => ({ ...item, id: String(item.id), included: item.included !== false, territoryId: item.territoryId || null }));
+  houses = loadedHouses.map(item => {
+    const avoid = Boolean(item.avoid);
+    return { ...item, id: String(item.id), avoid, included: avoid ? false : item.included !== false, territoryId: avoid ? null : item.territoryId || null };
+  });
   const savedTerritoriesForPlan = decodeTerritories(plan);
   territories = savedTerritoriesForPlan.map((item, index) => {
     const geometry = decodeGeometry(item.geometryJson, item.geometry);
@@ -1510,8 +1755,8 @@ function planGeoJson() {
   }
   const territoryById = new Map(territories.map(item => [item.id, item.name]));
   for (const house of houses) features.push(turf.point([house.lng, house.lat], {
-    recordType: 'ministry-address', address: house.address, source: house.source, included: house.included,
-    territoryId: house.territoryId || '', territoryName: territoryById.get(house.territoryId) || ''
+    recordType: house.avoid ? 'avoid-address' : 'ministry-address', address: house.address, source: house.source, included: house.included, avoid: Boolean(house.avoid),
+    territoryId: house.avoid ? '' : house.territoryId || '', territoryName: house.avoid ? '' : territoryById.get(house.territoryId) || ''
   }));
   return turf.featureCollection(features);
 }
@@ -1527,10 +1772,10 @@ function csvEscape(value) {
 function exportCsv() {
   if (!houses.length) { toast('There are no addresses to export.', true); return; }
   const territoryById = new Map(territories.map(item => [item.id, item.name]));
-  const rows = [['territory','address','latitude','longitude','included','source','classification','unit_count']];
+  const rows = [['territory','address','latitude','longitude','included','avoid','source','classification','unit_count']];
   houses.forEach(house => rows.push([
     territoryById.get(house.territoryId) || '', house.address, Number(house.lat).toFixed(6), Number(house.lng).toFixed(6),
-    house.included ? 'Yes' : 'No', house.source || '', house.classification || '', house.unitCount || 1
+    house.included && !house.avoid ? 'Yes' : 'No', house.avoid ? 'Yes' : 'No', house.source || '', house.classification || '', house.unitCount || 1
   ]));
   const filename = `${slug(clean(els.planName.value) || selectedCongregation || 'territory-plan')}.csv`;
   downloadText(filename, rows.map(row => row.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
@@ -1548,7 +1793,19 @@ function hexRgb(hex) {
   return [parseInt(normalized.slice(0, 2), 16), parseInt(normalized.slice(2, 4), 16), parseInt(normalized.slice(4, 6), 16)];
 }
 function territoryHousesSorted(territory) {
-  return houses.filter(house => house.included && house.territoryId === territory.id).sort((a, b) => {
+  return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).sort((a, b) => {
+    const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
+    return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
+  });
+}
+function avoidHousesInsideGeometry(geometry) {
+  if (!geometry) return [];
+  const feature = geometry.type === 'Feature' ? geometry : turf.feature(geometry.geometry || geometry);
+  return houses.filter(house => {
+    if (!house.avoid) return false;
+    try { return turf.booleanPointInPolygon(pointFeature(house), feature); }
+    catch { return false; }
+  }).sort((a, b) => {
     const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
     return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
   });
@@ -1578,18 +1835,19 @@ function webMercatorWorldPoint(lng, lat, zoom) {
     y: ((1 - Math.log(Math.tan(radians) + (1 / Math.cos(radians))) / Math.PI) / 2) * worldSize
   };
 }
-function territoryStreetMapPoints(territoryHouses, geometry) {
+function territoryStreetMapPoints(territoryHouses, geometry, avoidHouses = []) {
   const rings = geometryRings(geometry?.geometry || geometry);
   return [
     ...rings.flat().map(point => [Number(point[0]), Number(point[1])]),
-    ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)])
+    ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)]),
+    ...avoidHouses.map(house => [Number(house.lng), Number(house.lat)])
   ].filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
 }
-function territoryStreetMapViewport(territoryHouses, geometry) {
+function territoryStreetMapViewport(territoryHouses, geometry, avoidHouses = []) {
   const width = 1050;
   const height = 992;
   const padding = 72;
-  const points = territoryStreetMapPoints(territoryHouses, geometry);
+  const points = territoryStreetMapPoints(territoryHouses, geometry, avoidHouses);
   if (!points.length) return null;
   let selected = null;
   for (let zoom = 18; zoom >= 11; zoom -= 1) {
@@ -1624,8 +1882,8 @@ async function loadStreetMapTile(url) {
     image.src = objectUrl;
   });
 }
-async function buildTerritoryStreetMap(territoryHouses, geometry) {
-  const viewport = territoryStreetMapViewport(territoryHouses, geometry);
+async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = []) {
+  const viewport = territoryStreetMapViewport(territoryHouses, geometry, avoidHouses);
   if (!viewport) return null;
   const canvas = document.createElement('canvas');
   canvas.width = viewport.width;
@@ -1694,7 +1952,7 @@ function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
   doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.32, { align: 'right' });
 }
-function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null) {
+function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null, avoidHouses = []) {
   const mapX = 0.42, mapY = 1.18, mapW = 7.05, mapH = 6.66;
   if (streetMap?.dataUrl) {
     doc.addImage(streetMap.dataUrl, 'JPEG', mapX, mapY, mapW, mapH, undefined, 'FAST');
@@ -1707,7 +1965,7 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
   doc.roundedRect(mapX, mapY, mapW, mapH, 0.08, 0.08, 'S');
   const rings = geometryRings(geometry.geometry || geometry);
   const allCoords = rings.flat();
-  const points = [...allCoords, ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)])];
+  const points = [...allCoords, ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)]), ...avoidHouses.map(house => [Number(house.lng), Number(house.lat)])];
   if (!points.length) return;
   let project;
   if (streetMap?.dataUrl) {
@@ -1797,6 +2055,33 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     doc.text(houseNumber, textX, textY, { align: 'center' });
   }
 });
+  avoidHouses.forEach((house, index) => {
+  const [x, y] = project([Number(house.lng), Number(house.lat)]);
+  doc.setFillColor(201, 54, 43);
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(.018);
+  doc.circle(x, y, .088, 'FD');
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(.014);
+  doc.line(x - .034, y - .034, x + .034, y + .034);
+  doc.line(x - .034, y + .034, x + .034, y - .034);
+  const houseNumber = addressHouseNumber(house.address);
+  if (houseNumber) {
+    const placeRight = index % 2 === 0;
+    const textX = placeRight ? x + .12 : x - .12;
+    const textY = y + .018;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.1);
+    doc.setTextColor(255, 255, 255);
+    const halo = .007;
+    doc.text(houseNumber, textX - halo, textY, { align: placeRight ? 'left' : 'right' });
+    doc.text(houseNumber, textX + halo, textY, { align: placeRight ? 'left' : 'right' });
+    doc.text(houseNumber, textX, textY - halo, { align: placeRight ? 'left' : 'right' });
+    doc.text(houseNumber, textX, textY + halo, { align: placeRight ? 'left' : 'right' });
+    doc.setTextColor(205, 112, 104);
+    doc.text(houseNumber, textX, textY, { align: placeRight ? 'left' : 'right' });
+  }
+});
   if (streetMap?.dataUrl) {
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(195, 205, 214);
@@ -1846,6 +2131,35 @@ function addAddressListPage(doc, logoData, territory, territoryHouses, startInde
   }
   return index;
 }
+function addAvoidAddressListPage(doc, logoData, territory, avoidHouses, startIndex) {
+  doc.addPage('letter', 'landscape');
+  drawPdfHeader(doc, logoData, `${territory.name} — Avoid / Do Not Visit`, `${selectedCongregation} • ${selectedHall?.name || ''}`);
+  const columnX = [0.55, 5.55];
+  const columnWidth = 4.72;
+  const startY = 1.28;
+  const bottomY = 7.92;
+  let index = startIndex;
+  for (let column = 0; column < 2 && index < avoidHouses.length; column += 1) {
+    let y = startY;
+    while (index < avoidHouses.length) {
+      const label = avoidHouses[index].address;
+      const lines = doc.splitTextToSize(label, columnWidth - .36);
+      const needed = Math.max(.28, lines.length * .17 + .08);
+      if (y + needed > bottomY) break;
+      doc.setFillColor(201, 54, 43);
+      doc.setDrawColor(255, 255, 255);
+      doc.circle(columnX[column] + .08, y - .015, .065, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.2);
+      doc.setTextColor(143, 45, 38);
+      doc.text(lines, columnX[column] + .22, y);
+      y += needed;
+      index += 1;
+    }
+  }
+  return index;
+}
+
 async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   if (!requireAdmin()) return;
   const territory = territories.find(item => item.id === territoryId);
@@ -1853,6 +2167,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   const territoryHouses = territoryHousesSorted(territory);
   if (!territoryHouses.length) { toast('This territory does not have any assigned addresses.', true); return; }
   const geometry = territoryGeometry(territory);
+  const avoidHouses = avoidHousesInsideGeometry(geometry);
   if (!geometry) { toast('This territory does not have a usable map boundary.', true); return; }
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) { toast('The PDF library did not load. Refresh the page and try again.', true); return; }
@@ -1862,11 +2177,11 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
     let logoData = null;
     try { logoData = await imageDataUrl(new URL('../assets/denver-2027-logo.png', import.meta.url).href); } catch { /* PDF remains usable without image */ }
     let streetMap = null;
-    try { streetMap = await buildTerritoryStreetMap(territoryHouses, geometry); }
+    try { streetMap = await buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses); }
     catch (error) { console.warn('Street background could not be included in this PDF.', error); }
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
-    drawPdfHeader(doc, logoData, territory.name, `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses`);
-    drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap);
+    drawPdfHeader(doc, logoData, territory.name, `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses${avoidHouses.length ? ` • ${avoidHouses.length} avoid` : ''}`);
+    drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap, avoidHouses);
     const panelX = 7.72;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -1881,6 +2196,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       `Meeting location: ${selectedHall?.name || ''}`,
       `Hall address: ${selectedHall?.address || ''}`,
       `Homes / stops: ${territoryHouses.length}`,
+      `Avoid / do not visit: ${avoidHouses.length}`,
       `Boundary: ${territory.geometry ? 'Manually edited' : 'Automatic outline'}`
     ];
     let y = 1.52;
@@ -1908,13 +2224,15 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       nextIndex += 1;
     }
     while (nextIndex < territoryHouses.length) nextIndex = addAddressListPage(doc, logoData, territory, territoryHouses, nextIndex);
+    let avoidIndex = 0;
+    while (avoidIndex < avoidHouses.length) avoidIndex = addAvoidAddressListPage(doc, logoData, territory, avoidHouses, avoidIndex);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) {
       doc.setPage(page);
       drawPdfFooter(doc, page, pageCount);
     }
     doc.save(`${slug(selectedCongregation)}-${slug(territory.name)}-territory.pdf`);
-    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${streetMap ? ' and street labels' : ''}.`);
+    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${avoidHouses.length ? ` and ${avoidHouses.length} red avoid dot${avoidHouses.length === 1 ? '' : 's'}` : ''}${streetMap ? ' and street labels' : ''}.`);
   } catch (error) {
     toast(`Could not create the territory PDF: ${friendlyError(error)}`, true);
   } finally {
@@ -1935,6 +2253,8 @@ function clearPlanWorkspace(resetSelection = true) {
   if (selectionLayer && map) { map.removeLayer(selectionLayer); selectionLayer = null; }
   els.planName.value = '';
   els.boundaryName.value = '';
+  if (els.avoidAddressInput) els.avoidAddressInput.value = '';
+  if (els.avoidAddressMessage) { els.avoidAddressMessage.textContent = 'Enter a complete address to place a private red avoid dot on the map.'; els.avoidAddressMessage.dataset.state = 'waiting'; }
   if (resetSelection && selectedHall) {
     els.territoryPrefix.value = initialPrefix(selectedCongregation);
   }
@@ -1965,6 +2285,10 @@ function wireEvents() {
   els.saveBoundaryButton.addEventListener('click', saveBoundary);
   els.loadAddressesButton.addEventListener('click', loadAddresses);
   els.addHouseButton.addEventListener('click', toggleManualHouseMode);
+  els.addAvoidAddressButton.addEventListener('click', addAvoidAddress);
+  els.avoidAddressInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addAvoidAddress(); } });
+  els.markAvoidButton.addEventListener('click', markSelectedAvoid);
+  els.restoreAvoidButton.addEventListener('click', restoreSelectedAvoid);
   els.importFile.addEventListener('change', () => importAddressFile(els.importFile.files?.[0]));
   els.clearHousesButton.addEventListener('click', clearHouses);
   els.autoGroupButton.addEventListener('click', automaticGrouping);

@@ -25,6 +25,7 @@
           <div><span class="legend-symbol hall-symbol">H</span>Kingdom Hall / meeting point</div>
           <div><span class="legend-symbol house-symbol">•</span>Included house or address</div>
           <div><span class="legend-symbol selected-symbol">•</span>Selected house</div>
+          <div><span class="legend-symbol avoid-symbol">•</span>Avoid / do not visit address</div>
           <div><span class="legend-line boundary-line"></span>Congregation service-area boundary</div>
           <div><span class="legend-fill territory-fill"></span>Territory boundary — automatic or manually edited</div>
         </div>
@@ -40,6 +41,7 @@
           <article><span>Selected Hall</span><strong id="summaryHall">—</strong></article>
           <article><span>Congregation</span><strong id="summaryCongregation">—</strong></article>
           <article><span>Included addresses</span><strong id="summaryHouses">0</strong></article>
+          <article><span>Avoid addresses</span><strong id="summaryAvoid">0</strong></article>
           <article><span>Territories</span><strong id="summaryTerritories">0</strong></article>
         </div>
         <p>The blue congregation boundary is saved separately from the smaller territory groups. This prepares the data for later display on the larger convention planning map.</p>
@@ -133,6 +135,21 @@
           <label class="btn outline file-button admin-control">Import CSV / GeoJSON<input id="importFile" type="file" accept=".csv,.json,.geojson" hidden/></label>
           <button class="btn danger admin-control" id="clearHousesButton" type="button">Clear Address Points</button>
         </div>
+        <div class="avoid-address-panel">
+<div class="field">
+  <label for="avoidAddressInput">Add an address to avoid</label>
+  <div class="avoid-address-entry">
+    <input id="avoidAddressInput" type="text" autocomplete="street-address" placeholder="Example: 9355 Princeton Cir, Highlands Ranch, CO 80130"/>
+    <button class="btn danger admin-control" id="addAvoidAddressButton" type="button">Locate &amp; Add Avoid Address</button>
+  </div>
+  <small id="avoidAddressMessage" data-state="waiting">Enter a complete address to place a private red avoid dot on the map.</small>
+</div>
+<div class="avoid-selection-actions">
+  <button class="btn danger admin-control" id="markAvoidButton" type="button">Mark Selected Avoid</button>
+  <button class="btn outline admin-control" id="restoreAvoidButton" type="button">Restore Selected</button>
+</div>
+<small>Red avoid addresses are kept out of automatic territories. You can also select an assessor address on the map or in the Address Directory and mark it to avoid.</small>
+        </div>
         <div class="progress" id="addressProgress" hidden><span></span></div>
         <small id="addressMessage">Sign in, draw a boundary, and select a source.</small>
       </section>
@@ -204,7 +221,7 @@
         <div class="field">
           <label for="pdfTerritorySelect">Territory to print</label>
           <select id="pdfTerritorySelect"><option value="">Create a territory first</option></select>
-          <small>The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, each home's street number in a light, unobtrusive label beside its marker, the complete address list, and the Denver 2027 convention logo.</small>
+          <small>The PDF includes a labeled street-map background, the edited territory boundary, numbered home markers, each home's street number in a light, unobtrusive label beside its marker, red dots and a separate list for avoid addresses inside the territory, the complete address list, and the Denver 2027 convention logo.</small>
         </div>
         <div class="button-grid">
           <button class="btn save admin-control" id="savePlanButton" type="button">Save Territory Plan</button>
