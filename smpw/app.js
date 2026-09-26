@@ -328,7 +328,7 @@ function openLocationModal(id = null) {
   els.addressStatus.dataset.state = 'waiting';
   const record = id ? locations.find(item => item.id === id) : null;
   if (record) {
-    els.smpwLocationModalTitle.textContent = 'Edit SMPW Cart Location';
+    els.locationModalTitle.textContent = 'Edit SMPW Cart Location';
     els.locationId.value = record.id;
     els.markerLabel.value = record.markerLabel || '';
     els.locationStatus.value = record.status || 'proposed';
@@ -342,7 +342,7 @@ function openLocationModal(id = null) {
     els.locationNotes.value = record.notes || '';
     setPreview(record.lat, record.lng, false);
   } else {
-    els.smpwLocationModalTitle.textContent = 'Add SMPW Cart Location';
+    els.locationModalTitle.textContent = 'Add SMPW Cart Location';
     const center = map.getCenter();
     els.locationLat.value = center.lat.toFixed(6);
     els.locationLng.value = center.lng.toFixed(6);
