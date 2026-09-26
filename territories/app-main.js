@@ -176,13 +176,14 @@ function currentSourceKey() {
 }
 function inferSourceForLocation(location) {
   if (!location) return 'manual';
-  const explicit = inferSourceForHall(location.id);
-  if (explicit !== 'manual') return explicit;
-  const text = `${location.name || ''} ${location.address || ''}`.toUpperCase();
-  if (/(HIGHLANDS RANCH|CASTLE ROCK|PARKER|LONE TREE|DOUGLAS)/.test(text)) return 'douglas';
-  if (/(GOLDEN|WHEAT RIDGE|MORRISON|ARVADA|JEFFERSON)/.test(text)) return 'jefferson';
-  if (/\bDENVER\b/.test(text)) return 'denver';
-  return 'manual';
+  if (!location.customLocation) return inferSourceForHall(location.id);
+
+  const text = `${location.name || ''} ${location.address || ''}`.toUpperCase().replace(/\s+/g, ' ');
+  const douglasZip = /\b(?:80104|80108|80109|80116|80117|80118|80124|80125|80126|80129|80130|80134|80135|80138)\b/;
+  if (/(HIGHLANDS\s+R(?:ANCH|NACH)|CASTLE\s+ROCK|LONE\s+TREE|DOUGLAS\s+COUNTY)/.test(text) || douglasZip.test(text)) return 'douglas';
+  if (/(GOLDEN|WHEAT\s+RIDGE|MORRISON|ARVADA|JEFFERSON\s+COUNTY|\b80401\b|\b80465\b|\b80033\b|\b80005\b|\b80128\b)/.test(text)) return 'jefferson';
+  if (/\bDENVER\b/.test(text) && !/(AURORA|COMMERCE\s+CITY|GREENWOOD\s+VILLAGE)/.test(text)) return 'denver';
+  return 'colorado';
 }
 
 function normalizeCustomHall(id, data) {
@@ -468,9 +469,43 @@ function updateSourceDetail(sourceKey = currentSourceKey()) {
   }
   els.sourceDetail.innerHTML = `${escapeHtml(source.description)} <a href="${source.infoUrl}" target="_blank" rel="noopener">Official layer details</a>`;
 }
-function boundaryEnvelope() {
-  const bbox = turf.bbox(boundaryFeature());
+function boundaryEnvelope(geometry = boundaryGeometry) {
+  if (!geometry) throw new Error('The congregation boundary is missing.');
+  const bbox = turf.bbox(turf.feature(geometry));
+  if (!bbox.every(Number.isFinite)) throw new Error('The congregation boundary has invalid coordinates.');
   return { xmin: bbox[0], ymin: bbox[1], xmax: bbox[2], ymax: bbox[3], spatialReference: { wkid: 4326 } };
+}
+function boundaryQueryEnvelopes(source) {
+  const base = boundaryEnvelope();
+  const width = Math.max(0, base.xmax - base.xmin);
+  const height = Math.max(0, base.ymax - base.ymin);
+  const preferredSpan = source?.key === 'colorado' ? 0.020 : 0.025;
+  let columns = Math.max(1, Math.ceil(width / preferredSpan));
+  let rows = Math.max(1, Math.ceil(height / preferredSpan));
+  const maxTiles = 64;
+  if (columns * rows > maxTiles) {
+    const scale = Math.sqrt((columns * rows) / maxTiles);
+    columns = Math.max(1, Math.floor(columns / scale));
+    rows = Math.max(1, Math.floor(rows / scale));
+    while (columns * rows > maxTiles) {
+      if (columns >= rows) columns -= 1; else rows -= 1;
+    }
+  }
+  const cellWidth = width / columns || preferredSpan;
+  const cellHeight = height / rows || preferredSpan;
+  const envelopes = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      envelopes.push({
+        xmin: base.xmin + (column * cellWidth),
+        ymin: base.ymin + (row * cellHeight),
+        xmax: column === columns - 1 ? base.xmax : base.xmin + ((column + 1) * cellWidth),
+        ymax: row === rows - 1 ? base.ymax : base.ymin + ((row + 1) * cellHeight),
+        spatialReference: { wkid: 4326 }
+      });
+    }
+  }
+  return envelopes;
 }
 async function arcGisJsonp(endpoint, params, timeoutMs = 25000) {
   return new Promise((resolve, reject) => {
@@ -495,7 +530,7 @@ async function arcGisJsonp(endpoint, params, timeoutMs = 25000) {
     document.head.appendChild(script);
   });
 }
-async function requestArcGisPage(source, offset, forceGeometry = false) {
+async function requestArcGisPage(source, offset, forceGeometry = false, envelope = boundaryEnvelope()) {
   const params = new URLSearchParams({
     f: 'json',
     where: '1=1',
@@ -506,37 +541,82 @@ async function requestArcGisPage(source, offset, forceGeometry = false) {
     inSR: '4326',
     geometryType: 'esriGeometryEnvelope',
     spatialRel: 'esriSpatialRelIntersects',
-    geometry: JSON.stringify(boundaryEnvelope()),
+    geometry: JSON.stringify(envelope),
     resultOffset: String(offset),
-    resultRecordCount: '2000',
+    resultRecordCount: '1000',
     geometryPrecision: '6'
   });
   if (forceGeometry || source.returnGeometry) params.set('maxAllowableOffset', '0.00008');
+  let firstError = null;
   try {
     const response = await fetch(source.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', Accept: 'application/json' },
       body: params
     });
-    if (!response.ok) throw new Error(`County GIS service returned ${response.status}.`);
+    if (!response.ok) throw new Error(`${source.label} returned HTTP ${response.status}.`);
     return await response.json();
   } catch (error) {
-    return await arcGisJsonp(source.endpoint, params);
+    firstError = error;
   }
+  try {
+    const url = new URL(source.endpoint);
+    for (const [key, value] of params.entries()) url.searchParams.set(key, value);
+    const response = await fetch(url.href, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store' });
+    if (!response.ok) throw new Error(`${source.label} returned HTTP ${response.status}.`);
+    return await response.json();
+  } catch {
+    try {
+      return await arcGisJsonp(source.endpoint, params, 45000);
+    } catch (jsonpError) {
+      throw new Error(`${source.label} could not be reached. ${jsonpError?.message || firstError?.message || ''}`.trim());
+    }
+  }
+}
+function arcGisFeatureKey(feature) {
+  const attributes = feature?.attributes || feature?.properties || {};
+  const objectId = attributes.OBJECTID ?? attributes.FID ?? attributes.ADDRESS_ID ?? attributes.SCHEDNUM ?? attributes.SAUID;
+  if (objectId !== undefined && objectId !== null && objectId !== '') return String(objectId);
+  const geometry = feature?.geometry || feature?.centroid || {};
+  return JSON.stringify([attributes.AddrFull, attributes.ADDRESS, attributes.SITUS_ADDRESS_LINE1, geometry.x, geometry.y]);
 }
 async function queryArcGisSource(source, forceGeometry = false) {
   const features = [];
-  let offset = 0;
-  for (let page = 0; page < 8 && features.length < MAX_ADDRESS_RECORDS; page += 1) {
-    const payload = await requestArcGisPage(source, offset, forceGeometry);
-    if (payload?.error) throw new Error(payload.error.message || 'The county GIS service returned an error.');
-    const pageFeatures = Array.isArray(payload?.features) ? payload.features : [];
-    features.push(...pageFeatures);
-    offset += pageFeatures.length;
-    const exceeded = Boolean(payload?.exceededTransferLimit);
-    if (!exceeded || !pageFeatures.length) break;
+  const seen = new Set();
+  const envelopes = boundaryQueryEnvelopes(source);
+  for (let tileIndex = 0; tileIndex < envelopes.length && features.length < MAX_ADDRESS_RECORDS; tileIndex += 1) {
+    const envelope = envelopes[tileIndex];
+    if (els?.addressMessage) els.addressMessage.textContent = `Loading ${source.label}: area ${tileIndex + 1} of ${envelopes.length}…`;
+    let offset = 0;
+    for (let page = 0; page < 8 && features.length < MAX_ADDRESS_RECORDS; page += 1) {
+      const payload = await requestArcGisPage(source, offset, forceGeometry, envelope);
+      if (payload?.error) throw new Error(payload.error.message || `${source.label} returned an error.`);
+      const pageFeatures = Array.isArray(payload?.features) ? payload.features : [];
+      for (const feature of pageFeatures) {
+        const key = arcGisFeatureKey(feature);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        features.push(feature);
+        if (features.length >= MAX_ADDRESS_RECORDS) break;
+      }
+      offset += pageFeatures.length;
+      const exceeded = Boolean(payload?.exceededTransferLimit);
+      if (!exceeded || !pageFeatures.length) break;
+    }
   }
   return features.slice(0, MAX_ADDRESS_RECORDS);
+}
+async function loadParsedSource(sourceKey) {
+  const source = ASSESSOR_SOURCES[sourceKey];
+  if (!source) throw new Error('No assessor/GIS connector is available for this source.');
+  let features = await queryArcGisSource(source, false);
+  let parsed = features.map(feature => parseSourceFeature(sourceKey, feature)).filter(Boolean);
+  if (sourceKey === 'denver' && features.length && !parsed.length) {
+    els.addressMessage.textContent = 'The Denver service did not return parcel centroids; retrying with simplified parcel geometry…';
+    features = await queryArcGisSource(source, true);
+    parsed = features.map(feature => parseSourceFeature(sourceKey, feature)).filter(Boolean);
+  }
+  return { sourceKey, source, features, parsed };
 }
 function dedupeAddressRecords(records) {
   const includeUnits = els.separateUnits.checked;
@@ -565,24 +645,42 @@ async function loadAddresses() {
   els.loadAddressesButton.disabled = true;
   els.addressMessage.textContent = `Loading ${source.label} records inside the boundary…`;
   try {
-    let features = await queryArcGisSource(source, false);
-    let parsed = features.map(feature => parseSourceFeature(sourceKey, feature)).filter(Boolean);
-    if (sourceKey === 'denver' && features.length && !parsed.length) {
-      els.addressMessage.textContent = 'The Denver service did not return parcel centroids; retrying with simplified parcel geometry…';
-      features = await queryArcGisSource(source, true);
-      parsed = features.map(feature => parseSourceFeature(sourceKey, feature)).filter(Boolean);
-    }
-    houses = dedupeAddressRecords(parsed).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
-    territories = [];
-    selectedHouseIds.clear();
-    currentPlanId = null;
-    renderAllPlanningData();
-    els.addressMessage.textContent = `${houses.length.toLocaleString()} address or parcel records loaded from ${source.label}. Review duplicates, apartments, commercial records, access, and local territory limits before use.`;
-    toast(`${houses.length.toLocaleString()} address records loaded.`);
+  let result;
+  let fallbackUsed = false;
+  let primaryError = null;
+  try {
+    result = await loadParsedSource(sourceKey);
   } catch (error) {
-    els.addressMessage.textContent = `Address loading failed: ${friendlyError(error)}`;
-    toast(`Could not load assessor/GIS addresses: ${friendlyError(error)}`, true);
-  } finally {
+    primaryError = error;
+  }
+  if ((!result || !result.parsed.length) && sourceKey !== 'colorado') {
+    fallbackUsed = true;
+    els.addressMessage.textContent = `${source.label} was unavailable or returned no usable addresses. Retrying with the Colorado Public Address Composite…`;
+    try {
+      result = await loadParsedSource('colorado');
+    } catch (fallbackError) {
+      const primaryMessage = primaryError?.message ? `${primaryError.message} ` : '';
+      throw new Error(`${primaryMessage}Statewide fallback also failed: ${fallbackError.message}`.trim());
+    }
+  }
+  if (!result) throw primaryError || new Error(`${source.label} returned no data.`);
+  houses = dedupeAddressRecords(result.parsed).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
+  territories = [];
+  selectedHouseIds.clear();
+  currentPlanId = null;
+  renderAllPlanningData();
+  const sourceNote = fallbackUsed ? `${result.source.label} fallback` : result.source.label;
+  if (!houses.length) {
+    els.addressMessage.textContent = `The ${sourceNote} responded, but no usable address points were found inside this boundary. Confirm the boundary is over the intended neighborhood, or try the Colorado Public Address Composite from the source menu.`;
+    toast('The GIS service responded, but no addresses were found inside this boundary.', true);
+  } else {
+    els.addressMessage.textContent = `${houses.length.toLocaleString()} address or parcel records loaded from ${sourceNote}. Review duplicates, apartments, commercial records, access, and local territory limits before use.`;
+    toast(`${houses.length.toLocaleString()} address records loaded${fallbackUsed ? ' using the statewide fallback' : ''}.`);
+  }
+} catch (error) {
+  els.addressMessage.textContent = `Address loading failed: ${friendlyError(error)}`;
+  toast(`Could not load assessor/GIS addresses: ${friendlyError(error)}`, true);
+} finally {
     els.addressProgress.hidden = true;
     els.loadAddressesButton.disabled = false;
   }

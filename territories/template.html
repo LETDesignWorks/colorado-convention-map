@@ -117,12 +117,13 @@
           <label for="sourceSelect">Assessor / GIS source</label>
           <select id="sourceSelect">
             <option value="auto">Choose automatically for this Hall</option>
+            <option value="colorado">Colorado Public Address Composite</option>
             <option value="douglas">Douglas County Address Points</option>
             <option value="jefferson">Jefferson County Master Address</option>
             <option value="denver">Denver Assessor Parcels</option>
             <option value="manual">Manual / CSV / GeoJSON only</option>
           </select>
-          <small id="sourceDetail"></small>
+          <small id="sourceDetail"></small><small>Large boundaries are now queried in smaller sections. If a county service is unavailable, the planner will automatically try the statewide Colorado address source.</small>
         </div>
         <label class="check-row"><input id="residentialOnly" type="checkbox" checked/> Prefer residential records only</label>
         <label class="check-row"><input id="separateUnits" type="checkbox"/> Count unit addresses separately when available</label>
