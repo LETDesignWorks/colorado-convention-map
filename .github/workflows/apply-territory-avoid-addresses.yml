@@ -1,0 +1,31 @@
+name: Apply territory avoid addresses
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-territory-avoid-addresses.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/run_avoid_patch.py
+      - name: Validate
+        run: |
+          node --check territories/app-main.js
+          grep -q 'function addAvoidAddress' territories/app-main.js
+          grep -q 'function markSelectedAvoid' territories/app-main.js
+          grep -q 'Avoid / do not visit address' territories/template.html
+          grep -q 'territories-20260925-5' territories/bootstrap.js
+      - name: Commit
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/template.html territories/styles.css territories/bootstrap.js territories/index.html
+          git commit -m 'Add avoid addresses with red territory map dots'
+          git push
