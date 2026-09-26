@@ -126,7 +126,7 @@ function insertBeforeRouteOrBus(nav, link) {
 function linkClassForCurrentPage(extraClass) {
   const path = location.pathname;
   if (path.includes('/bus-access/')) return `btn primary ${extraClass}`;
-  if (path.includes('/routes/') || path.includes('/route-planner/') || path.includes('/activities/')) return `btn ghost ${extraClass}`;
+  if (path.includes('/routes/') || path.includes('/route-planner/') || path.includes('/activities/') || path.includes('/smpw/')) return `btn ghost ${extraClass}`;
   return `btn light ${extraClass}`;
 }
 
@@ -158,10 +158,25 @@ function addSouthDtcRailLink() {
   insertBeforeRouteOrBus(nav, link);
 }
 
+function addSmpwLink() {
+  if (location.pathname.includes('/smpw/')) return;
+  if (document.querySelector('a[href*="smpw/"]')) return;
+  const nav = navHost();
+  if (!nav) return;
+
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('smpw-link');
+  link.href = new URL('smpw/', siteHomeUrl).href;
+  link.textContent = 'SMPW';
+  link.setAttribute('aria-label', 'Open the SMPW cart location planner');
+  insertBeforeRouteOrBus(nav, link);
+}
+
 function applyDenver2027Branding() {
   addBrandingStyles();
   addHeaderLogo();
   addSouthDtcRailLink();
+  addSmpwLink();
   addDelegateActivitiesLink();
   addMapLogo();
 }
