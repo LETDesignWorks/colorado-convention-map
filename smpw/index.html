@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="theme-color" content="#083f73"/>
+  <title>SMPW Cart Location Planner | Denver 2027</title>
+  <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
+  <link rel="preconnect" href="https://unpkg.com"/>
+  <link rel="preconnect" href="https://tile.openstreetmap.org"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="styles.css?v=smpw-20260926-1"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="../assets/branding.js?v=smpw-20260926-1"></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>SMPW Cart Location Planner</h1>
+        <p>Plan public-witnessing cart locations in relation to delegate hotels and RTD rail stations.</p>
+      </div>
+      <nav class="navlinks" aria-label="Convention planning navigation">
+        <a class="btn ghost" href="../">Full Planning Map</a>
+        <a class="btn ghost" href="../south-dtc-rail/">South DTC Rail</a>
+        <a class="btn ghost" href="../activities/">Delegate Activities</a>
+        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn ghost" id="addLocationButton" type="button" hidden>＋ Add SMPW Location</button>
+        <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="map-column">
+      <div class="map-card">
+        <div id="map" role="application" aria-label="SMPW cart locations, hotels and RTD rail stations map"></div>
+        <div class="map-legend">
+          <div><span class="legend-cart"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M11 16h8"/><path d="M17 16l3 7"/><rect x="20" y="12" width="29" height="34" rx="3"/><path d="M24 19h21M24 25h21M24 32h9M36 32h9"/><circle cx="27" cy="51" r="4"/><circle cx="44" cy="51" r="4"/></svg></span>SMPW cart location</div>
+          <div><span class="legend-symbol hotel-symbol">H</span>Delegate hotel</div>
+          <div><span class="legend-symbol rail-symbol">R</span>RTD rail station</div>
+          <div><span class="legend-line rail-line"></span>Approximate rail corridor</div>
+        </div>
+        <div class="map-note">Planning map only. Confirm site permission, pedestrian safety, cart placement, station service, construction, accessibility, and local direction before use.</div>
+      </div>
+
+      <section class="card summary-card">
+        <div class="summary-heading">
+          <div><span class="eyebrow">SMPW OVERVIEW</span><h2>Hotels, rail stations, and cart locations</h2></div>
+          <a class="btn outline small" href="https://www.jw.org/en/jehovahs-witnesses/activities/ministry/literature-display-carts" target="_blank" rel="noopener">JW.org Cart Example</a>
+        </div>
+        <div class="summary-grid">
+          <article><span>Hotels</span><strong id="hotelCount">0</strong></article>
+          <article><span>Rail stations</span><strong id="stationCount">0</strong></article>
+          <article><span>SMPW locations</span><strong id="locationCount">0</strong></article>
+          <article><span>Approved</span><strong id="approvedCount">0</strong></article>
+        </div>
+        <p>The cart symbol is a simplified planning icon based on the recognizable literature-display carts used for public witnessing. It is not an official JW.org logo or graphic.</p>
+      </section>
+    </section>
+
+    <aside class="side-panel">
+      <section class="card intro-card">
+        <span class="eyebrow">HOW TO USE THIS PAGE</span>
+        <h2>Review transportation and proposed cart positions together</h2>
+        <p>Choose a saved SMPW location to see its nearest delegate hotel and mapped rail station. Popups and location cards provide Google Maps and Apple Maps links for field review.</p>
+      </section>
+
+      <section class="card layers-card">
+        <div class="card-heading"><div><span class="eyebrow">MAP DISPLAY</span><h2>Show or hide map layers</h2></div></div>
+        <div class="toggle-grid">
+          <label><input id="showHotels" type="checkbox" checked/> Hotels</label>
+          <label><input id="showStations" type="checkbox" checked/> Rail stations</label>
+          <label><input id="showRailLines" type="checkbox" checked/> Rail corridors</label>
+          <label><input id="showSmpw" type="checkbox" checked/> SMPW locations</label>
+        </div>
+        <div class="button-grid">
+          <button class="btn outline" id="fitAllButton" type="button">Fit All Locations</button>
+          <button class="btn outline" id="fitSmpwButton" type="button">Fit SMPW Locations</button>
+        </div>
+      </section>
+
+      <section class="card directory-card">
+        <div class="card-heading">
+          <div><span class="eyebrow">SMPW DIRECTORY</span><h2>Cart locations</h2></div>
+          <span id="directoryCount" class="count-chip">0 shown</span>
+        </div>
+        <div class="directory-tools">
+          <input id="locationSearch" type="search" placeholder="Search name, address, station, or hotel"/>
+          <select id="statusFilter" aria-label="Filter SMPW locations by status">
+            <option value="all">All statuses</option>
+            <option value="proposed">Proposed</option>
+            <option value="review">Needs site review</option>
+            <option value="approved">Approved</option>
+            <option value="unavailable">Not available</option>
+          </select>
+        </div>
+        <div id="locationList" class="location-list"><div class="empty">No SMPW locations have been added yet.</div></div>
+      </section>
+
+      <section class="card reference-card">
+        <span class="eyebrow">TRANSPORTATION REFERENCE</span>
+        <h2>Current planning information</h2>
+        <p>The map shows the convention’s current 19 delegate hotels and a planning selection of downtown, central, southeast, and southwest RTD rail stations. Rail service and station access should be reverified for 2027.</p>
+        <div class="button-grid">
+          <a class="btn outline" href="https://www.rtd-denver.com/system-map" target="_blank" rel="noopener">Open RTD System Map</a>
+          <a class="btn outline" href="../routes/">Open Bus Route Planner</a>
+        </div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal-card compact">
+    <h2 id="loginTitle">Administrator Sign In</h2>
+    <p>Public users can view the map. Administrator sign-in is required to add, edit, or delete SMPW cart locations.</p>
+    <form id="loginForm">
+      <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" value="michaeltarin@hotmail.com" required/></div>
+      <div class="field"><label for="loginPassword">Firebase password</label><input id="loginPassword" type="password" autocomplete="current-password" required/></div>
+      <div class="modal-actions"><button class="btn outline" id="cancelLogin" type="button">Cancel</button><button class="btn primary" type="submit">Sign In</button></div>
+      <button class="text-button" id="resetPassword" type="button">Send password reset email</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="locationModal" role="dialog" aria-modal="true" aria-labelledby="locationModalTitle">
+  <div class="modal-card wide">
+    <div class="modal-heading">
+      <div><span class="eyebrow">SMPW LOCATION</span><h2 id="locationModalTitle">Add SMPW Cart Location</h2></div>
+      <button class="icon-button" id="closeLocationModal" type="button" aria-label="Close">×</button>
+    </div>
+    <form id="locationForm">
+      <input id="locationId" type="hidden"/>
+      <div class="form-grid">
+        <div class="field"><label for="markerLabel">Map marker</label><input id="markerLabel" maxlength="8" placeholder="S1" required/></div>
+        <div class="field"><label for="locationStatus">Status</label><select id="locationStatus"><option value="proposed">Proposed</option><option value="review">Needs site review</option><option value="approved">Approved</option><option value="unavailable">Not available</option></select></div>
+        <div class="field full"><label for="locationName">Location name</label><input id="locationName" maxlength="160" placeholder="Example: Union Station — Wynkoop Plaza" required/></div>
+        <div class="field full"><label for="locationAddress">Street address or meeting description</label><input id="locationAddress" autocomplete="street-address" maxlength="240" placeholder="Enter the full address, city, state, and ZIP" required/><small id="addressStatus">Pause after typing the complete address and the coordinates will update automatically.</small></div>
+        <div class="field"><label for="locationLat">Latitude</label><input id="locationLat" type="number" step="any" min="-90" max="90" required/></div>
+        <div class="field"><label for="locationLng">Longitude</label><input id="locationLng" type="number" step="any" min="-180" max="180" required/></div>
+        <div class="field full coordinate-actions"><button class="btn outline" id="locateAddressButton" type="button">Refresh Address Coordinates</button><button class="btn outline" id="useMapCenterButton" type="button">Use Current Map Center</button><a class="btn outline" id="verifyGoogleLink" target="_blank" rel="noopener" hidden>Verify in Google Maps</a><a class="btn outline" id="verifyAppleLink" target="_blank" rel="noopener" hidden>Verify in Apple Maps</a></div>
+        <div class="field"><label for="cartCount">Number of carts</label><input id="cartCount" type="number" min="0" max="99" value="1"/></div>
+        <div class="field"><label for="locationSchedule">Planned days / times</label><input id="locationSchedule" maxlength="180" placeholder="Example: Thursday–Saturday, 8:00 AM–5:00 PM"/></div>
+        <div class="field full"><label for="locationContact">Site contact or responsible brother</label><input id="locationContact" maxlength="180" placeholder="Optional name, phone, or email"/></div>
+        <div class="field full"><label for="locationNotes">Public planning notes</label><textarea id="locationNotes" maxlength="1800" placeholder="Site permission, exact cart position, weather cover, pedestrian flow, storage, accessibility, or safety notes"></textarea></div>
+      </div>
+      <div class="modal-actions"><button class="btn outline" id="cancelLocation" type="button">Cancel</button><button class="btn save" id="saveLocationButton" type="submit">Save SMPW Location</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="app.js?v=smpw-20260926-1"></script>
+</body>
+</html>
