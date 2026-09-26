@@ -125,7 +125,7 @@
             <option value="denver">Denver Assessor Parcels</option>
             <option value="manual">Manual / CSV / GeoJSON only</option>
           </select>
-          <small id="sourceDetail"></small><small>Large boundaries are now queried in smaller sections. If a county service is unavailable, the planner will automatically try the statewide Colorado address source.</small>
+          <small id="sourceDetail"></small><small>Large boundaries are queried in smaller sections. If the first source is incomplete, use Fill Missing Address Gaps to merge the other official address source and statewide parcel situs addresses without replacing existing work.</small>
         </div>
         <label class="check-row"><input id="residentialOnly" type="checkbox" checked/> Prefer residential records only</label>
         <label class="check-row"><input id="separateUnits" type="checkbox"/> Count unit addresses separately when available</label>
@@ -134,6 +134,21 @@
           <button class="btn outline admin-control" id="addHouseButton" type="button">Add House by Map Click</button>
           <label class="btn outline file-button admin-control">Import CSV / GeoJSON<input id="importFile" type="file" accept=".csv,.json,.geojson" hidden/></label>
           <button class="btn danger admin-control" id="clearHousesButton" type="button">Clear Address Points</button>
+        </div>
+        <div class="gap-fill-panel">
+          <div class="gap-fill-heading"><strong>Fill missing address gaps</strong><span>Does not replace existing territory work</span></div>
+          <p>Search the alternate official county/state address points and the Colorado public parcel situs-address layer. New unique addresses are added as unassigned homes.</p>
+          <button class="btn outline full admin-control" id="gapFillButton" type="button">Search Other Official Address Sources</button>
+          <small id="gapFillMessage" data-state="waiting">Search the other official address and parcel sources after the first address load.</small>
+          <div class="field gap-manual-field">
+            <label for="missingAddressInput">Add a known missing address</label>
+            <div class="gap-address-entry">
+              <input id="missingAddressInput" type="text" autocomplete="street-address" placeholder="Example: 9345 Princeton Cir, Highlands Ranch, CO 80130"/>
+              <button class="btn save admin-control" id="addMissingAddressButton" type="button">Locate &amp; Add Missing Address</button>
+            </div>
+            <small id="missingAddressMessage" data-state="waiting">Enter a known missing address to add it as an unassigned home.</small>
+          </div>
+          <small class="gap-caution">Parcel points and geocoded addresses are planning aids. Confirm the house, entrance, unit count, and residential use locally before assigning it.</small>
         </div>
         <div class="avoid-address-panel">
 <div class="field">

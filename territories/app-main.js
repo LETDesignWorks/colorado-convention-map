@@ -26,6 +26,15 @@ const MAX_ADDRESS_RECORDS = 6000;
 const FIRESTORE_HOUSE_CHUNK_SIZE = 350;
 const HOUSE_LIST_LIMIT = 350;
 const AVOID_GEOCODE_TIMEOUT_MS = 12000;
+const COLORADO_PARCEL_SOURCE = {
+  key: 'colorado-parcels',
+  label: 'Colorado Public Parcel Situs Addresses',
+  endpoint: 'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Parcels/FeatureServer/0/query',
+  infoUrl: 'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Parcels/FeatureServer/0',
+  outFields: ['OBJECTID','parcel_id','countyName','situsAdd','sitAddCty','sitAddZip','landUseCde','landUseDsc','dateReceived'],
+  returnGeometry: true,
+  returnCentroid: false
+};
 
 let app;
 let auth;
@@ -67,7 +76,7 @@ const els = Object.fromEntries([
   'privacyCard','hallSelect','hallDetail','congregationSelect','planName','territoryPrefix','boundaryChip','drawBoundaryButton',
   'editBoundaryButton','viewBoundaryButton','clearBoundaryButton','boundaryName','saveBoundaryButton','boundaryMessage',
   'houseCountChip','sourceSelect','sourceDetail','residentialOnly','separateUnits','loadAddressesButton','addHouseButton',
-  'importFile','clearHousesButton','avoidAddressInput','avoidAddressMessage','addAvoidAddressButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
+  'importFile','clearHousesButton','gapFillButton','gapFillMessage','missingAddressInput','missingAddressMessage','addMissingAddressButton','avoidAddressInput','avoidAddressMessage','addAvoidAddressButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
   'customTarget','groupingMethod','autoGroupButton','drawTerritoryButton','selectAreaButton','clearSelectionButton','excludeSelectionButton',
   'markAvoidButton','restoreAvoidButton','selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryList','houseSearch','houseList',
   'savePlanButton','pdfTerritorySelect','exportTerritoryPdfButton','exportGeoJsonButton','exportCsvButton','newPlanButton','savedBoundaries','savedPlans','loginModal',
@@ -743,6 +752,210 @@ function mergeAvoidAddresses(records, existingAvoids) {
   return merged;
 }
 
+function parcelSupplementPoint(feature) {
+  const attributes = feature?.attributes || feature?.properties || {};
+  const situs = clean(attributes.situsAdd || attributes.SITUSADD || attributes.situs_address || '');
+  if (!situs || !/^\s*\d/.test(situs)) return null;
+  const city = clean(attributes.sitAddCty || attributes.SITADDCTY || '');
+  const zip = clean(attributes.sitAddZip || attributes.SITADDZIP || '').slice(0, 10);
+  const address = [situs, city, 'CO', zip].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  const geometry = feature?.geometry || {};
+  let lat = Number(geometry.y);
+  let lng = Number(geometry.x);
+  if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && Array.isArray(geometry.rings) && geometry.rings.length) {
+    try {
+      const firstRing = geometry.rings.find(ring => Array.isArray(ring) && ring.length >= 4);
+      if (firstRing) {
+        const point = turf.pointOnFeature(turf.polygon([firstRing]));
+        [lng, lat] = point.geometry.coordinates;
+      }
+    } catch {
+      const coordinates = geometry.rings.flat().filter(point => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1])));
+      if (coordinates.length) {
+        lng = coordinates.reduce((sum, point) => sum + Number(point[0]), 0) / coordinates.length;
+        lat = coordinates.reduce((sum, point) => sum + Number(point[1]), 0) / coordinates.length;
+      }
+    }
+  }
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const landUse = clean(attributes.landUseDsc || attributes.LANDUSEDSC || attributes.landUseCde || '');
+  const clearlyNonResidential = /\b(?:COMMERCIAL|INDUSTRIAL|RETAIL|OFFICE|WAREHOUSE|UTILITY|SCHOOL|CHURCH|GOVERNMENT|PARK|OPEN SPACE|COMMON AREA|VACANT|AGRICULTURAL|FARM|EXEMPT)\b/i.test(landUse);
+  return {
+    id: `parcel-${attributes.OBJECTID ?? attributes.parcel_id ?? uniqueId('parcel')}`,
+    address,
+    baseAddress: address,
+    unit: '',
+    lat: Number(lat),
+    lng: Number(lng),
+    source: 'Colorado Public Parcel Situs Address',
+    residential: !clearlyNonResidential,
+    classification: landUse || 'Parcel situs address — verify locally',
+    unitCount: 1,
+    rawId: attributes.parcel_id ?? attributes.OBJECTID ?? null,
+    supplemental: true,
+    included: true,
+    territoryId: null
+  };
+}
+function addressRecordsMatch(a, b) {
+  const includeUnits = Boolean(els.separateUnits?.checked);
+  const keyA = normalizeAddressKey(includeUnits ? a.address : (a.baseAddress || a.address), includeUnits);
+  const keyB = normalizeAddressKey(includeUnits ? b.address : (b.baseAddress || b.address), includeUnits);
+  if (keyA && keyB && keyA === keyB) return true;
+  const parsedA = splitStreetSort(a.address || a.baseAddress || '');
+  const parsedB = splitStreetSort(b.address || b.baseAddress || '');
+  if (parsedA?.number && parsedB?.number && parsedA.number === parsedB.number && parsedA.street && parsedA.street === parsedB.street) {
+    return distanceMiles(a, b) <= 0.12;
+  }
+  return false;
+}
+function mergeSupplementalAddressRecords(records) {
+  const candidates = dedupeAddressRecords(records);
+  let added = 0;
+  let duplicate = 0;
+  for (const candidate of candidates) {
+    if (houses.some(existing => addressRecordsMatch(existing, candidate))) {
+      duplicate += 1;
+      continue;
+    }
+    houses.push({
+      ...candidate,
+      id: String(candidate.id || uniqueId('supplement')),
+      supplemental: true,
+      avoid: false,
+      included: true,
+      territoryId: null
+    });
+    added += 1;
+  }
+  return { added, duplicate };
+}
+async function fillAddressGaps() {
+  if (!requireAdmin()) return;
+  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before checking for missing addresses.', true); return; }
+  const button = els.gapFillButton;
+  button.disabled = true;
+  button.textContent = 'Checking Sources…';
+  els.addressProgress.hidden = false;
+  els.gapFillMessage.dataset.state = 'working';
+  const results = [];
+  const errors = [];
+  let addedTotal = 0;
+  try {
+    const current = currentSourceKey();
+    const inferred = inferSourceForLocation(selectedHall);
+    const pointSourceKeys = [];
+    if (!houses.length && current && current !== 'manual') pointSourceKeys.push(current);
+    if (current !== 'colorado') pointSourceKeys.push('colorado');
+    else if (inferred && !['manual','colorado'].includes(inferred)) pointSourceKeys.push(inferred);
+    for (const sourceKey of [...new Set(pointSourceKeys)]) {
+      const source = ASSESSOR_SOURCES[sourceKey];
+      if (!source) continue;
+      els.gapFillMessage.textContent = `Checking ${source.label} for addresses not already loaded…`;
+      try {
+        const result = await loadParsedSource(sourceKey);
+        const merged = mergeSupplementalAddressRecords(result.parsed);
+        addedTotal += merged.added;
+        results.push(`${merged.added.toLocaleString()} from ${source.label}`);
+      } catch (error) {
+        errors.push(`${source.label}: ${friendlyError(error)}`);
+      }
+    }
+
+    els.gapFillMessage.textContent = 'Checking Colorado parcel situs addresses for additional properties…';
+    try {
+      const parcelFeatures = await queryArcGisSource(COLORADO_PARCEL_SOURCE, true);
+      const parcelRecords = parcelFeatures.map(parcelSupplementPoint).filter(Boolean);
+      const merged = mergeSupplementalAddressRecords(parcelRecords);
+      addedTotal += merged.added;
+      results.push(`${merged.added.toLocaleString()} from parcel situs addresses`);
+    } catch (error) {
+      errors.push(`${COLORADO_PARCEL_SOURCE.label}: ${friendlyError(error)}`);
+    }
+
+    if (addedTotal) currentPlanId = null;
+    renderAllPlanningData();
+    if (addedTotal) {
+      els.gapFillMessage.textContent = `${addedTotal.toLocaleString()} additional address${addedTotal === 1 ? '' : 'es'} added as unassigned. ${results.join('; ')}.${errors.length ? ` Some sources could not be checked: ${errors.join(' | ')}` : ''}`;
+      els.gapFillMessage.dataset.state = errors.length ? 'warning' : 'success';
+      toast(`${addedTotal.toLocaleString()} additional address${addedTotal === 1 ? '' : 'es'} added without replacing existing territories.`);
+    } else {
+      els.gapFillMessage.textContent = `No additional unique addresses were found in the other official sources.${errors.length ? ` ${errors.join(' | ')}` : ' Enter a known missing address below to add it directly.'}`;
+      els.gapFillMessage.dataset.state = errors.length ? 'warning' : 'waiting';
+      toast('No additional unique addresses were found. Use the missing-address entry for a known address.', true);
+    }
+  } finally {
+    els.addressProgress.hidden = true;
+    button.disabled = !isAdmin();
+    button.textContent = 'Search Other Official Address Sources';
+  }
+}
+async function addMissingAddress() {
+  if (!requireAdmin()) return;
+  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before adding a missing address.', true); return; }
+  const address = clean(els.missingAddressInput.value);
+  if (!address) { toast('Enter the complete missing address.', true); els.missingAddressInput.focus(); return; }
+  const button = els.addMissingAddressButton;
+  button.disabled = true;
+  button.textContent = 'Locating…';
+  els.missingAddressMessage.textContent = 'Locating the address and checking the current congregation boundary…';
+  els.missingAddressMessage.dataset.state = 'working';
+  try {
+    const result = await geocodeAvoidAddress(address);
+    const candidate = { lat: Number(result.lat), lng: Number(result.lng) };
+    if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lng)) throw new Error('The address service returned invalid coordinates.');
+    if (!pointInsideBoundary(candidate)) throw new Error('The matched address is outside the current congregation boundary. Verify the address or enlarge the boundary first.');
+    const matchedAddress = clean(result.matchedAddress || address);
+    const probe = { ...candidate, address: matchedAddress, baseAddress: matchedAddress };
+    const existing = houses.find(house => addressRecordsMatch(house, probe));
+    if (existing) {
+      selectedHouseIds = new Set([existing.id]);
+      renderAllPlanningData();
+      map?.setView([existing.lat, existing.lng], Math.max(map.getZoom(), 17), { animate: true });
+      houseMarkers.get(existing.id)?.openPopup();
+      const status = existing.avoid ? 'already marked Avoid / Do Not Visit' : existing.included ? 'already loaded' : 'already loaded but excluded';
+      els.missingAddressMessage.textContent = `${existing.address} is ${status}.`;
+      els.missingAddressMessage.dataset.state = existing.avoid ? 'warning' : 'success';
+      toast(`${existing.address} is already in this plan.`);
+      return;
+    }
+    const record = {
+      id: uniqueId('missing'),
+      address: matchedAddress,
+      baseAddress: matchedAddress,
+      unit: '',
+      lat: candidate.lat,
+      lng: candidate.lng,
+      source: `Manual missing address — ${result.source}`,
+      residential: true,
+      classification: 'Manually added missing address',
+      unitCount: 1,
+      manualGap: true,
+      supplemental: true,
+      avoid: false,
+      included: true,
+      territoryId: null
+    };
+    if (!addHouseRecord(record)) throw new Error('The address matches a point already loaded in this plan.');
+    currentPlanId = null;
+    selectedHouseIds = new Set([record.id]);
+    renderAllPlanningData();
+    map?.setView([record.lat, record.lng], Math.max(map.getZoom(), 17), { animate: true });
+    houseMarkers.get(record.id)?.openPopup();
+    els.missingAddressInput.value = '';
+    els.missingAddressMessage.textContent = `${record.address} was added as an unassigned address. Save the territory plan to retain it.`;
+    els.missingAddressMessage.dataset.state = 'success';
+    toast(`Missing address added: ${record.address}`);
+  } catch (error) {
+    els.missingAddressMessage.textContent = `Could not add the missing address: ${friendlyError(error)}`;
+    els.missingAddressMessage.dataset.state = 'error';
+    toast(`Could not add the missing address: ${friendlyError(error)}`, true);
+  } finally {
+    button.disabled = !isAdmin();
+    button.textContent = 'Locate & Add Missing Address';
+  }
+}
+
 async function loadAddresses() {
   if (!requireAdmin()) return;
   if (!boundaryGeometry) { toast('Draw or load the congregation boundary first.', true); return; }
@@ -757,6 +970,7 @@ async function loadAddresses() {
   els.loadAddressesButton.disabled = true;
   els.addressMessage.textContent = `Loading ${source.label} records inside the boundary…`;
   const retainedAvoids = houses.filter(house => house.avoid).map(house => ({ ...house }));
+  const retainedManualGaps = houses.filter(house => house.manualGap && !house.avoid).map(house => ({ ...house, territoryId: null }));
   try {
   let result;
   let fallbackUsed = false;
@@ -779,6 +993,11 @@ async function loadAddresses() {
   if (!result) throw primaryError || new Error(`${source.label} returned no data.`);
   const refreshedAddresses = dedupeAddressRecords(result.parsed);
   houses = mergeAvoidAddresses(refreshedAddresses, retainedAvoids).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
+  for (const manual of retainedManualGaps) {
+    if (!houses.some(existing => addressRecordsMatch(existing, manual))) {
+      houses.push({ ...manual, id: String(manual.id || uniqueId('missing')), manualGap: true, supplemental: true, avoid: false, included: true, territoryId: null });
+    }
+  }
   territories = [];
   selectedHouseIds.clear();
   currentPlanId = null;
@@ -1579,7 +1798,7 @@ function serializeHouse(house) {
     lat: Number(house.lat), lng: Number(house.lng), source: house.source || '', residential: house.residential !== false,
     classification: house.classification || '', unitCount: Number(house.unitCount) || 1, included: house.included !== false,
     avoid: Boolean(house.avoid), avoidSource: house.avoidSource || '', territoryId: house.avoid ? null : house.territoryId || null,
-    rawId: house.rawId ?? null
+    manualGap: Boolean(house.manualGap), supplemental: Boolean(house.supplemental), rawId: house.rawId ?? null
   };
 }
 async function savePlan() {
@@ -1755,7 +1974,7 @@ function planGeoJson() {
   }
   const territoryById = new Map(territories.map(item => [item.id, item.name]));
   for (const house of houses) features.push(turf.point([house.lng, house.lat], {
-    recordType: house.avoid ? 'avoid-address' : 'ministry-address', address: house.address, source: house.source, included: house.included, avoid: Boolean(house.avoid),
+    recordType: house.avoid ? 'avoid-address' : 'ministry-address', address: house.address, source: house.source, included: house.included, avoid: Boolean(house.avoid), manualGap: Boolean(house.manualGap), supplemental: Boolean(house.supplemental),
     territoryId: house.avoid ? '' : house.territoryId || '', territoryName: house.avoid ? '' : territoryById.get(house.territoryId) || ''
   }));
   return turf.featureCollection(features);
@@ -1772,10 +1991,10 @@ function csvEscape(value) {
 function exportCsv() {
   if (!houses.length) { toast('There are no addresses to export.', true); return; }
   const territoryById = new Map(territories.map(item => [item.id, item.name]));
-  const rows = [['territory','address','latitude','longitude','included','avoid','source','classification','unit_count']];
+  const rows = [['territory','address','latitude','longitude','included','avoid','manual_added','supplemental','source','classification','unit_count']];
   houses.forEach(house => rows.push([
     territoryById.get(house.territoryId) || '', house.address, Number(house.lat).toFixed(6), Number(house.lng).toFixed(6),
-    house.included && !house.avoid ? 'Yes' : 'No', house.avoid ? 'Yes' : 'No', house.source || '', house.classification || '', house.unitCount || 1
+    house.included && !house.avoid ? 'Yes' : 'No', house.avoid ? 'Yes' : 'No', house.manualGap ? 'Yes' : 'No', house.supplemental ? 'Yes' : 'No', house.source || '', house.classification || '', house.unitCount || 1
   ]));
   const filename = `${slug(clean(els.planName.value) || selectedCongregation || 'territory-plan')}.csv`;
   downloadText(filename, rows.map(row => row.map(csvEscape).join(',')).join('\n'), 'text/csv;charset=utf-8');
@@ -2253,6 +2472,9 @@ function clearPlanWorkspace(resetSelection = true) {
   if (selectionLayer && map) { map.removeLayer(selectionLayer); selectionLayer = null; }
   els.planName.value = '';
   els.boundaryName.value = '';
+  if (els.missingAddressInput) els.missingAddressInput.value = '';
+  if (els.missingAddressMessage) { els.missingAddressMessage.textContent = 'Enter a known missing address to add it as an unassigned home.'; els.missingAddressMessage.dataset.state = 'waiting'; }
+  if (els.gapFillMessage) { els.gapFillMessage.textContent = 'Search the other official address and parcel sources after the first address load.'; els.gapFillMessage.dataset.state = 'waiting'; }
   if (els.avoidAddressInput) els.avoidAddressInput.value = '';
   if (els.avoidAddressMessage) { els.avoidAddressMessage.textContent = 'Enter a complete address to place a private red avoid dot on the map.'; els.avoidAddressMessage.dataset.state = 'waiting'; }
   if (resetSelection && selectedHall) {
@@ -2285,6 +2507,9 @@ function wireEvents() {
   els.saveBoundaryButton.addEventListener('click', saveBoundary);
   els.loadAddressesButton.addEventListener('click', loadAddresses);
   els.addHouseButton.addEventListener('click', toggleManualHouseMode);
+  els.gapFillButton.addEventListener('click', fillAddressGaps);
+  els.addMissingAddressButton.addEventListener('click', addMissingAddress);
+  els.missingAddressInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addMissingAddress(); } });
   els.addAvoidAddressButton.addEventListener('click', addAvoidAddress);
   els.avoidAddressInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addAvoidAddress(); } });
   els.markAvoidButton.addEventListener('click', markSelectedAvoid);

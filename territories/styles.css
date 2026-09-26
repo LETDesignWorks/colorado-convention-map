@@ -75,3 +75,14 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
 .house-row.avoid{opacity:1;background:#fff4f2;border-color:#e2a39e}.house-row.avoid .territory-tag{background:#f9d9d6;color:#8d2d27}.house-row.avoid strong{color:#7f2d28}
 .avoid-popup-badge{display:inline-flex;margin:5px 0 2px;padding:3px 6px;border-radius:999px;background:#c9362b;color:#fff;font-size:8px;font-weight:900;letter-spacing:.04em}
 @media(max-width:600px){.avoid-address-entry,.avoid-selection-actions{grid-template-columns:1fr}.avoid-address-entry .btn{width:100%}}
+
+
+/* Supplemental address-gap tools */
+.gap-fill-panel{margin:12px 0 10px;padding:11px;border:1px solid #a9c9df;border-left:4px solid #0b5b9f;border-radius:12px;background:#f4faff}
+.gap-fill-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:5px}.gap-fill-heading strong{color:#174f7d;font-size:12px}.gap-fill-heading span{border-radius:999px;padding:3px 6px;background:#deeffa;color:#255f88;font-size:8px;font-weight:850;white-space:nowrap}
+.gap-fill-panel p{font-size:10px;line-height:1.42;color:#587087;margin:0 0 9px}.gap-fill-panel>small{display:block;margin-top:6px;font-size:9.5px;line-height:1.4;color:#62768b}.gap-manual-field{margin:11px 0 0;padding-top:10px;border-top:1px solid #d5e5f0}.gap-address-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center}.gap-address-entry input{min-width:0}.gap-caution{color:#746646!important}
+#gapFillMessage[data-state="working"],#missingAddressMessage[data-state="working"]{color:#745500;font-weight:750}
+#gapFillMessage[data-state="success"],#missingAddressMessage[data-state="success"]{color:#176842;font-weight:750}
+#gapFillMessage[data-state="warning"],#missingAddressMessage[data-state="warning"]{color:#825b00;font-weight:750}
+#gapFillMessage[data-state="error"],#missingAddressMessage[data-state="error"]{color:#922f28;font-weight:750}
+@media(max-width:600px){.gap-fill-heading{display:block}.gap-fill-heading span{display:inline-flex;margin-top:5px}.gap-address-entry{grid-template-columns:1fr}.gap-address-entry .btn{width:100%}}
