@@ -1,0 +1,49 @@
+name: Run territory avoid-address patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/run-territory-avoid-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply avoid-address patch from the stored patch source
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path('.github/workflows/add-territory-avoid-addresses.yml')
+          source = source_path.read_text(encoding='utf-8')
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          body = source[start:end]
+          body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines())
+          exec(compile(body, str(source_path), 'exec'))
+          PY
+
+      - name: Validate avoid-address update
+        run: |
+          node --check territories/app-main.js
+          grep -q 'function addAvoidAddress' territories/app-main.js
+          grep -q 'function markSelectedAvoid' territories/app-main.js
+          grep -q 'house.avoid' territories/app-main.js
+          grep -q 'Avoid / do not visit address' territories/template.html
+          grep -q 'red dots and a separate list for avoid addresses' territories/template.html
+          grep -q 'territories-20260925-5' territories/bootstrap.js
+
+      - name: Commit avoid-address update
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/template.html territories/styles.css territories/bootstrap.js territories/index.html
+          git commit -m 'Add avoid addresses with red territory map dots'
+          git push
