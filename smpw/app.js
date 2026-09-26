@@ -146,6 +146,8 @@ function previewIcon() {
 
 function initMap() {
   map = L.map('map', { zoomControl:true, attributionControl:true }).setView([39.665, -104.95], 10);
+  window.__DENVER2027_SMPW_MAP__ = map;
+  window.dispatchEvent(new CustomEvent('denver2027-smpw-map-ready', { detail: { map } }));
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom:19,
     attribution:'&copy; OpenStreetMap contributors'
@@ -589,6 +591,8 @@ try {
   firebaseApp = initializeApp(firebaseConfig);
   auth = getAuth(firebaseApp);
   db = getFirestore(firebaseApp);
+  window.__DENVER2027_SMPW_FIREBASE__ = { app: firebaseApp, auth, db };
+  window.dispatchEvent(new CustomEvent('denver2027-smpw-firebase-ready', { detail: { app: firebaseApp, auth, db } }));
   await setPersistence(auth, browserLocalPersistence);
   onAuthStateChanged(auth, user => { currentUser = user; updateAuthUi(); });
   subscribeLocations();
