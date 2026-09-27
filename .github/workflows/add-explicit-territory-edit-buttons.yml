@@ -15,7 +15,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Add visible save and cancel controls for territory editing
-        run: python .github/scripts/add_explicit_territory_edit_buttons.py
+        run: |
+          python -c "from pathlib import Path; p=Path('.github/scripts/add_explicit_territory_edit_buttons.py'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('The live address count will update as you move the handles; save with the map toolbar checkmark.', 'Move the handles, then select the map checkmark. The boundary and home assignments will update together.'), encoding='utf-8')"
+          python .github/scripts/add_explicit_territory_edit_buttons.py
 
       - name: Validate explicit edit controls
         run: |
