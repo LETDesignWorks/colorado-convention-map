@@ -203,8 +203,10 @@
           <button class="btn save admin-control" id="drawTerritoryButton" type="button">Draw Territory Manually</button>
           <button class="btn outline admin-control" id="selectAreaButton" type="button">Select Houses by Area</button>
           <button class="btn outline admin-control" id="clearSelectionButton" type="button">Clear Selection</button>
+          <button class="btn danger admin-control" id="clearAllTerritoriesButton" type="button">Clear All Territories</button>
           <button class="btn danger admin-control" id="excludeSelectionButton" type="button">Include / Exclude Selected</button>
         </div>
+        <small class="clear-territories-note">Clear All Territories removes every automatic and manually drawn territory from the current workspace and returns their homes to Unassigned. It keeps the congregation boundary, loaded addresses, red avoid addresses, and excluded addresses. Select Save Territory Plan afterward when the cleared plan should replace the saved Firebase plan.</small>
         <div id="territoryEditMessage" class="territory-edit-message" hidden></div>
         <div class="selection-panel">
           <span id="selectionCount">0 houses selected</span>

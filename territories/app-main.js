@@ -79,7 +79,7 @@ const els = Object.fromEntries([
   'editBoundaryButton','viewBoundaryButton','clearBoundaryButton','boundaryName','saveBoundaryButton','boundaryMessage',
   'houseCountChip','sourceSelect','sourceDetail','residentialOnly','separateUnits','loadAddressesButton','addHouseButton',
   'importFile','clearHousesButton','gapFillButton','gapFillMessage','missingAddressInput','missingAddressMessage','addMissingAddressButton','avoidAddressInput','avoidAddressMessage','addAvoidAddressButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
-  'customTarget','groupingMethod','autoGroupButton','drawTerritoryButton','selectAreaButton','clearSelectionButton','excludeSelectionButton',
+  'customTarget','groupingMethod','autoGroupButton','drawTerritoryButton','selectAreaButton','clearSelectionButton','clearAllTerritoriesButton','excludeSelectionButton',
   'markAvoidButton','restoreAvoidButton','selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryList','houseSearch','houseList',
   'savePlanButton','pdfTerritorySelect','exportTerritoryPdfButton','exportGeoJsonButton','exportCsvButton','newPlanButton','savedBoundaries','savedPlans','loginModal',
   'loginForm','loginEmail','loginPassword','cancelLogin','resetPassword','toast'
@@ -1642,6 +1642,31 @@ function automaticGrouping() {
   renderAllPlanningData();
   toast(`${territories.length} territories created using a target of ${target} houses. Sequential mode keeps each street in contiguous house-number blocks and combines only short nearby runs.`);
 }
+function clearAllTerritories() {
+  if (!requireAdmin()) return;
+  const territoryCount = territories.length;
+  const assignedCount = houses.filter(house => house.territoryId).length;
+  if (!territoryCount && !assignedCount) {
+    toast('There are no territories to clear.');
+    return;
+  }
+  const territoryLabel = `${territoryCount} territor${territoryCount === 1 ? 'y' : 'ies'}`;
+  const addressLabel = `${assignedCount} assigned address${assignedCount === 1 ? '' : 'es'}`;
+  const message = `Remove all ${territoryLabel} and return ${addressLabel} to Unassigned? ` +
+    'The congregation boundary, loaded addresses, red avoid addresses, and excluded addresses will remain. ' +
+    'This changes the current workspace only until you select Save Territory Plan.';
+  if (!confirm(message)) return;
+
+  cancelTerritoryBoundaryEdit(false);
+  territories = [];
+  for (const house of houses) house.territoryId = null;
+  pendingTerritoryName = '';
+  clearSelection(true);
+  renderAllPlanningData();
+  els.addressMessage.textContent = `All ${territoryLabel} cleared. Loaded addresses remain and are ready to regroup.`;
+  toast(`All ${territoryLabel} cleared; ${addressLabel} returned to Unassigned.`);
+}
+
 function recalculateTerritoryHouseIds() {
   for (const territory of territories) territory.houseIds = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).map(house => house.id);
   territories = territories.filter(territory => territory.houseIds.length || territory.geometry);
@@ -2538,6 +2563,7 @@ function wireEvents() {
   els.drawTerritoryButton.addEventListener('click', drawManualTerritoryBoundary);
   els.selectAreaButton.addEventListener('click', selectArea);
   els.clearSelectionButton.addEventListener('click', () => clearSelection(true));
+  els.clearAllTerritoriesButton.addEventListener('click', clearAllTerritories);
   els.excludeSelectionButton.addEventListener('click', includeExcludeSelected);
   els.assignSelectedButton.addEventListener('click', assignSelected);
   els.newTerritoryButton.addEventListener('click', newTerritoryFromSelected);

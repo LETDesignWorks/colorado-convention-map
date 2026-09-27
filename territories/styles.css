@@ -86,3 +86,18 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
 #gapFillMessage[data-state="warning"],#missingAddressMessage[data-state="warning"]{color:#825b00;font-weight:750}
 #gapFillMessage[data-state="error"],#missingAddressMessage[data-state="error"]{color:#922f28;font-weight:750}
 @media(max-width:600px){.gap-fill-heading{display:block}.gap-fill-heading span{display:inline-flex;margin-top:5px}.gap-address-entry{grid-template-columns:1fr}.gap-address-entry .btn{width:100%}}
+
+
+/* Clear-all territory workspace control */
+.clear-territories-note {
+  display: block;
+  margin: -1px 0 11px;
+  padding: 9px 10px;
+  border: 1px solid #e7c3be;
+  border-left: 4px solid #a53b34;
+  border-radius: 10px;
+  background: #fff8f7;
+  color: #6f4b48;
+  font-size: 9.5px;
+  line-height: 1.42;
+}
