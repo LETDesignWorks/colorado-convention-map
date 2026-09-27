@@ -1,0 +1,53 @@
+name: Harden live territory count
+
+on:
+  push:
+    paths:
+      - '.github/workflows/harden-live-territory-count.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Harden live territory geometry count
+        run: python .github/scripts/harden_live_territory_count.py
+
+      - name: Validate count geometry and JavaScript
+        run: |
+          node --check territories/app-main.js
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('territories/app-main.js', 'utf8');
+          const start = source.indexOf('function geometryObject');
+          const end = source.indexOf('function countGeometryBounds');
+          if (start < 0 || end < 0 || end <= start) throw new Error('Count geometry helpers were not found.');
+          eval(source.slice(start, end));
+          const polygon = {
+            type: 'Polygon',
+            coordinates: [[
+              [-105.1, 39.4],
+              [-104.8, 39.4],
+              [-104.8, 39.8],
+              [-105.1, 39.8],
+              [-105.1, 39.4]
+            ]]
+          };
+          if (!pointInsideCountGeometry(-104.95, 39.6, polygon)) throw new Error('Inside point was not counted.');
+          if (pointInsideCountGeometry(-105.3, 39.6, polygon)) throw new Error('Outside point was counted.');
+          if (!pointInsideCountGeometry(-105.1, 39.6, polygon)) throw new Error('Boundary point was not counted.');
+          console.log('Live territory count geometry test passed.');
+          NODE
+          grep -q 'updateLiveTerritoryBoundaryCount(payload);' territories/app-main.js
+
+      - name: Commit live count hardening
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js
+          git commit -m 'Harden live territory boundary address counting' || exit 0
+          git push
