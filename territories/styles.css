@@ -101,3 +101,56 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
   font-size: 9.5px;
   line-height: 1.42;
 }
+
+
+/* Live address count while drawing or editing a manual territory boundary */
+.territory-boundary-live-count{
+  position:absolute;
+  z-index:930;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  min-width:260px;
+  max-width:min(500px,calc(100% - 260px));
+  padding:10px 14px;
+  border:1px solid rgba(255,255,255,.82);
+  border-radius:14px;
+  background:rgba(8,63,115,.94);
+  color:#fff;
+  box-shadow:0 7px 22px rgba(0,28,58,.34);
+  text-align:center;
+  pointer-events:none;
+  backdrop-filter:blur(4px);
+}
+.territory-boundary-live-count[data-mode="edit"]{background:rgba(89,58,157,.95)}
+.territory-boundary-live-count>span{
+  display:block;
+  font-size:9px;
+  line-height:1.2;
+  font-weight:900;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  opacity:.9;
+}
+.territory-boundary-live-count>strong{
+  display:block;
+  margin-top:3px;
+  font-size:19px;
+  line-height:1.18;
+}
+.territory-boundary-live-count>small{
+  display:block;
+  margin-top:4px;
+  font-size:9.5px;
+  line-height:1.35;
+  color:rgba(255,255,255,.9);
+}
+@media(max-width:880px){
+  .territory-boundary-live-count{top:70px;max-width:calc(100% - 24px);min-width:0;width:max-content;padding:9px 12px}
+}
+@media(max-width:600px){
+  .territory-boundary-live-count{top:64px;width:calc(100% - 22px)}
+  .territory-boundary-live-count>strong{font-size:16px}
+  .territory-boundary-live-count>small{font-size:8.5px}
+}
+@media print{.territory-boundary-live-count{display:none!important}}

@@ -21,6 +21,11 @@
     <section class="map-column">
       <div class="map-card">
         <div id="map" role="application" aria-label="Kingdom Hall, congregation boundary, residential address and territory map"></div>
+        <div id="territoryBoundaryLiveCount" class="territory-boundary-live-count" hidden aria-live="polite" aria-atomic="true">
+          <span id="territoryBoundaryLiveLabel">Manual territory</span>
+          <strong id="territoryBoundaryLiveValue">0 addresses selected</strong>
+          <small id="territoryBoundaryLiveDetail">Begin drawing the boundary to count the included addresses.</small>
+        </div>
         <div class="map-legend">
           <div><span class="legend-symbol hall-symbol">H</span>Kingdom Hall / meeting point</div>
           <div><span class="legend-symbol house-symbol">•</span>Included house or address</div>
