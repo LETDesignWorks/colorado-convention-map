@@ -380,6 +380,57 @@ function combinedGeometryFromFeatureGroup(group) {
   const coordinates = geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]);
   return { type: 'MultiPolygon', coordinates };
 }
+function territoryIdFromLayerGroup(group) {
+  for (const layer of group?.getLayers?.() || []) {
+    const id = layer?._denverTerritoryId || layer?.options?.denverTerritoryId;
+    if (id) return String(id);
+  }
+  return '';
+}
+function applyTerritoryBoundaryAssignments(territoryId, value) {
+  const territory = territories.find(item => item.id === String(territoryId));
+  const geometry = geometryObject(value);
+  if (!territory || !geometry) return null;
+
+  const insideIds = new Set(includedAddressesInsideGeometry(geometry).map(house => house.id));
+  let added = 0;
+  let moved = 0;
+  let removed = 0;
+
+  for (const house of houses) {
+    if (!house.included || house.avoid) continue;
+    const previousTerritoryId = house.territoryId || null;
+    if (insideIds.has(house.id)) {
+      if (previousTerritoryId !== territory.id) {
+        if (previousTerritoryId) moved += 1;
+        else added += 1;
+        house.territoryId = territory.id;
+      }
+    } else if (previousTerritoryId === territory.id) {
+      house.territoryId = null;
+      removed += 1;
+    }
+  }
+
+  territory.geometry = JSON.parse(JSON.stringify(geometry));
+  territory.manualBoundary = true;
+  recalculateTerritoryHouseIds();
+  const refreshed = territories.find(item => item.id === territory.id) || territory;
+  return {
+    territory: refreshed,
+    total: insideIds.size,
+    added,
+    moved,
+    removed
+  };
+}
+function boundaryChangeSummary(result) {
+  const changes = [];
+  if (result.added) changes.push(`${result.added} unassigned added`);
+  if (result.moved) changes.push(`${result.moved} moved from other territories`);
+  if (result.removed) changes.push(`${result.removed} removed to Unassigned`);
+  return changes.length ? changes.join(' • ') : 'No home assignments changed';
+}
 function normalizeLeafletRing(value) {
   let current = value;
   while (Array.isArray(current) && current.length === 1 && Array.isArray(current[0])) current = current[0];
@@ -537,7 +588,7 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
     els.territoryBoundaryLiveDetail.textContent = `${currentlyInside} already in ${territory.name} • ${unassignedInside} unassigned • ${otherTerritoryInside} in other territories${currentlyOutside ? ` • ${currentlyOutside} current outside` : ''} • ${eligibleTotal.toLocaleString()} included loaded`;
     if (els.territoryEditMessage) {
       els.territoryEditMessage.hidden = false;
-      els.territoryEditMessage.textContent = `Editing ${territory.name}: ${count.toLocaleString()} included address${count === 1 ? '' : 'es'} are inside the proposed boundary. If you save the shape and then select Sync Homes, ${unassignedInside} unassigned address${unassignedInside === 1 ? '' : 'es'} and ${otherTerritoryInside} address${otherTerritoryInside === 1 ? '' : 'es'} from other territories would move in, while ${currentlyOutside} current address${currentlyOutside === 1 ? '' : 'es'} would move out. Avoid and excluded addresses are not counted.`;
+      els.territoryEditMessage.textContent = `Editing ${territory.name}: ${count.toLocaleString()} included address${count === 1 ? '' : 'es'} are inside the proposed boundary. When you save with the map toolbar checkmark, ${unassignedInside} unassigned address${unassignedInside === 1 ? '' : 'es'} and ${otherTerritoryInside} address${otherTerritoryInside === 1 ? '' : 'es'} from other territories would move in, while ${currentlyOutside} current address${currentlyOutside === 1 ? '' : 'es'} would move out. Avoid and excluded addresses are not counted.`;
     }
   } else {
     const unassigned = inside.filter(house => !house.territoryId).length;
@@ -648,24 +699,34 @@ conflicts += 1;
     if (!activeTerritoryEditId) return;
     scheduleLiveTerritoryBoundaryCount({ mode: 'edit', geometry: combinedGeometryFromFeatureGroup(territoryEditGroup), territoryId: activeTerritoryEditId });
   });
-  map.on(L.Draw.Event.EDITED, () => {
-    if (activeTerritoryEditId) {
+  map.on(L.Draw.Event.EDITED, async event => {
+    const editedGroup = event?.layers;
+    const editedTerritoryId = territoryIdFromLayerGroup(editedGroup) || activeTerritoryEditId;
+    if (editedTerritoryId) {
       hideLiveTerritoryBoundaryCount();
-      const territory = territories.find(item => item.id === activeTerritoryEditId);
-      const edited = territoryEditGroup.toGeoJSON();
-      const geometries = (edited.features || []).map(feature => feature.geometry).filter(Boolean);
-      if (territory && geometries.length) {
-        territory.geometry = geometries.length === 1
-          ? geometries[0]
-          : { type: 'MultiPolygon', coordinates: geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]) };
-        territory.manualBoundary = true;
-      }
+      const geometry = combinedGeometryFromFeatureGroup(editedGroup) || combinedGeometryFromFeatureGroup(territoryEditGroup);
+      const result = applyTerritoryBoundaryAssignments(editedTerritoryId, geometry);
       activeTerritoryEditId = null;
       territoryEditToolbar = null;
       territoryEditGroup.clearLayers();
       if (els.territoryEditMessage) els.territoryEditMessage.hidden = true;
+
+      if (!result) {
+        renderAllPlanningData();
+        toast('The edited territory boundary could not be read. Reopen Edit Boundary and try again.', true);
+        return;
+      }
+
       renderAllPlanningData();
-      toast('Territory boundary updated. Use Sync Homes when the boundary should control which addresses belong to it.');
+      selectTerritoryHouses(result.territory.id);
+      const summary = boundaryChangeSummary(result);
+      if (currentPlanId) {
+        await savePlan({
+          successMessage: `${result.territory.name} saved with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}.`
+        });
+      } else {
+        toast(`${result.territory.name} boundary and homes updated in the workspace with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}. Select Save Territory Plan to retain the changes.`);
+      }
       return;
     }
     const layer = boundaryGroup.getLayers()[0];
@@ -1535,12 +1596,16 @@ function editTerritoryBoundary(id) {
   const editableGeoJson = L.geoJSON(geometry, {
     style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
   });
-  editableGeoJson.eachLayer(layer => territoryEditGroup.addLayer(layer));
+  editableGeoJson.eachLayer(layer => {
+    layer._denverTerritoryId = id;
+    layer.options = { ...(layer.options || {}), denverTerritoryId: id };
+    territoryEditGroup.addLayer(layer);
+  });
   if (territoryEditGroup.getBounds?.().isValid()) map.fitBounds(territoryEditGroup.getBounds(), { padding: [38, 38], maxZoom: 18 });
   territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
   territoryEditToolbar.enable();
   updateLiveTerritoryBoundaryCount({ mode: 'edit', geometry: geometry.geometry || geometry, territoryId: id });
-  toast(`Editing ${territory.name}. The live address count will update as you move the handles; save with the map toolbar checkmark.`);
+  toast(`Editing ${territory.name}. Move the handles, then select the map checkmark. The boundary and home assignments will update together.`);
 }
 function resetTerritoryBoundary(id) {
   if (!requireAdmin()) return;
@@ -1552,7 +1617,7 @@ function resetTerritoryBoundary(id) {
   renderAllPlanningData();
   toast(`${territory.name} now uses its automatic house outline.`);
 }
-function syncTerritoryHomesToBoundary(id) {
+async function syncTerritoryHomesToBoundary(id) {
   if (!requireAdmin()) return;
   const territory = territories.find(item => item.id === id);
   if (!territory) return;
@@ -1561,19 +1626,23 @@ function syncTerritoryHomesToBoundary(id) {
   const insideIds = new Set(includedAddressesInsideGeometry(geometry).map(house => house.id));
   const movingFromOther = houses.filter(house => insideIds.has(house.id) && house.territoryId && house.territoryId !== territory.id).length;
   const removing = houses.filter(house => house.territoryId === territory.id && !insideIds.has(house.id)).length;
-  const message = `Make ${territory.name} contain exactly the ${insideIds.size} included addresses inside its boundary?` +
+  const message = `Update ${territory.name} to contain exactly the ${insideIds.size} included addresses inside its saved boundary?` +
     `${movingFromOther ? ` This will move ${movingFromOther} address(es) from other territories.` : ''}` +
     `${removing ? ` It will leave ${removing} address(es) outside the boundary unassigned.` : ''}`;
   if (!confirm(message)) return;
-  for (const house of houses) {
-    if (!house.included || house.avoid) continue;
-    if (insideIds.has(house.id)) house.territoryId = territory.id;
-    else if (house.territoryId === territory.id) house.territoryId = null;
-  }
-  recalculateTerritoryHouseIds();
+
+  const result = applyTerritoryBoundaryAssignments(id, geometry);
+  if (!result) { toast('The territory boundary could not be read.', true); return; }
   renderAllPlanningData();
-  selectTerritoryHouses(territory.id);
-  toast(`${territory.name} synchronized to its boundary with ${insideIds.size} addresses.`);
+  selectTerritoryHouses(result.territory.id);
+  const summary = boundaryChangeSummary(result);
+  if (currentPlanId) {
+    await savePlan({
+      successMessage: `${result.territory.name} updated and saved with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}.`
+    });
+  } else {
+    toast(`${result.territory.name} updated with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}. Select Save Territory Plan to retain the changes.`);
+  }
 }
 
 function territoryGeometry(territory) {
@@ -1959,7 +2028,7 @@ function renderTerritoryList() {
     const included = territoryHousesSorted(territory);
     const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
     const boundaryLabel = territory.geometry ? 'Edited/manual boundary' : 'Automatic outline';
-    return `<article class="territory-row"><span class="territory-swatch" style="background:${color}"></span><div class="territory-main"><strong>${escapeHtml(territory.name)}${territory.geometry ? '<span class="manual-boundary-chip">Manual</span>' : ''}</strong><small>${included.length.toLocaleString()} houses • ${boundaryLabel}${included.length ? ` • ${escapeHtml(included[0].address)}${included.length > 1 ? ` through ${escapeHtml(included[included.length - 1].address)}` : ''}` : ''}</small></div><div class="row-actions"><button class="row-action" data-territory-zoom="${territory.id}">Zoom</button><button class="row-action" data-territory-select="${territory.id}">Homes</button><button class="row-action" data-territory-boundary="${territory.id}">Edit Boundary</button><button class="row-action" data-territory-sync="${territory.id}">Sync Homes</button><button class="row-action" data-territory-pdf="${territory.id}">PDF</button>${territory.geometry ? `<button class="row-action" data-territory-reset="${territory.id}">Auto Outline</button>` : ''}<button class="row-action" data-territory-rename="${territory.id}">Rename</button><button class="row-action danger" data-territory-delete="${territory.id}">Delete</button></div></article>`;
+    return `<article class="territory-row"><span class="territory-swatch" style="background:${color}"></span><div class="territory-main"><strong>${escapeHtml(territory.name)}${territory.geometry ? '<span class="manual-boundary-chip">Manual</span>' : ''}</strong><small>${included.length.toLocaleString()} houses • ${boundaryLabel}${included.length ? ` • ${escapeHtml(included[0].address)}${included.length > 1 ? ` through ${escapeHtml(included[included.length - 1].address)}` : ''}` : ''}</small></div><div class="row-actions"><button class="row-action" data-territory-zoom="${territory.id}">Zoom</button><button class="row-action" data-territory-select="${territory.id}">Homes</button><button class="row-action" data-territory-boundary="${territory.id}">Edit Boundary</button><button class="row-action" data-territory-sync="${territory.id}">Update Homes</button><button class="row-action" data-territory-pdf="${territory.id}">PDF</button>${territory.geometry ? `<button class="row-action" data-territory-reset="${territory.id}">Auto Outline</button>` : ''}<button class="row-action" data-territory-rename="${territory.id}">Rename</button><button class="row-action danger" data-territory-delete="${territory.id}">Delete</button></div></article>`;
   }).join('');
   els.territoryList.querySelectorAll('[data-territory-zoom]').forEach(button => button.addEventListener('click', () => zoomTerritory(button.dataset.territoryZoom)));
   els.territoryList.querySelectorAll('[data-territory-select]').forEach(button => button.addEventListener('click', () => selectTerritoryHouses(button.dataset.territorySelect)));
@@ -2068,7 +2137,7 @@ function serializeHouse(house) {
     manualGap: Boolean(house.manualGap), supplemental: Boolean(house.supplemental), rawId: house.rawId ?? null
   };
 }
-async function savePlan() {
+async function savePlan(options = {}) {
   if (!requireAdmin()) return;
   if (!selectedHall || !selectedCongregation || !boundaryGeometry) { toast('Select a Hall and create the congregation boundary first.', true); return; }
   if (!houses.length) { toast('Load or add addresses before saving the territory plan.', true); return; }
@@ -2120,7 +2189,7 @@ async function savePlan() {
     currentPlanId = planId;
     els.planName.value = clean(els.planName.value) || `${selectedCongregation} — Convention Ministry Territories`;
     updateSummary();
-    toast(`Territory plan saved in ${chunks.length} private Firebase data part${chunks.length === 1 ? '' : 's'}.`);
+    toast(options.successMessage || `Territory plan saved in ${chunks.length} private Firebase data part${chunks.length === 1 ? '' : 's'}.`);
   } catch (error) { toast(`Could not save the territory plan: ${friendlyError(error)}`, true); }
   finally { button.disabled = false; button.textContent = 'Save Territory Plan'; }
 }
