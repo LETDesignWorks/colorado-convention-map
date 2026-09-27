@@ -154,3 +154,41 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
   .territory-boundary-live-count>small{font-size:8.5px}
 }
 @media print{.territory-boundary-live-count{display:none!important}}
+
+
+/* Visible territory boundary save controls */
+.territory-edit-actions{
+  position:absolute;
+  z-index:945;
+  left:50%;
+  bottom:14px;
+  transform:translateX(-50%);
+  width:min(760px,calc(100% - 28px));
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:11px 12px;
+  border:1px solid rgba(255,255,255,.88);
+  border-radius:15px;
+  background:rgba(255,255,255,.97);
+  box-shadow:0 8px 26px rgba(0,31,64,.32);
+  color:#263d54;
+  backdrop-filter:blur(5px);
+}
+.territory-edit-actions[hidden]{display:none!important}
+.territory-edit-action-copy{min-width:0}
+.territory-edit-action-copy>strong{display:block;color:#5b359e;font-size:13px;line-height:1.25}
+.territory-edit-action-copy>small{display:block;margin-top:3px;color:#5e6e81;font-size:9.5px;line-height:1.35}
+.territory-edit-action-buttons{display:flex;gap:8px;flex:0 0 auto}
+.territory-edit-action-buttons .btn{min-height:43px}
+.map-card.territory-edit-active .map-note{display:none}
+@media(max-width:700px){
+  .territory-edit-actions{bottom:9px;width:calc(100% - 18px);display:block;padding:10px}
+  .territory-edit-action-buttons{margin-top:8px;display:grid;grid-template-columns:1fr 1fr}
+  .territory-edit-action-buttons .btn{white-space:normal;line-height:1.2;padding:8px}
+}
+@media(max-width:430px){
+  .territory-edit-action-buttons{grid-template-columns:1fr}
+}
+@media print{.territory-edit-actions{display:none!important}}

@@ -84,7 +84,7 @@ const els = Object.fromEntries([
   'houseCountChip','sourceSelect','sourceDetail','residentialOnly','separateUnits','loadAddressesButton','addHouseButton',
   'importFile','clearHousesButton','gapFillButton','gapFillMessage','missingAddressInput','missingAddressMessage','addMissingAddressButton','avoidAddressInput','avoidAddressMessage','addAvoidAddressButton','addressProgress','addressMessage','territoryCountChip','targetSize','customTargetWrap',
   'customTarget','groupingMethod','autoGroupButton','drawTerritoryButton','selectAreaButton','clearSelectionButton','clearAllTerritoriesButton','excludeSelectionButton',
-  'markAvoidButton','restoreAvoidButton','selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryBoundaryLiveCount','territoryBoundaryLiveLabel','territoryBoundaryLiveValue','territoryBoundaryLiveDetail','territoryList','houseSearch','houseList',
+  'markAvoidButton','restoreAvoidButton','selectionCount','assignTerritorySelect','assignSelectedButton','newTerritoryButton','territoryEditMessage','territoryBoundaryLiveCount','territoryBoundaryLiveLabel','territoryBoundaryLiveValue','territoryBoundaryLiveDetail','territoryEditActions','territoryEditActionLabel','saveTerritoryBoundaryEditButton','cancelTerritoryBoundaryEditButton','territoryList','houseSearch','houseList',
   'savePlanButton','pdfTerritorySelect','exportTerritoryPdfButton','exportGeoJsonButton','exportCsvButton','newPlanButton','savedBoundaries','savedPlans','loginModal',
   'loginForm','loginEmail','loginPassword','cancelLogin','resetPassword','toast'
 ].map(id => [id, document.getElementById(id)]));
@@ -631,6 +631,57 @@ function hideLiveTerritoryBoundaryCount() {
   }
 }
 
+function showTerritoryEditActions(territory) {
+  if (!els.territoryEditActions) return;
+  els.territoryEditActions.hidden = false;
+  if (els.territoryEditActionLabel) els.territoryEditActionLabel.textContent = `Editing ${territory?.name || 'territory boundary'}`;
+  els.territoryEditActions.closest('.map-card')?.classList.add('territory-edit-active');
+}
+function hideTerritoryEditActions() {
+  if (!els.territoryEditActions) return;
+  els.territoryEditActions.hidden = true;
+  els.territoryEditActions.closest('.map-card')?.classList.remove('territory-edit-active');
+}
+async function saveActiveTerritoryBoundaryEdit() {
+  if (!requireAdmin()) return;
+  const territoryId = activeTerritoryEditId || territoryIdFromLayerGroup(territoryEditGroup);
+  if (!territoryId) {
+    toast('No territory boundary is currently being edited.', true);
+    hideTerritoryEditActions();
+    return;
+  }
+  const geometry = combinedGeometryFromFeatureGroup(territoryEditGroup);
+  if (!geometry) {
+    toast('The edited boundary could not be read. Move a handle and try Save Boundary & Update Homes again.', true);
+    return;
+  }
+
+  const result = applyTerritoryBoundaryAssignments(territoryId, geometry);
+  if (!result) {
+    toast('The edited territory boundary could not be saved. Reopen Edit Boundary and try again.', true);
+    return;
+  }
+
+  const toolbar = territoryEditToolbar;
+  activeTerritoryEditId = null;
+  territoryEditToolbar = null;
+  hideLiveTerritoryBoundaryCount();
+  hideTerritoryEditActions();
+  try { toolbar?.disable(); } catch { /* no-op */ }
+  territoryEditGroup.clearLayers();
+  renderAllPlanningData();
+  selectTerritoryHouses(result.territory.id);
+
+  const summary = boundaryChangeSummary(result);
+  if (currentPlanId) {
+    await savePlan({
+      successMessage: `${result.territory.name} saved with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}.`
+    });
+  } else {
+    toast(`${result.territory.name} boundary and homes updated in the workspace with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}. Select Save Territory Plan to retain the changes.`);
+  }
+}
+
 function initMap() {
   canvasRenderer = L.canvas({ padding: 0.45 });
   map = L.map('map', { zoomControl: true, attributionControl: true, preferCanvas: true }).setView([39.68, -104.96], 10);
@@ -704,6 +755,7 @@ conflicts += 1;
     const editedTerritoryId = territoryIdFromLayerGroup(editedGroup) || activeTerritoryEditId;
     if (editedTerritoryId) {
       hideLiveTerritoryBoundaryCount();
+      hideTerritoryEditActions();
       const geometry = combinedGeometryFromFeatureGroup(editedGroup) || combinedGeometryFromFeatureGroup(territoryEditGroup);
       const result = applyTerritoryBoundaryAssignments(editedTerritoryId, geometry);
       activeTerritoryEditId = null;
@@ -739,10 +791,14 @@ conflicts += 1;
   });
   map.on(L.Draw.Event.EDITSTOP, () => {
     if (liveTerritoryCountContext?.mode === 'edit') hideLiveTerritoryBoundaryCount();
-    if (!activeTerritoryEditId) return;
+    if (!activeTerritoryEditId) {
+      hideTerritoryEditActions();
+      return;
+    }
     activeTerritoryEditId = null;
     territoryEditToolbar = null;
     territoryEditGroup.clearLayers();
+    hideTerritoryEditActions();
     if (els.territoryEditMessage) els.territoryEditMessage.hidden = true;
     renderAllPlanningData();
   });
@@ -1570,11 +1626,12 @@ function drawManualTerritoryBoundary() {
   toast(`Draw the territory boundary. The live counter is checking ${eligibleTotal.toLocaleString()} included addresses.`);
 }
 function cancelTerritoryBoundaryEdit(showNotice = true) {
+  const wasEditing = Boolean(activeTerritoryEditId);
   hideLiveTerritoryBoundaryCount();
+  hideTerritoryEditActions();
   if (territoryEditToolbar) {
     try { territoryEditToolbar.disable(); } catch { /* no-op */ }
   }
-  const wasEditing = Boolean(activeTerritoryEditId);
   territoryEditToolbar = null;
   activeTerritoryEditId = null;
   territoryEditGroup?.clearLayers();
@@ -1605,7 +1662,8 @@ function editTerritoryBoundary(id) {
   territoryEditToolbar = new L.EditToolbar.Edit(map, { featureGroup: territoryEditGroup });
   territoryEditToolbar.enable();
   updateLiveTerritoryBoundaryCount({ mode: 'edit', geometry: geometry.geometry || geometry, territoryId: id });
-  toast(`Editing ${territory.name}. Move the handles, then select the map checkmark. The boundary and home assignments will update together.`);
+  showTerritoryEditActions(territory);
+  toast(`Editing ${territory.name}. Move the white handles, then select Save Boundary & Update Homes at the bottom of the map.`);
 }
 function resetTerritoryBoundary(id) {
   if (!requireAdmin()) return;
@@ -2860,6 +2918,8 @@ function wireEvents() {
   els.excludeSelectionButton.addEventListener('click', includeExcludeSelected);
   els.assignSelectedButton.addEventListener('click', assignSelected);
   els.newTerritoryButton.addEventListener('click', newTerritoryFromSelected);
+  els.saveTerritoryBoundaryEditButton?.addEventListener('click', saveActiveTerritoryBoundaryEdit);
+  els.cancelTerritoryBoundaryEditButton?.addEventListener('click', () => cancelTerritoryBoundaryEdit(true));
   els.houseSearch.addEventListener('input', renderHouseList);
   els.savePlanButton.addEventListener('click', savePlan);
   els.exportTerritoryPdfButton.addEventListener('click', () => exportTerritoryPdf());
