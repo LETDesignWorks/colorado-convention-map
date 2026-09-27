@@ -24,7 +24,7 @@ jobs:
           grep -q 'let activeManualTerritoryDrawer = null' territories/app-main.js
           grep -q 'function currentManualTerritoryDraft' territories/app-main.js
           grep -q 'function pointInsideCountGeometry' territories/app-main.js
-          grep -q 'activeManualTerritoryDrawer._poly' territories/app-main.js
+          grep -Fq 'activeManualTerritoryDrawer?._poly' territories/app-main.js
           grep -q 'territories-20260927-4' territories/bootstrap.js
           grep -q 'territories-20260927-4' territories/index.html
 
