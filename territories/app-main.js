@@ -53,6 +53,7 @@ let pendingTerritoryName = '';
 let liveTerritoryCountTimer = null;
 let pendingLiveTerritoryCount = null;
 let liveTerritoryCountContext = null;
+let activeManualTerritoryDrawer = null;
 let houseGroup;
 let hallGroup;
 let selectionLayer = null;
@@ -379,22 +380,106 @@ function combinedGeometryFromFeatureGroup(group) {
   const coordinates = geometries.flatMap(geometry => geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates]);
   return { type: 'MultiPolygon', coordinates };
 }
-function draftGeometryFromDrawVertices(layers) {
-  const latlngs = (layers?.getLayers?.() || []).map(layer => layer.getLatLng?.()).filter(Boolean);
-  if (latlngs.length < 3) return { geometry: null, vertexCount: latlngs.length };
-  try { return { geometry: L.polygon(latlngs).toGeoJSON().geometry, vertexCount: latlngs.length }; }
-  catch { return { geometry: null, vertexCount: latlngs.length }; }
+function normalizeLeafletRing(value) {
+  let current = value;
+  while (Array.isArray(current) && current.length === 1 && Array.isArray(current[0])) current = current[0];
+  if (!Array.isArray(current)) return [];
+  return current.map(item => {
+    if (item && !Array.isArray(item) && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng))) {
+      return L.latLng(Number(item.lat), Number(item.lng));
+    }
+    if (Array.isArray(item) && item.length >= 2 && Number.isFinite(Number(item[0])) && Number.isFinite(Number(item[1]))) {
+      return L.latLng(Number(item[0]), Number(item[1]));
+    }
+    return null;
+  }).filter(Boolean);
 }
-function includedAddressesInsideGeometry(geometry) {
-  if (!geometry) return [];
-  let feature;
-  let bounds;
-  try {
-    feature = turf.feature(geometry);
-    bounds = turf.bbox(feature);
-  } catch {
-    return [];
+function draftGeometryFromLatLngs(value) {
+  const latlngs = normalizeLeafletRing(value);
+  if (latlngs.length < 3) return { geometry: null, vertexCount: latlngs.length, latlngs };
+  const coordinates = latlngs.map(point => [Number(point.lng), Number(point.lat)]);
+  const first = coordinates[0], last = coordinates[coordinates.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) coordinates.push([...first]);
+  return { geometry: { type: 'Polygon', coordinates: [coordinates] }, vertexCount: latlngs.length, latlngs };
+}
+function currentManualTerritoryDraft(eventLayers) {
+  const drawerLatLngs = normalizeLeafletRing(activeManualTerritoryDrawer?._poly?.getLatLngs?.());
+  const eventLatLngs = normalizeLeafletRing(
+    (eventLayers?.getLayers?.() || []).map(layer => layer.getLatLng?.()).filter(Boolean)
+  );
+  const latlngs = drawerLatLngs.length >= eventLatLngs.length ? drawerLatLngs : eventLatLngs;
+  return draftGeometryFromLatLngs(latlngs);
+}
+function geometryObject(value) {
+  return value?.type === 'Feature' ? value.geometry : value;
+}
+function pointOnCountSegment(lng, lat, a, b) {
+  const ax = Number(a?.[0]), ay = Number(a?.[1]), bx = Number(b?.[0]), by = Number(b?.[1]);
+  if (![ax, ay, bx, by, lng, lat].every(Number.isFinite)) return false;
+  const cross = ((lng - ax) * (by - ay)) - ((lat - ay) * (bx - ax));
+  const tolerance = 1e-9 * Math.max(1, Math.abs(bx - ax) + Math.abs(by - ay));
+  if (Math.abs(cross) > tolerance) return false;
+  const dot = ((lng - ax) * (bx - ax)) + ((lat - ay) * (by - ay));
+  if (dot < -tolerance) return false;
+  const squaredLength = ((bx - ax) ** 2) + ((by - ay) ** 2);
+  return dot <= squaredLength + tolerance;
+}
+function pointInCountRing(lng, lat, ring) {
+  if (!Array.isArray(ring) || ring.length < 3) return false;
+  let inside = false;
+  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index++) {
+    const currentPoint = ring[index], previousPoint = ring[previous];
+    if (pointOnCountSegment(lng, lat, previousPoint, currentPoint)) return true;
+    const xi = Number(currentPoint?.[0]), yi = Number(currentPoint?.[1]);
+    const xj = Number(previousPoint?.[0]), yj = Number(previousPoint?.[1]);
+    if (![xi, yi, xj, yj].every(Number.isFinite)) continue;
+    const crosses = ((yi > lat) !== (yj > lat)) &&
+      (lng < (((xj - xi) * (lat - yi)) / ((yj - yi) || Number.EPSILON)) + xi);
+    if (crosses) inside = !inside;
   }
+  return inside;
+}
+function pointInCountPolygon(lng, lat, polygonCoordinates) {
+  if (!Array.isArray(polygonCoordinates) || !polygonCoordinates.length) return false;
+  if (!pointInCountRing(lng, lat, polygonCoordinates[0])) return false;
+  for (let index = 1; index < polygonCoordinates.length; index += 1) {
+    if (pointInCountRing(lng, lat, polygonCoordinates[index])) return false;
+  }
+  return true;
+}
+function pointInsideCountGeometry(lng, lat, value) {
+  const geometry = geometryObject(value);
+  if (!geometry) return false;
+  if (geometry.type === 'Polygon') return pointInCountPolygon(lng, lat, geometry.coordinates);
+  if (geometry.type === 'MultiPolygon') {
+    return (geometry.coordinates || []).some(polygon => pointInCountPolygon(lng, lat, polygon));
+  }
+  return false;
+}
+function countGeometryBounds(value) {
+  const geometry = geometryObject(value);
+  const pairs = [];
+  const collect = node => {
+    if (!Array.isArray(node)) return;
+    if (node.length >= 2 && Number.isFinite(Number(node[0])) && Number.isFinite(Number(node[1]))) {
+      pairs.push([Number(node[0]), Number(node[1])]);
+      return;
+    }
+    node.forEach(collect);
+  };
+  collect(geometry?.coordinates);
+  if (!pairs.length) return null;
+  return [
+    Math.min(...pairs.map(point => point[0])),
+    Math.min(...pairs.map(point => point[1])),
+    Math.max(...pairs.map(point => point[0])),
+    Math.max(...pairs.map(point => point[1]))
+  ];
+}
+function includedAddressesInsideGeometry(value) {
+  const geometry = geometryObject(value);
+  const bounds = countGeometryBounds(geometry);
+  if (!geometry || !bounds) return [];
   const [minLng, minLat, maxLng, maxLat] = bounds;
   const inside = [];
   for (const house of houses) {
@@ -402,9 +487,7 @@ function includedAddressesInsideGeometry(geometry) {
     const lat = Number(house.lat), lng = Number(house.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
     if (lng < minLng || lng > maxLng || lat < minLat || lat > maxLat) continue;
-    try {
-      if (turf.booleanPointInPolygon(pointFeature(house), feature)) inside.push(house);
-    } catch { /* ignore malformed points */ }
+    if (pointInsideCountGeometry(lng, lat, geometry)) inside.push(house);
   }
   return inside;
 }
@@ -417,6 +500,7 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
 
   const territory = mode === 'edit' ? territories.find(item => item.id === territoryId) : null;
   const territoryName = territory?.name || pendingTerritoryName || nextTerritoryName();
+  const eligibleTotal = houses.filter(house => house.included && !house.avoid).length;
   els.territoryBoundaryLiveLabel.textContent = mode === 'edit' ? `Editing ${territoryName}` : `Drawing ${territoryName}`;
 
   if (!geometry) {
@@ -424,9 +508,11 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
     els.territoryBoundaryLiveValue.textContent = vertexCount
       ? `${vertexCount} boundary point${vertexCount === 1 ? '' : 's'}`
       : '0 addresses selected';
-    els.territoryBoundaryLiveDetail.textContent = vertexCount
-      ? `Add ${remaining} more point${remaining === 1 ? '' : 's'} before the address count can be calculated.`
-      : 'Begin drawing the boundary to count included addresses.';
+    els.territoryBoundaryLiveDetail.textContent = !eligibleTotal
+      ? 'No included addresses are loaded. Load or restore address points before drawing a territory.'
+      : vertexCount
+        ? `Add ${remaining} more point${remaining === 1 ? '' : 's'} before the address count can be calculated. ${eligibleTotal.toLocaleString()} included addresses are loaded.`
+        : `Begin drawing the boundary to count the ${eligibleTotal.toLocaleString()} included addresses currently loaded.`;
     if (els.territoryEditMessage) {
       els.territoryEditMessage.hidden = false;
       els.territoryEditMessage.textContent = `Drawing ${territoryName}. Add at least three boundary points; the address count will update as you continue drawing.`;
@@ -444,7 +530,7 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
     const otherTerritoryInside = inside.filter(house => house.territoryId && house.territoryId !== territory.id).length;
     const currentlyAssigned = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).length;
     const currentlyOutside = Math.max(0, currentlyAssigned - currentlyInside);
-    els.territoryBoundaryLiveDetail.textContent = `${currentlyInside} already in ${territory.name} • ${unassignedInside} unassigned • ${otherTerritoryInside} in other territories${currentlyOutside ? ` • ${currentlyOutside} current outside` : ''}`;
+    els.territoryBoundaryLiveDetail.textContent = `${currentlyInside} already in ${territory.name} • ${unassignedInside} unassigned • ${otherTerritoryInside} in other territories${currentlyOutside ? ` • ${currentlyOutside} current outside` : ''} • ${eligibleTotal.toLocaleString()} included loaded`;
     if (els.territoryEditMessage) {
       els.territoryEditMessage.hidden = false;
       els.territoryEditMessage.textContent = `Editing ${territory.name}: ${count.toLocaleString()} included address${count === 1 ? '' : 'es'} are inside the proposed boundary. If you save the shape and then select Sync Homes, ${unassignedInside} unassigned address${unassignedInside === 1 ? '' : 'es'} and ${otherTerritoryInside} address${otherTerritoryInside === 1 ? '' : 'es'} from other territories would move in, while ${currentlyOutside} current address${currentlyOutside === 1 ? '' : 'es'} would move out. Avoid and excluded addresses are not counted.`;
@@ -452,7 +538,7 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
   } else {
     const unassigned = inside.filter(house => !house.territoryId).length;
     const alreadyAssigned = count - unassigned;
-    els.territoryBoundaryLiveDetail.textContent = `${unassigned} unassigned will be added${alreadyAssigned ? ` • ${alreadyAssigned} already assigned elsewhere` : ''}`;
+    els.territoryBoundaryLiveDetail.textContent = `${unassigned} unassigned will be added${alreadyAssigned ? ` • ${alreadyAssigned} already assigned elsewhere` : ''} • ${eligibleTotal.toLocaleString()} included loaded`;
     if (els.territoryEditMessage) {
       els.territoryEditMessage.hidden = false;
       els.territoryEditMessage.textContent = `Drawing ${territoryName}: ${count.toLocaleString()} included address${count === 1 ? '' : 'es'} are inside the current boundary. ${unassigned} unassigned address${unassigned === 1 ? '' : 'es'} will be added when you close the shape${alreadyAssigned ? `; ${alreadyAssigned} already belong to other territories and will remain there` : ''}. Avoid and excluded addresses are not counted.`;
@@ -520,11 +606,7 @@ function initMap() {
       territories.push(territory);
       let assigned = 0;
       let conflicts = 0;
-      for (const house of houses) {
-        if (!house.included || house.avoid) continue;
-        let inside = false;
-        try { inside = turf.booleanPointInPolygon(pointFeature(house), turf.feature(geometry)); } catch { inside = false; }
-        if (!inside) continue;
+      for (const house of includedAddressesInsideGeometry(geometry)) {
         if (!house.territoryId) {
 house.territoryId = territory.id;
 assigned += 1;
@@ -540,12 +622,13 @@ conflicts += 1;
       toast(`${territory.name} created with ${assigned} previously unassigned houses${conflicts ? `; ${conflicts} houses inside the boundary remain assigned to other territories` : ''}.`);
     }
     if (liveTerritoryCountContext?.mode === 'new') hideLiveTerritoryBoundaryCount();
+    activeManualTerritoryDrawer = null;
     drawMode = null;
   });
   map.on('draw:drawvertex', event => {
     if (drawMode !== 'territory-new') return;
-    const draft = draftGeometryFromDrawVertices(event.layers);
-    scheduleLiveTerritoryBoundaryCount({ mode: 'new', geometry: draft.geometry, vertexCount: draft.vertexCount });
+    const draft = currentManualTerritoryDraft(event.layers);
+    scheduleLiveTerritoryBoundaryCount({ mode: 'new', geometry: draft.geometry, vertexCount: draft.vertexCount }, true);
   });
   map.on('draw:editvertex', () => {
     if (!activeTerritoryEditId) return;
@@ -594,6 +677,7 @@ conflicts += 1;
   });
   map.on(L.Draw.Event.DRAWSTOP, () => {
     if (liveTerritoryCountContext?.mode === 'new') hideLiveTerritoryBoundaryCount();
+    activeManualTerritoryDrawer = null;
     if (drawMode === 'territory-new') {
       pendingTerritoryName = '';
       drawMode = null;
@@ -1397,6 +1481,8 @@ function renderHouseMarkers() {
 function drawManualTerritoryBoundary() {
   if (!requireAdmin()) return;
   if (!boundaryGeometry) { toast('Draw or load the congregation boundary first.', true); return; }
+  const eligibleTotal = houses.filter(house => house.included && !house.avoid).length;
+  if (!eligibleTotal) { toast('Load or restore included address points before drawing a territory.', true); return; }
   const suggested = nextTerritoryName();
   const name = clean(prompt('Territory name:', suggested));
   if (!name) return;
@@ -1404,12 +1490,13 @@ function drawManualTerritoryBoundary() {
   pendingTerritoryName = name;
   drawMode = 'territory-new';
   updateLiveTerritoryBoundaryCount({ mode: 'new', geometry: null, vertexCount: 0 });
-  new L.Draw.Polygon(map, {
+  activeManualTerritoryDrawer = new L.Draw.Polygon(map, {
     allowIntersection: false,
     showArea: true,
     shapeOptions: { color: TERRITORY_COLORS[territories.length % TERRITORY_COLORS.length], weight: 3, fillOpacity: .12 }
-  }).enable();
-  toast('Draw the territory boundary. Unassigned houses inside it will be added automatically.');
+  });
+  activeManualTerritoryDrawer.enable();
+  toast(`Draw the territory boundary. The live counter is checking ${eligibleTotal.toLocaleString()} included addresses.`);
 }
 function cancelTerritoryBoundaryEdit(showNotice = true) {
   hideLiveTerritoryBoundaryCount();
@@ -1461,13 +1548,7 @@ function syncTerritoryHomesToBoundary(id) {
   if (!territory) return;
   const geometry = territoryGeometry(territory);
   if (!geometry) { toast('This territory does not have a usable boundary.', true); return; }
-  const insideIds = new Set();
-  for (const house of houses) {
-    if (!house.included || house.avoid) continue;
-    try {
-      if (turf.booleanPointInPolygon(pointFeature(house), geometry)) insideIds.add(house.id);
-    } catch { /* no-op */ }
-  }
+  const insideIds = new Set(includedAddressesInsideGeometry(geometry).map(house => house.id));
   const movingFromOther = houses.filter(house => insideIds.has(house.id) && house.territoryId && house.territoryId !== territory.id).length;
   const removing = houses.filter(house => house.territoryId === territory.id && !insideIds.has(house.id)).length;
   const message = `Make ${territory.name} contain exactly the ${insideIds.size} included addresses inside its boundary?` +
