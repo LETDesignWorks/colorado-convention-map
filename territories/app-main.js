@@ -416,12 +416,16 @@ function geometryObject(value) {
 function pointOnCountSegment(lng, lat, a, b) {
   const ax = Number(a?.[0]), ay = Number(a?.[1]), bx = Number(b?.[0]), by = Number(b?.[1]);
   if (![ax, ay, bx, by, lng, lat].every(Number.isFinite)) return false;
-  const cross = ((lng - ax) * (by - ay)) - ((lat - ay) * (bx - ax));
   const tolerance = 1e-9 * Math.max(1, Math.abs(bx - ax) + Math.abs(by - ay));
+  const squaredLength = ((bx - ax) ** 2) + ((by - ay) ** 2);
+  if (squaredLength <= Number.EPSILON) {
+    const squaredDistance = ((lng - ax) ** 2) + ((lat - ay) ** 2);
+    return squaredDistance <= tolerance ** 2;
+  }
+  const cross = ((lng - ax) * (by - ay)) - ((lat - ay) * (bx - ax));
   if (Math.abs(cross) > tolerance) return false;
   const dot = ((lng - ax) * (bx - ax)) + ((lat - ay) * (by - ay));
   if (dot < -tolerance) return false;
-  const squaredLength = ((bx - ax) ** 2) + ((by - ay) ** 2);
   return dot <= squaredLength + tolerance;
 }
 function pointInCountRing(lng, lat, ring) {
@@ -546,14 +550,20 @@ function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId =
   }
 }
 function scheduleLiveTerritoryBoundaryCount(payload, immediate = false) {
-  pendingLiveTerritoryCount = payload;
   clearTimeout(liveTerritoryCountTimer);
+  liveTerritoryCountTimer = null;
+  if (immediate) {
+    pendingLiveTerritoryCount = null;
+    updateLiveTerritoryBoundaryCount(payload);
+    return;
+  }
+  pendingLiveTerritoryCount = payload;
   liveTerritoryCountTimer = setTimeout(() => {
     liveTerritoryCountTimer = null;
     const next = pendingLiveTerritoryCount;
     pendingLiveTerritoryCount = null;
     if (next) updateLiveTerritoryBoundaryCount(next);
-  }, immediate ? 0 : 90);
+  }, 75);
 }
 function hideLiveTerritoryBoundaryCount() {
   clearTimeout(liveTerritoryCountTimer);
