@@ -238,6 +238,81 @@
         <div id="territoryList" class="territory-list"><div class="empty">No territories have been created.</div></div>
       </section>
 
+      <section class="card territory-directions-card" id="territoryDirectionsCard">
+        <div class="card-heading">
+          <div><span class="eyebrow">5 — TERRITORY DIRECTIONS</span><h2>Route from a Hall or meeting point</h2></div>
+          <span id="territoryRouteStatusChip" class="count-chip">No route</span>
+        </div>
+        <p class="section-copy">Start at the selected Kingdom Hall or a privately saved meeting point. The planner recommends the assigned home closest to the starting location, but you can choose any address in the territory as the arrival point.</p>
+        <div class="territory-route-grid">
+          <div class="field">
+            <label for="territoryRouteOrigin">Starting location</label>
+            <select id="territoryRouteOrigin"><option value="">Select a Hall or meeting point</option></select>
+          </div>
+          <div class="field">
+            <label for="territoryRouteTerritory">Territory</label>
+            <select id="territoryRouteTerritory"><option value="">Create a territory first</option></select>
+          </div>
+          <div class="field territory-route-destination-field">
+            <label for="territoryRouteDestination">Territory arrival address</label>
+            <select id="territoryRouteDestination"><option value="">Select a territory first</option></select>
+            <small id="territoryRouteDestinationNote">The closest assigned home will be recommended as the route destination.</small>
+          </div>
+          <div class="field">
+            <label for="territoryRouteMode">Travel method</label>
+            <select id="territoryRouteMode">
+              <option value="driving" selected>Driving</option>
+              <option value="walking">Walking</option>
+              <option value="transit">RTD / transit</option>
+            </select>
+          </div>
+          <div class="field territory-route-departure" id="territoryRouteDepartureWrap" hidden>
+            <label for="territoryRouteDeparture">RTD departure date and time</label>
+            <input id="territoryRouteDeparture" type="datetime-local"/>
+          </div>
+        </div>
+        <div class="button-grid territory-route-actions">
+          <button class="btn primary" id="showTerritoryRouteButton" type="button">Show Route on Streets</button>
+          <button class="btn outline" id="clearTerritoryRouteButton" type="button" disabled>Clear Route</button>
+          <a class="btn outline disabled" id="territoryRouteGoogleLink" target="_blank" rel="noopener" aria-disabled="true">Google Maps</a>
+          <a class="btn outline disabled" id="territoryRouteAppleLink" target="_blank" rel="noopener" aria-disabled="true">Apple Maps</a>
+          <button class="btn save" id="printTerritoryRouteButton" type="button" disabled>Print Directions</button>
+        </div>
+        <div id="territoryRouteMessage" class="territory-route-message">Choose a starting location, territory, arrival address, and travel method, then select <strong>Show Route on Streets</strong>.</div>
+        <div id="territoryRouteMetrics" class="territory-route-metrics" hidden>
+          <article><span>Mode</span><strong id="territoryRouteMetricMode">—</strong></article>
+          <article><span>Distance</span><strong id="territoryRouteMetricDistance">—</strong></article>
+          <article><span>Estimated time</span><strong id="territoryRouteMetricTime">—</strong></article>
+          <article><span>Route source</span><strong id="territoryRouteMetricProvider">—</strong></article>
+        </div>
+        <section id="territoryRouteDirections" class="territory-route-directions" hidden>
+          <h3>Turn-by-turn directions</h3>
+          <ol id="territoryRouteSteps"></ol>
+        </section>
+
+        <details class="territory-meeting-builder">
+          <summary>Add or manage meeting points</summary>
+          <p>Meeting points are private to this Hall and congregation. Enter an address or drop the point at the exact parking lot, entrance, or field-service gathering area.</p>
+          <div class="two-col">
+            <div class="field"><label for="territoryMeetingPointName">Meeting-point name</label><input id="territoryMeetingPointName" maxlength="120" placeholder="Example: South parking lot meeting point"/></div>
+            <div class="field"><label for="territoryMeetingPointAddress">Street address</label><input id="territoryMeetingPointAddress" autocomplete="street-address" placeholder="Enter the complete address"/></div>
+          </div>
+          <div class="two-col territory-meeting-coordinates">
+            <div class="field"><label for="territoryMeetingPointLat">Latitude</label><input id="territoryMeetingPointLat" inputmode="decimal" readonly/></div>
+            <div class="field"><label for="territoryMeetingPointLng">Longitude</label><input id="territoryMeetingPointLng" inputmode="decimal" readonly/></div>
+          </div>
+          <div class="button-grid territory-meeting-buttons">
+            <button class="btn outline admin-control" id="locateTerritoryMeetingPointButton" type="button">Locate Address</button>
+            <button class="btn outline admin-control" id="dropTerritoryMeetingPointButton" type="button">Drop Meeting Point on Map</button>
+            <button class="btn save admin-control" id="saveTerritoryMeetingPointButton" type="button">Save Meeting Point</button>
+            <button class="btn outline admin-control" id="clearTerritoryMeetingPointButton" type="button">Clear Form</button>
+          </div>
+          <small id="territoryMeetingPointMessage" class="territory-meeting-message" data-state="waiting">Enter an address or drop a point on the map. The meeting point will be saved privately for this Hall and congregation.</small>
+          <div id="territoryMeetingPointList" class="territory-meeting-list"><div class="empty">Sign in to load saved meeting points.</div></div>
+        </details>
+        <small class="territory-route-caution">Directions are a planning aid. Confirm the selected arrival address, road access, parking, sidewalks, construction, and RTD service locally before use.</small>
+      </section>
+
       <section class="card house-list-card">
         <div class="card-heading">
           <div><span class="eyebrow">ADDRESS DIRECTORY</span><h2>Search and select houses</h2></div>
@@ -248,7 +323,7 @@
 
       <section class="card save-card">
         <div class="card-heading">
-          <div><span class="eyebrow">5 — SAVE / EXPORT</span><h2>Store the plan in Firebase</h2></div>
+          <div><span class="eyebrow">6 — SAVE / EXPORT</span><h2>Store the plan in Firebase</h2></div>
         </div>
         <div class="field">
           <label for="pdfTerritorySelect">Territory to print</label>

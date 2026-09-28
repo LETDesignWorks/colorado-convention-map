@@ -117,6 +117,20 @@ function friendlyError(error) {
   if (code.includes('unauthorized-domain')) return 'Add letdesignworks.github.io under Firebase Authentication authorized domains.';
   return error?.message?.replace(/^Firebase:\s*/i, '') || 'Unknown error';
 }
+function emitPlannerDataChange() {
+  try {
+    window.dispatchEvent(new CustomEvent('territory-planner:data', {
+      detail: {
+        hallId: selectedHall?.id || '',
+        congregation: selectedCongregation || '',
+        planId: currentPlanId || '',
+        territoryCount: territories.length,
+        houseCount: houses.length,
+        isAdmin: isAdmin()
+      }
+    }));
+  } catch { /* no-op */ }
+}
 function formatDate(value) {
   const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return '—';
@@ -362,6 +376,7 @@ function selectHall(id, pan = true, preserveWork = false) {
   if (pan && map) map.setView([hall.lat, hall.lng], Math.max(map.getZoom(), 12), { animate: true });
   renderHallMarkers();
   updateSummary();
+  emitPlannerDataChange();
 }
 
 function hallIcon(location, selected = false) {
@@ -1744,6 +1759,7 @@ function renderAllPlanningData() {
   renderHouseList();
   updateAssignmentSelector();
   updateSummary();
+  emitPlannerDataChange();
 }
 function toggleHouseSelection(id) {
   if (selectedHouseIds.has(id)) selectedHouseIds.delete(id); else selectedHouseIds.add(id);
@@ -2154,6 +2170,7 @@ function updateAuthUi() {
     reviewRecords.clear();
     renderSavedRecords();
   }
+  emitPlannerDataChange();
 }
 function openLogin() { els.loginModal.classList.add('open'); setTimeout(() => els.loginPassword.focus(), 50); }
 function closeLogin() { els.loginModal.classList.remove('open'); }
@@ -2969,6 +2986,25 @@ async function initialize() {
   } catch (error) {
     toast(`Firebase could not initialize: ${friendlyError(error)}`, true);
   }
+  window.dispatchEvent(new CustomEvent('territory-planner:ready'));
+  emitPlannerDataChange();
 }
+
+
+globalThis.__denverTerritoryPlannerAPI = Object.freeze({
+  getMap: () => map,
+  getDb: () => db,
+  getCurrentUser: () => currentUser,
+  getSelectedHall: () => selectedHall,
+  getSelectedCongregation: () => selectedCongregation,
+  getCurrentPlanId: () => currentPlanId,
+  getTerritories: () => territories,
+  getHouses: () => houses,
+  isAdmin,
+  requireAdmin,
+  toast,
+  geocodeAddress: address => geocodeAvoidAddress(address),
+  refresh: emitPlannerDataChange
+});
 
 initialize();
