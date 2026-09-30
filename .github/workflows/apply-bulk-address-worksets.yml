@@ -1,0 +1,48 @@
+name: Apply bulk address worksets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-bulk-address-worksets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the prepared bulk-address update
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          source = Path('.github/workflows/add-bulk-address-worksets.yml').read_text(encoding='utf-8')
+          match = re.search(r"python - <<'PY'\n(.*?)\n          PY", source, re.S)
+          if not match:
+              raise RuntimeError('The prepared bulk-address script could not be extracted.')
+          script = textwrap.dedent(match.group(1))
+          exec(compile(script, 'prepared-bulk-address-update.py', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Validate bulk address worksets
+        run: |
+          node --check territories/app-main.js
+          node --check territories/directions.js
+          node --check territories/bulk-addresses.js
+          grep -q "bulk-addresses.js" territories/bootstrap.js
+          grep -q "bulkBatchIds" territories/app-main.js
+          grep -q "PRE-DONE ADDRESS LISTS" territories/bulk-addresses.js
+          grep -q "territories-20260930-1" territories/bootstrap.js
+
+      - name: Commit bulk address worksets
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/bootstrap.js territories/index.html territories/bulk-addresses.js
+          git commit -m 'Add prepared-address worksets and 40-home grouping' || exit 0
+          git push
