@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Apply imported address map repair
-        run: python .github/scripts/fix_bulk_address_map_points.py
+        run: python .github/scripts/run_fix_bulk_address_map_points.py
       - name: Validate imported address map repair
         run: |
           node --check territories/app-main.js
