@@ -264,6 +264,10 @@ function savedTerritoryCount(plan) {
   const storedCount = Number(plan?.territoryCount);
   return Number.isFinite(storedCount) ? storedCount : decodeTerritories(plan).length;
 }
+function validMapCoordinates(item) {
+  const lat = Number(item?.lat), lng = Number(item?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(Math.abs(lat) < 1 && Math.abs(lng) < 1);
+}
 function pointFeature(item) { return turf.point([Number(item.lng), Number(item.lat)]); }
 function boundaryFeature() { return boundaryGeometry ? turf.feature(boundaryGeometry) : null; }
 function pointInsideBoundary(item) {
@@ -949,7 +953,7 @@ function createBoundaryAroundAddresses(paddingMiles = .12) {
     toast('Select the Kingdom Hall and congregation before creating the Hall territory boundary.', true);
     return null;
   }
-  const mapped = houses.filter(house => Number.isFinite(Number(house.lat)) && Number.isFinite(Number(house.lng)));
+  const mapped = houses.filter(house => validMapCoordinates(house));
   if (!mapped.length) {
     toast('Upload or add mapped ministry and avoid addresses before creating the Hall territory boundary.', true);
     return null;
@@ -1476,6 +1480,7 @@ async function loadAddresses() {
   }
 }
 function addHouseRecord(record) {
+  if (!validMapCoordinates(record)) return false;
   const key = normalizeAddressKey(record.address, true);
   if (houses.some(item => normalizeAddressKey(item.address, true) === key && Math.abs(item.lat - record.lat) < .00001 && Math.abs(item.lng - record.lng) < .00001)) return false;
   const avoid = Boolean(record.avoid);
@@ -1687,6 +1692,7 @@ function renderHouseMarkers() {
   houseGroup.clearLayers();
   houseMarkers.clear();
   for (const house of houses) {
+    if (!validMapCoordinates(house)) continue;
     const marker = L.circleMarker([house.lat, house.lng], { renderer: canvasRenderer, ...houseStyle(house) }).addTo(houseGroup);
     const avoidNotice = house.avoid ? '<br><span class="avoid-popup-badge">AVOID / DO NOT VISIT</span>' : '';
     marker.bindPopup(`<div class="house-popup"><strong>${escapeHtml(house.address)}</strong>${avoidNotice}<br>${escapeHtml(house.source || '')}<br><small>${escapeHtml(house.classification || '')}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div>`);
@@ -1798,7 +1804,7 @@ async function syncTerritoryHomesToBoundary(id) {
 
 function territoryGeometry(territory) {
   if (territory?.geometry) return turf.feature(JSON.parse(JSON.stringify(territory.geometry)));
-  const points = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).map(pointFeature);
+  const points = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house)).map(pointFeature);
   if (!points.length) return null;
   try {
     if (points.length === 1) return turf.buffer(points[0], .045, { units: 'kilometers', steps: 16 });
@@ -2071,7 +2077,9 @@ function nextTerritoryName(index = territories.length) {
 }
 function automaticGrouping() {
   if (!requireAdmin()) return;
-  const included = houses.filter(house => house.included && !house.avoid);
+  const misplaced = houses.filter(house => house.included && !house.avoid && !validMapCoordinates(house));
+  if (misplaced.length) { toast(`${misplaced.length.toLocaleString()} address location${misplaced.length === 1 ? ' needs' : 's need'} repair before territories can be grouped. Use Repair Mapped Locations in Pre-Done Address Lists.`, true); return; }
+  const included = houses.filter(house => house.included && !house.avoid && validMapCoordinates(house));
   if (!included.length) { toast('Load or add included addresses first.', true); return; }
   if (territories.length && !confirm('Replace the existing territory groups with new automatic groups?')) return;
   const target = targetSizeValue();
@@ -2455,7 +2463,7 @@ function loadPlanRecord(id) {
   renderAllPlanningData();
   if (!boundaryGeometry && houses.length) {
     const mappedPoints = houses
-      .filter(house => Number.isFinite(Number(house.lat)) && Number.isFinite(Number(house.lng)))
+      .filter(house => validMapCoordinates(house))
       .map(house => [Number(house.lat), Number(house.lng)]);
     if (mappedPoints.length) map.fitBounds(L.latLngBounds(mappedPoints), { padding: [36, 36], maxZoom: 16 });
   }
@@ -2528,7 +2536,7 @@ function hexRgb(hex) {
   return [parseInt(normalized.slice(0, 2), 16), parseInt(normalized.slice(2, 4), 16), parseInt(normalized.slice(4, 6), 16)];
 }
 function territoryHousesSorted(territory) {
-  return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id).sort((a, b) => {
+  return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house)).sort((a, b) => {
     const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
     return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
   });
@@ -2900,8 +2908,11 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   if (!requireAdmin()) return;
   const territory = territories.find(item => item.id === territoryId);
   if (!territory) { toast('Choose a territory to print.', true); return; }
+  const assignedTerritoryHouses = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id);
+  const misplacedTerritoryHouses = assignedTerritoryHouses.filter(house => !validMapCoordinates(house));
+  if (misplacedTerritoryHouses.length) { toast(`${misplacedTerritoryHouses.length.toLocaleString()} address location${misplacedTerritoryHouses.length === 1 ? ' needs' : 's need'} repair before this PDF can be created. Use Repair Mapped Locations in Pre-Done Address Lists.`, true); return; }
   const territoryHouses = territoryHousesSorted(territory);
-  if (!territoryHouses.length) { toast('This territory does not have any assigned addresses.', true); return; }
+  if (!territoryHouses.length) { toast('This territory does not have any mapped assigned addresses.', true); return; }
   const geometry = territoryGeometry(territory);
   const avoidHouses = avoidHousesInsideGeometry(geometry);
   if (!geometry) { toast('This territory does not have a usable map boundary.', true); return; }
@@ -3128,6 +3139,7 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   requireAdmin,
   toast,
   geocodeAddress: address => geocodeAvoidAddress(address),
+  validMapCoordinates,
   refresh: emitPlannerDataChange
 });
 

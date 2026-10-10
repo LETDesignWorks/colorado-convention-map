@@ -23,7 +23,7 @@ function contextReady(data = context()) {
   return Boolean(data.hall && data.congregation);
 }
 function validAddresses(data = context()) {
-  return data.houses.filter(house => Number.isFinite(Number(house.lat)) && Number.isFinite(Number(house.lng)));
+  return data.houses.filter(house => api?.validMapCoordinates?.(house) ?? (Number.isFinite(Number(house.lat)) && Number.isFinite(Number(house.lng)) && !(Math.abs(Number(house.lat)) < 1 && Math.abs(Number(house.lng)) < 1)));
 }
 function hallLabel(hall) {
   return clean(hall?.markerLabel || hall?.number || 'KH');
