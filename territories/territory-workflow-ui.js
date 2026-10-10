@@ -1,4 +1,4 @@
-const VERSION = 'territories-20261010-5';
+const VERSION = 'territories-20261010-6';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const MODE_KEY = 'denver2027-territory-workflow-mode';
 const MODE_BOUNDARY = 'boundary';
@@ -99,7 +99,9 @@ function moveAvoidSection() {
   }
   if (panel.parentElement !== card) card.appendChild(panel);
   const hallEyebrow = document.querySelector('#hallAddressSetCard .eyebrow');
-  if (hallEyebrow) hallEyebrow.textContent = '3D — KINGDOM HALL ADDRESS SET';
+  if (hallEyebrow && hallEyebrow.textContent !== '3D — KINGDOM HALL ADDRESS SET') {
+    hallEyebrow.textContent = '3D — KINGDOM HALL ADDRESS SET';
+  }
 }
 
 function workflowTargets() {
@@ -133,9 +135,11 @@ function applyWorkflowMode() {
     button.classList.toggle('active', button.dataset.workflowMode === activeMode);
   });
   const chip = document.getElementById('territoryWorkflowChip');
-  if (chip) chip.textContent = activeMode === MODE_BOUNDARY ? 'Boundary workflow' : activeMode === MODE_UPLOAD ? 'Address-list workflow' : 'All tools';
+  const chipText = activeMode === MODE_BOUNDARY ? 'Boundary workflow' : activeMode === MODE_UPLOAD ? 'Address-list workflow' : 'All tools';
+  if (chip && chip.textContent !== chipText) chip.textContent = chipText;
   const showAll = document.getElementById('territoryWorkflowShowAll');
-  if (showAll) showAll.textContent = activeMode === MODE_ALL ? 'All Tools Are Showing' : 'Show All Planning Tools';
+  const showAllText = activeMode === MODE_ALL ? 'All Tools Are Showing' : 'Show All Planning Tools';
+  if (showAll && showAll.textContent !== showAllText) showAll.textContent = showAllText;
 }
 function setWorkflowMode(mode, remember = false) {
   activeMode = [MODE_BOUNDARY, MODE_UPLOAD, MODE_ALL].includes(mode) ? mode : MODE_ALL;
@@ -651,9 +655,31 @@ async function initialize() {
   document.addEventListener('click', interceptPdf, true);
   try { activeMode = localStorage.getItem(MODE_KEY) || MODE_ALL; } catch { activeMode = MODE_ALL; }
   setWorkflowMode(activeMode, false);
-  window.addEventListener('territory-planner:data', () => setTimeout(refreshEnhancements, 0));
-  new MutationObserver(() => refreshEnhancements()).observe(document.querySelector('.side-panel') || document.body, { childList: true, subtree: true });
-  refreshEnhancements();
+  let refreshTimer = null;
+  const scheduleRefresh = () => {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(refreshEnhancements, 90);
+  };
+  window.addEventListener('territory-planner:data', scheduleRefresh);
+
+  // Watch only during startup while the asynchronously initialized upload and
+  // avoid-address cards are being inserted. A permanent subtree observer caused
+  // a feedback loop because this module also updates headings and status labels.
+  const sidePanel = document.querySelector('.side-panel');
+  if (sidePanel) {
+    const startupObserver = new MutationObserver(() => {
+      scheduleRefresh();
+      if (document.getElementById('bulkAddressCard') &&
+          document.getElementById('avoidWorkflowCard') &&
+          document.getElementById('hallAddressSetCard')) {
+        startupObserver.disconnect();
+      }
+    });
+    startupObserver.observe(sidePanel, { childList: true, subtree: true });
+    setTimeout(() => startupObserver.disconnect(), 8000);
+  }
+
+  [0, 120, 350, 800, 1600, 3200].forEach(delay => setTimeout(refreshEnhancements, delay));
   console.info(`Denver 2027 territory workflow enhancements loaded (${VERSION}).`);
 }
 
