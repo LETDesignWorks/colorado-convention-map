@@ -145,7 +145,8 @@ function injectCard() {
     <small id="addressSourceMergeMessage" class="address-source-message" data-state="waiting">The scan preserves the uploaded workset, avoid addresses, and existing territories. If no outer boundary exists, an editable Hall boundary will be created first. Edit that boundary and run the scan again whenever you need a larger or smaller search area.</small>
     <small style="display:block;margin-top:6px;color:#7a8794;font-size:8px">Current avoid addresses: <strong id="sourceAvoidCount">0</strong>. After the scan, save the Kingdom Hall address set to retain the merged addresses.</small>`;
   bulkCard.insertAdjacentElement('afterend', card);
-  document.getElementById('addAssessorAddressesButton')?.addEventListener('click', addAssessorAddresses);
+  const assessorButton = document.getElementById('addAssessorAddressesButton');
+  if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';
   return true;
 }
 function setMessage(message, state = 'waiting') {
@@ -242,7 +243,7 @@ async function initialize() {
     await new Promise(resolve => setTimeout(resolve, 50));
   }
 
-  plannerMap?.on?.('layeradd', () => scheduleApplyColors(90));
+  plannerMap?.on?.('moveend zoomend', () => scheduleApplyColors(90));
   window.addEventListener('territory-planner:data', () => scheduleApplyColors(90));
   document.addEventListener('click', event => {
     if (event.target.closest?.('#addAssessorAddressesButton')) return;

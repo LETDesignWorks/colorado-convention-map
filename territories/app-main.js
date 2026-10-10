@@ -968,9 +968,13 @@ function createBoundaryAroundAddresses(paddingMiles = .12) {
       baseFeature = turf.lineString(points.map(point => point.geometry.coordinates));
     } else {
       const collection = turf.featureCollection(points);
-      baseFeature = turf.convex(collection) || turf.bboxPolygon(turf.bbox(collection));
+      // A convex hull across thousands of imported homes can block the browser.
+      // For large address sets use the complete bounding box; it is fast and remains editable.
+      baseFeature = points.length > 600
+        ? turf.bboxPolygon(turf.bbox(collection))
+        : turf.convex(collection) || turf.bboxPolygon(turf.bbox(collection));
     }
-    const buffered = turf.buffer(baseFeature, padding, { units: 'miles', steps: 24 });
+    const buffered = turf.buffer(baseFeature, padding, { units: 'miles', steps: points.length > 600 ? 8 : 24 });
     const geometry = buffered?.type === 'Feature' ? buffered.geometry : buffered;
     if (!geometry) throw new Error('No boundary geometry was returned.');
     els.boundaryName.value = `${markerLabel(selectedHall)} — ${selectedCongregation} Kingdom Hall territory`;
@@ -1687,12 +1691,90 @@ function houseStyle(house) {
   const color = territory ? TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length] : '#6b7c8f';
   return { radius: territory ? 5 : 4, color: '#fff', weight: 1.4, fillColor: color, fillOpacity: .9 };
 }
+function mapHouseIsUploaded(house) {
+  if (!house) return false;
+  if (house.bulkImported || house.bulkBatchId) return true;
+  if (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.some(Boolean)) return true;
+  const source = `${house.source || ''} ${house.classification || ''}`.toLowerCase();
+  return source.includes('bulk address workset') || source.includes('imported address workset') ||
+    source.includes('prepared address list') || source.includes('imported csv') || source.includes('imported geojson');
+}
+function evenlySampleHouses(items, count) {
+  if (count <= 0 || !items.length) return [];
+  if (items.length <= count) return [...items];
+  const result = [];
+  const step = items.length / count;
+  for (let index = 0; index < count; index += 1) result.push(items[Math.min(items.length - 1, Math.floor(index * step))]);
+  return result;
+}
+function updateMapHouseDisplayNotice(shown, visible, total) {
+  const host = document.querySelector('.map-card');
+  if (!host) return;
+  let notice = document.getElementById('mapHouseDisplayNotice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'mapHouseDisplayNotice';
+    notice.style.cssText = 'position:absolute;z-index:880;left:14px;top:74px;max-width:290px;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.94);border:1px solid #c7d7e3;box-shadow:0 4px 14px rgba(24,53,79,.18);font:700 9px/1.35 system-ui,sans-serif;color:#40566d;pointer-events:none';
+    host.appendChild(notice);
+  }
+  const limited = shown < visible;
+  notice.hidden = !limited;
+  if (limited) notice.textContent = `Showing ${shown.toLocaleString()} of ${visible.toLocaleString()} visible address dots (${total.toLocaleString()} loaded). Zoom in to display the remaining nearby homes.`;
+}
 function renderHouseMarkers() {
-  if (!map) return;
+  if (!map || !houseGroup) return;
+  if (!map._denverHouseViewportRefreshBound) {
+    map._denverHouseViewportRefreshBound = true;
+    const schedule = () => {
+      clearTimeout(map._denverHouseViewportRefreshTimer);
+      map._denverHouseViewportRefreshTimer = setTimeout(() => renderHouseMarkers(), 100);
+    };
+    map.on('moveend zoomend resize', schedule);
+  }
+
   houseGroup.clearLayers();
   houseMarkers.clear();
-  for (const house of houses) {
-    if (!validMapCoordinates(house)) continue;
+
+  const valid = houses.filter(validMapCoordinates);
+  const paddedBounds = map.getBounds?.()?.pad?.(0.18);
+  const visible = paddedBounds
+    ? valid.filter(house => paddedBounds.contains([Number(house.lat), Number(house.lng)]))
+    : valid;
+  const zoom = Number(map.getZoom?.() || 12);
+  const maximum = zoom >= 17 ? 2600 : zoom >= 15 ? 1900 : zoom >= 13 ? 1300 : 850;
+  const chosen = [];
+  const chosenIds = new Set();
+  const add = items => {
+    for (const house of items) {
+      if (chosen.length >= maximum) break;
+      const id = String(house.id);
+      if (chosenIds.has(id)) continue;
+      chosenIds.add(id);
+      chosen.push(house);
+    }
+  };
+
+  const mustShow = visible.filter(house => selectedHouseIds.has(house.id) || house.avoid);
+  const assigned = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && house.territoryId);
+  const uploaded = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && !house.territoryId && mapHouseIsUploaded(house));
+  const official = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && !house.territoryId && !mapHouseIsUploaded(house));
+
+  add(mustShow);
+  add(evenlySampleHouses(assigned, Math.max(0, maximum - chosen.length)));
+  let remaining = Math.max(0, maximum - chosen.length);
+  if (remaining) {
+    let uploadQuota = Math.min(uploaded.length, Math.ceil(remaining * .58));
+    let officialQuota = Math.min(official.length, remaining - uploadQuota);
+    if (uploadQuota + officialQuota < remaining) {
+      const extraUpload = Math.min(uploaded.length - uploadQuota, remaining - uploadQuota - officialQuota);
+      uploadQuota += Math.max(0, extraUpload);
+      officialQuota = Math.min(official.length, remaining - uploadQuota);
+    }
+    add(evenlySampleHouses(uploaded, uploadQuota));
+    add(evenlySampleHouses(official, Math.max(0, maximum - chosen.length)));
+  }
+
+  for (const house of chosen) {
     const marker = L.circleMarker([house.lat, house.lng], { renderer: canvasRenderer, ...houseStyle(house) }).addTo(houseGroup);
     const avoidNotice = house.avoid ? '<br><span class="avoid-popup-badge">AVOID / DO NOT VISIT</span>' : '';
     marker.bindPopup(`<div class="house-popup"><strong>${escapeHtml(house.address)}</strong>${avoidNotice}<br>${escapeHtml(house.source || '')}<br><small>${escapeHtml(house.classification || '')}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div>`);
@@ -1702,6 +1784,7 @@ function renderHouseMarkers() {
     });
     houseMarkers.set(house.id, marker);
   }
+  updateMapHouseDisplayNotice(chosen.length, visible.length, valid.length);
 }
 
 function drawManualTerritoryBoundary() {

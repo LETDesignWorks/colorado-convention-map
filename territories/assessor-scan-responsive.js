@@ -6,10 +6,10 @@ import {
   splitStreetSort
 } from './data.js';
 
-const SCAN_VERSION = 'territories-20261010-10';
-const PAGE_SIZE = 750;
-const DEFAULT_PASS_LIMIT = 2000;
-const MAX_PASS_LIMIT = 5000;
+const SCAN_VERSION = 'territories-20261010-11';
+const PAGE_SIZE = 250;
+const DEFAULT_PASS_LIMIT = 250;
+const MAX_PASS_LIMIT = 1000;
 const MAX_PAGES_PER_TILE = 30;
 const MAX_TILES = 36;
 
@@ -68,7 +68,7 @@ function injectResponsiveControls() {
   if (actions) {
     const field = document.createElement('div');
     field.className = 'field';
-    field.innerHTML = `<label for="responsiveAssessorLimit">New addresses per pass</label><select id="responsiveAssessorLimit"><option value="1000">1,000 — lighter</option><option value="2000" selected>2,000 — recommended</option><option value="3000">3,000</option><option value="5000">5,000 — faster computer</option></select><small>The scan pauses after this many new homes so Chrome stays responsive. Select the scan button again to continue.</small>`;
+    field.innerHTML = `<label for="responsiveAssessorLimit">New addresses per pass</label><select id="responsiveAssessorLimit"><option value="100">100 — safest</option><option value="250" selected>250 — recommended</option><option value="500">500</option><option value="1000">1,000 — faster computer</option></select><small>The scan pauses after this many new homes so Chrome stays responsive. Select the scan button again to continue.</small>`;
     actions.insertBefore(field, actions.lastElementChild || null);
   }
   const controls = document.createElement('div');
@@ -326,7 +326,7 @@ function sourceKeyForHall() {
 }
 function passLimit() {
   const value = Number(document.getElementById('responsiveAssessorLimit')?.value) || DEFAULT_PASS_LIMIT;
-  return Math.max(250, Math.min(MAX_PASS_LIMIT, value));
+  return Math.max(100, Math.min(MAX_PASS_LIMIT, value));
 }
 
 async function runResponsiveScan() {
@@ -422,7 +422,7 @@ async function runResponsiveScan() {
           houses.push(addedRecord);
           indexRecord(addedRecord, indexes, includeUnits);
           added += 1;
-          if (index % 200 === 0) await nextFrame();
+          if (index % 40 === 0) await nextFrame();
         }
 
         offset += features.length;
