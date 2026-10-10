@@ -1,0 +1,164 @@
+name: Patch territory scan and map performance v11
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-territory-freeze-v11.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch territory planner performance
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app_path = Path('territories/app-main.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          start = app.index('function renderHouseMarkers() {')
+          end = app.index('\nfunction drawManualTerritoryBoundary()', start)
+          replacement = r'''function mapHouseIsUploaded(house) {
+            if (!house) return false;
+            if (house.bulkImported || house.bulkBatchId) return true;
+            if (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.some(Boolean)) return true;
+            const source = `${house.source || ''} ${house.classification || ''}`.toLowerCase();
+            return source.includes('bulk address workset') || source.includes('imported address workset') ||
+              source.includes('prepared address list') || source.includes('imported csv') || source.includes('imported geojson');
+          }
+          function evenlySampleHouses(items, count) {
+            if (count <= 0 || !items.length) return [];
+            if (items.length <= count) return [...items];
+            const result = [];
+            const step = items.length / count;
+            for (let index = 0; index < count; index += 1) result.push(items[Math.min(items.length - 1, Math.floor(index * step))]);
+            return result;
+          }
+          function updateMapHouseDisplayNotice(shown, visible, total) {
+            const host = document.querySelector('.map-card');
+            if (!host) return;
+            let notice = document.getElementById('mapHouseDisplayNotice');
+            if (!notice) {
+              notice = document.createElement('div');
+              notice.id = 'mapHouseDisplayNotice';
+              notice.style.cssText = 'position:absolute;z-index:880;left:14px;top:74px;max-width:290px;padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.94);border:1px solid #c7d7e3;box-shadow:0 4px 14px rgba(24,53,79,.18);font:700 9px/1.35 system-ui,sans-serif;color:#40566d;pointer-events:none';
+              host.appendChild(notice);
+            }
+            const limited = shown < visible;
+            notice.hidden = !limited;
+            if (limited) notice.textContent = `Showing ${shown.toLocaleString()} of ${visible.toLocaleString()} visible address dots (${total.toLocaleString()} loaded). Zoom in to display the remaining nearby homes.`;
+          }
+          function renderHouseMarkers() {
+            if (!map || !houseGroup) return;
+            if (!map._denverHouseViewportRefreshBound) {
+              map._denverHouseViewportRefreshBound = true;
+              const schedule = () => {
+                clearTimeout(map._denverHouseViewportRefreshTimer);
+                map._denverHouseViewportRefreshTimer = setTimeout(() => renderHouseMarkers(), 100);
+              };
+              map.on('moveend zoomend resize', schedule);
+            }
+
+            houseGroup.clearLayers();
+            houseMarkers.clear();
+
+            const valid = houses.filter(validMapCoordinates);
+            const paddedBounds = map.getBounds?.()?.pad?.(0.18);
+            const visible = paddedBounds
+              ? valid.filter(house => paddedBounds.contains([Number(house.lat), Number(house.lng)]))
+              : valid;
+            const zoom = Number(map.getZoom?.() || 12);
+            const maximum = zoom >= 17 ? 2600 : zoom >= 15 ? 1900 : zoom >= 13 ? 1300 : 850;
+            const chosen = [];
+            const chosenIds = new Set();
+            const add = items => {
+              for (const house of items) {
+                if (chosen.length >= maximum) break;
+                const id = String(house.id);
+                if (chosenIds.has(id)) continue;
+                chosenIds.add(id);
+                chosen.push(house);
+              }
+            };
+
+            const mustShow = visible.filter(house => selectedHouseIds.has(house.id) || house.avoid);
+            const assigned = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && house.territoryId);
+            const uploaded = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && !house.territoryId && mapHouseIsUploaded(house));
+            const official = visible.filter(house => !selectedHouseIds.has(house.id) && !house.avoid && !house.territoryId && !mapHouseIsUploaded(house));
+
+            add(mustShow);
+            add(evenlySampleHouses(assigned, Math.max(0, maximum - chosen.length)));
+            let remaining = Math.max(0, maximum - chosen.length);
+            if (remaining) {
+              let uploadQuota = Math.min(uploaded.length, Math.ceil(remaining * .58));
+              let officialQuota = Math.min(official.length, remaining - uploadQuota);
+              if (uploadQuota + officialQuota < remaining) {
+                const extraUpload = Math.min(uploaded.length - uploadQuota, remaining - uploadQuota - officialQuota);
+                uploadQuota += Math.max(0, extraUpload);
+                officialQuota = Math.min(official.length, remaining - uploadQuota);
+              }
+              add(evenlySampleHouses(uploaded, uploadQuota));
+              add(evenlySampleHouses(official, Math.max(0, maximum - chosen.length)));
+            }
+
+            for (const house of chosen) {
+              const marker = L.circleMarker([house.lat, house.lng], { renderer: canvasRenderer, ...houseStyle(house) }).addTo(houseGroup);
+              const avoidNotice = house.avoid ? '<br><span class="avoid-popup-badge">AVOID / DO NOT VISIT</span>' : '';
+              marker.bindPopup(`<div class="house-popup"><strong>${escapeHtml(house.address)}</strong>${avoidNotice}<br>${escapeHtml(house.source || '')}<br><small>${escapeHtml(house.classification || '')}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div>`);
+              marker.on('click', event => {
+                L.DomEvent.stopPropagation(event);
+                toggleHouseSelection(house.id);
+              });
+              houseMarkers.set(house.id, marker);
+            }
+            updateMapHouseDisplayNotice(chosen.length, visible.length, valid.length);
+          }
+          '''
+          app = app[:start] + replacement + app[end:]
+
+          boundary_pattern = re.compile(
+              r"  const points = mapped\.map\(pointFeature\);\n  let baseFeature;\n  try \{\n    if \(points\.length === 1\) \{\n      baseFeature = points\[0\];\n    \} else if \(points\.length === 2\) \{\n      baseFeature = turf\.lineString\(points\.map\(point => point\.geometry\.coordinates\)\);\n    \} else \{\n      const collection = turf\.featureCollection\(points\);\n      baseFeature = turf\.convex\(collection\) \|\| turf\.bboxPolygon\(turf\.bbox\(collection\)\);\n    \}\n    const buffered = turf\.buffer\(baseFeature, padding, \{ units: 'miles', steps: 24 \}\);"
+          )
+          boundary_replacement = """  const points = mapped.map(pointFeature);\n  let baseFeature;\n  try {\n    if (points.length === 1) {\n      baseFeature = points[0];\n    } else if (points.length === 2) {\n      baseFeature = turf.lineString(points.map(point => point.geometry.coordinates));\n    } else {\n      const collection = turf.featureCollection(points);\n      // A convex hull across thousands of imported homes can block the browser.\n      // For large address sets use the complete bounding box; it is fast and remains editable.\n      baseFeature = points.length > 600\n        ? turf.bboxPolygon(turf.bbox(collection))\n        : turf.convex(collection) || turf.bboxPolygon(turf.bbox(collection));\n    }\n    const buffered = turf.buffer(baseFeature, padding, { units: 'miles', steps: points.length > 600 ? 8 : 24 });"""
+          app, count = boundary_pattern.subn(boundary_replacement, app, count=1)
+          if count != 1:
+              raise SystemExit('Could not patch large-address boundary creation')
+          app_path.write_text(app, encoding='utf-8')
+
+          scan_path = Path('territories/assessor-scan-responsive.js')
+          scan = scan_path.read_text(encoding='utf-8')
+          scan = scan.replace("const SCAN_VERSION = 'territories-20261010-10';", "const SCAN_VERSION = 'territories-20261010-11';")
+          scan = scan.replace('const PAGE_SIZE = 750;', 'const PAGE_SIZE = 250;')
+          scan = scan.replace('const DEFAULT_PASS_LIMIT = 2000;', 'const DEFAULT_PASS_LIMIT = 250;')
+          scan = scan.replace('const MAX_PASS_LIMIT = 5000;', 'const MAX_PASS_LIMIT = 1000;')
+          scan = scan.replace("<option value=\"1000\">1,000 — lighter</option><option value=\"2000\" selected>2,000 — recommended</option><option value=\"3000\">3,000</option><option value=\"5000\">5,000 — faster computer</option>", "<option value=\"100\">100 — safest</option><option value=\"250\" selected>250 — recommended</option><option value=\"500\">500</option><option value=\"1000\">1,000 — faster computer</option>")
+          scan = scan.replace('return Math.max(250, Math.min(MAX_PASS_LIMIT, value));', 'return Math.max(100, Math.min(MAX_PASS_LIMIT, value));')
+          scan = scan.replace('if (index % 200 === 0) await nextFrame();', 'if (index % 40 === 0) await nextFrame();')
+          scan_path.write_text(scan, encoding='utf-8')
+
+          merge_path = Path('territories/address-source-merge.js')
+          merge = merge_path.read_text(encoding='utf-8')
+          merge = merge.replace("document.getElementById('addAssessorAddressesButton')?.addEventListener('click', addAssessorAddresses);", "const assessorButton = document.getElementById('addAssessorAddressesButton');\n  if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';")
+          merge = merge.replace("plannerMap?.on?.('layeradd', () => scheduleApplyColors(90));", "plannerMap?.on?.('moveend zoomend', () => scheduleApplyColors(90));")
+          merge_path.write_text(merge, encoding='utf-8')
+
+          for filename in ('territories/bootstrap.js', 'territories/index.html'):
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8').replace('territories-20261010-10', 'territories-20261010-11')
+              path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit performance repair
+        shell: bash
+        run: |
+          git config user.name "LETDesignWorks"
+          git config user.email "michael@letdw.com"
+          git add territories/app-main.js territories/assessor-scan-responsive.js territories/address-source-merge.js territories/bootstrap.js territories/index.html
+          git commit -m "Prevent territory assessor scan browser freezes"
+          git push
