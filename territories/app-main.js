@@ -2236,8 +2236,11 @@ function serializeHouse(house) {
 }
 async function savePlan(options = {}) {
   if (!requireAdmin()) return;
-  if (!selectedHall || !selectedCongregation || !boundaryGeometry) { toast('Select a Hall and create the congregation boundary first.', true); return; }
+  if (!selectedHall || !selectedCongregation) { toast('Select a Kingdom Hall and congregation before saving the territory plan.', true); return; }
+  const addressOnlyMode = !boundaryGeometry && houses.some(house => house.bulkImported || (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.length));
+  if (!boundaryGeometry && !addressOnlyMode) { toast('Draw a congregation boundary, or import a CSV address workset using the no-boundary map option before saving.', true); return; }
   if (!houses.length) { toast('Load or add addresses before saving the territory plan.', true); return; }
+  const defaultPlanName = addressOnlyMode ? `${selectedCongregation} — CSV Address Territory Plan` : `${selectedCongregation} — Convention Ministry Territories`;
   const button = els.savePlanButton;
   button.disabled = true; button.textContent = 'Saving…';
   try {
@@ -2250,15 +2253,16 @@ async function savePlan(options = {}) {
     const batch = writeBatch(db);
     batch.set(planRef, {
       recordType: 'territory-plan',
-      planName: clean(els.planName.value) || `${selectedCongregation} — Convention Ministry Territories`,
+      planName: clean(els.planName.value) || defaultPlanName,
       hallId: selectedHall.id,
       hallLabel: markerLabel(selectedHall),
       hallName: selectedHall.name,
       hallAddress: selectedHall.address || '',
       congregation: selectedCongregation,
       territoryPrefix: clean(els.territoryPrefix.value).toUpperCase(),
+      addressOnlyMode,
       boundaryJson: encodeGeometry(boundaryGeometry),
-      boundaryName: clean(els.boundaryName.value) || `${selectedCongregation} service area`,
+      boundaryName: boundaryGeometry ? (clean(els.boundaryName.value) || `${selectedCongregation} service area`) : 'CSV address-only map — no outer boundary',
       sourceKey: currentSourceKey(),
       targetSize: targetSizeValue(),
       groupingMethod: els.groupingMethod.value,
@@ -2284,7 +2288,7 @@ async function savePlan(options = {}) {
     oldChunkIds.filter(id => !chunkIds.includes(id)).forEach(id => batch.delete(doc(db, 'reviews', id)));
     await batch.commit();
     currentPlanId = planId;
-    els.planName.value = clean(els.planName.value) || `${selectedCongregation} — Convention Ministry Territories`;
+    els.planName.value = clean(els.planName.value) || defaultPlanName;
     updateSummary();
     toast(options.successMessage || `Territory plan saved in ${chunks.length} private Firebase data part${chunks.length === 1 ? '' : 's'}.`);
   } catch (error) { toast(`Could not save the territory plan: ${friendlyError(error)}`, true); }
@@ -2313,7 +2317,7 @@ function renderSavedRecords() {
   const boundaries = savedBoundaries();
   const plans = savedPlans();
   els.savedBoundaries.innerHTML = boundaries.length ? boundaries.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.name || item.congregation || 'Saved boundary')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-boundary="${item.id}">Load</button><button class="row-action danger" data-delete-boundary="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No congregation boundaries saved yet.</div>';
-  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${(item.houseCount || 0).toLocaleString()} addresses${item.avoidHouseCount ? ` • ${Number(item.avoidHouseCount).toLocaleString()} avoid` : ''} • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
+  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')}${item.addressOnlyMode ? ' • CSV address map' : ''} • ${(item.houseCount || 0).toLocaleString()} addresses${item.avoidHouseCount ? ` • ${Number(item.avoidHouseCount).toLocaleString()} avoid` : ''} • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
   els.savedBoundaries.querySelectorAll('[data-load-boundary]').forEach(button => button.addEventListener('click', () => loadBoundaryRecord(button.dataset.loadBoundary)));
   els.savedBoundaries.querySelectorAll('[data-delete-boundary]').forEach(button => button.addEventListener('click', () => deleteBoundaryRecord(button.dataset.deleteBoundary)));
   els.savedPlans.querySelectorAll('[data-load-plan]').forEach(button => button.addEventListener('click', () => loadPlanRecord(button.dataset.loadPlan)));
@@ -2377,7 +2381,13 @@ function loadPlanRecord(id) {
   selectedHouseIds.clear();
   updateBoundaryUi();
   renderAllPlanningData();
-  toast(`Saved plan loaded with ${houses.length.toLocaleString()} addresses.`);
+  if (!boundaryGeometry && houses.length) {
+    const mappedPoints = houses
+      .filter(house => Number.isFinite(Number(house.lat)) && Number.isFinite(Number(house.lng)))
+      .map(house => [Number(house.lat), Number(house.lng)]);
+    if (mappedPoints.length) map.fitBounds(L.latLngBounds(mappedPoints), { padding: [36, 36], maxZoom: 16 });
+  }
+  toast(`Saved ${plan.addressOnlyMode ? 'CSV address-only ' : ''}plan loaded with ${houses.length.toLocaleString()} addresses.`);
 }
 async function deleteBoundaryRecord(id) {
   const item = reviewRecords.get(id);
