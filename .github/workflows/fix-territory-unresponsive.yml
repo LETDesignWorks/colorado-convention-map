@@ -1,0 +1,33 @@
+name: Fix territory planner responsiveness
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-territory-unresponsive.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply responsiveness repair
+        run: python .github/scripts/fix_territory_unresponsive.py
+      - name: Validate responsiveness repair
+        run: |
+          node --check territories/territory-workflow-ui.js
+          node --check territories/bootstrap.js
+          grep -q "startupObserver" territories/territory-workflow-ui.js
+          grep -q "territories-20261010-6" territories/territory-workflow-ui.js
+          grep -q "territories-20261010-6" territories/bootstrap.js
+          grep -q "territories-20261010-6" territories/index.html
+          ! grep -q "new MutationObserver(() => refreshEnhancements())" territories/territory-workflow-ui.js
+      - name: Commit responsiveness repair
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/territory-workflow-ui.js territories/bootstrap.js territories/index.html
+          git commit -m 'Fix territory planner unresponsive loop' || exit 0
+          git push
