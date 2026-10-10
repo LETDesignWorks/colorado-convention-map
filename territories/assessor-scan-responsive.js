@@ -6,7 +6,7 @@ import {
   splitStreetSort
 } from './data.js';
 
-const SCAN_VERSION = 'territories-20261010-11';
+const SCAN_VERSION = 'territories-20261010-12';
 const PAGE_SIZE = 250;
 const DEFAULT_PASS_LIMIT = 250;
 const MAX_PASS_LIMIT = 1000;
@@ -30,6 +30,19 @@ function validCoordinates(item) {
   if (planner?.validMapCoordinates) return planner.validMapCoordinates(item);
   const lat = Number(item?.lat), lng = Number(item?.lng);
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(Math.abs(lat) < 1 && Math.abs(lng) < 1);
+}
+function isUploadedAddress(house) {
+  if (!house) return false;
+  if (house.bulkImported || house.bulkBatchId) return true;
+  if (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.some(Boolean)) return true;
+  const text = `${house.source || ''} ${house.classification || ''}`.toLowerCase();
+  return text.includes('bulk address workset') ||
+    text.includes('imported address workset') ||
+    text.includes('prepared address list') ||
+    text.includes('imported csv') ||
+    text.includes('imported geojson') ||
+    text.includes('uploaded address') ||
+    clean(house.classification).toLowerCase() === 'imported';
 }
 function setMessage(message, state = 'waiting') {
   const element = document.getElementById('addressSourceMergeMessage');
@@ -334,7 +347,7 @@ async function runResponsiveScan() {
   const hall = planner.getSelectedHall?.();
   const congregation = clean(planner.getSelectedCongregation?.());
   if (!hall || !congregation) return toast('Select the Kingdom Hall and congregation before adding assessor/GIS addresses.', true);
-  const uploaded = planner.getHouses().filter(house => (house.bulkImported || house.bulkBatchId || (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.length)) && validCoordinates(house));
+  const uploaded = planner.getHouses().filter(house => isUploadedAddress(house) && validCoordinates(house));
   if (!uploaded.length) return toast('Upload and map the prepared address file first.', true);
 
   if (!planner.getBoundaryGeometry?.()) {
@@ -499,6 +512,20 @@ async function runResponsiveScan() {
   }
 }
 
+function wireScanButton() {
+  const button = document.getElementById('addAssessorAddressesButton');
+  if (!button) return false;
+  button.dataset.responsiveScannerReady = 'true';
+  if (!scanRunning) button.disabled = !planner?.isAdmin?.();
+  if (button.dataset.responsiveScannerBound !== 'true') {
+    button.dataset.responsiveScannerBound = 'true';
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      runResponsiveScan();
+    });
+  }
+  return true;
+}
 function interceptScan(event) {
   const button = event.target.closest?.('#addAssessorAddressesButton');
   if (!button) return;
@@ -522,7 +549,12 @@ async function initialize() {
     if (injectResponsiveControls()) break;
     await sleep(50);
   }
+  wireScanButton();
   document.addEventListener('click', interceptScan, true);
+  window.addEventListener('territory-planner:data', () => {
+    if (!scanRunning) wireScanButton();
+  });
+  setButtonState(false);
   console.info(`Denver 2027 responsive assessor/GIS scanner loaded (${SCAN_VERSION}).`);
 }
 

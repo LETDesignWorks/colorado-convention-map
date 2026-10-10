@@ -1,4 +1,4 @@
-const SOURCE_VERSION = 'territories-20261010-8';
+const SOURCE_VERSION = 'territories-20261010-12';
 const UPLOADED_COLOR = '#7952c7';
 const UPLOADED_BORDER = '#4d2e8f';
 const OFFICIAL_COLOR = '#6b7c8f';
@@ -24,7 +24,14 @@ function isUploadedAddress(house) {
   if (house.bulkImported || house.bulkBatchId) return true;
   if (Array.isArray(house.bulkBatchIds) && house.bulkBatchIds.some(Boolean)) return true;
   const source = `${house.source || ''} ${house.classification || ''}`.toLowerCase();
-  return source.includes('bulk address workset') || source.includes('imported address workset') || source.includes('prepared address list');
+  return source.includes('bulk address workset') ||
+    source.includes('imported address workset') ||
+    source.includes('prepared address list') ||
+    source.includes('imported csv') ||
+    source.includes('imported geojson') ||
+    source.includes('uploaded address') ||
+    source.includes('classification imported') ||
+    clean(house.classification).toLowerCase() === 'imported';
 }
 function normalizedColor(value) {
   return clean(value).toLowerCase().replace(/\s+/g, '');
@@ -38,11 +45,19 @@ function sourceCounts() {
     avoid: mapped.filter(house => house.avoid).length
   };
 }
+function placeAvoidAfterAssessor() {
+  const card = document.getElementById('addressSourceMergeCard');
+  const avoidCard = document.getElementById('avoidWorkflowCard');
+  if (card && avoidCard && card.nextElementSibling !== avoidCard) {
+    card.insertAdjacentElement('afterend', avoidCard);
+  }
+}
 function syncCardVisibility() {
   const bulkCard = document.getElementById('bulkAddressCard');
   const card = document.getElementById('addressSourceMergeCard');
   if (!bulkCard || !card) return;
   card.classList.toggle('territory-workflow-hidden', bulkCard.classList.contains('territory-workflow-hidden'));
+  placeAvoidAfterAssessor();
 }
 function updateCounts() {
   const counts = sourceCounts();
@@ -53,7 +68,7 @@ function updateCounts() {
   if (official) official.textContent = counts.official.toLocaleString();
   if (avoid) avoid.textContent = counts.avoid.toLocaleString();
   const button = document.getElementById('addAssessorAddressesButton');
-  if (button && !scanBusy) button.disabled = !planner?.isAdmin?.() || !counts.uploaded;
+  if (button && !scanBusy) { button.disabled = !planner?.isAdmin?.(); button.title = counts.uploaded ? 'Add official assessor/GIS addresses around the uploaded list.' : 'Upload or load an address file first; selecting the button will explain what is missing.'; }
   syncCardVisibility();
 }
 function applySourceColors() {
@@ -121,7 +136,7 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 function injectCard() {
-  if (document.getElementById('addressSourceMergeCard')) return true;
+  if (document.getElementById('addressSourceMergeCard')) { placeAvoidAfterAssessor(); return true; }
   const bulkCard = document.getElementById('bulkAddressCard');
   const avoidCard = document.getElementById('avoidWorkflowCard');
   if (!bulkCard || !avoidCard) return false;
@@ -145,6 +160,7 @@ function injectCard() {
     <small id="addressSourceMergeMessage" class="address-source-message" data-state="waiting">The scan preserves the uploaded workset, avoid addresses, and existing territories. If no outer boundary exists, an editable Hall boundary will be created first. Edit that boundary and run the scan again whenever you need a larger or smaller search area.</small>
     <small style="display:block;margin-top:6px;color:#7a8794;font-size:8px">Current avoid addresses: <strong id="sourceAvoidCount">0</strong>. After the scan, save the Kingdom Hall address set to retain the merged addresses.</small>`;
   bulkCard.insertAdjacentElement('afterend', card);
+  placeAvoidAfterAssessor();
   const assessorButton = document.getElementById('addAssessorAddressesButton');
   if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';
   return true;
