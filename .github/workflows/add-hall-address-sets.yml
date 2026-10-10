@@ -1,0 +1,35 @@
+name: Add Kingdom Hall address sets
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-hall-address-sets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Kingdom Hall address-set update
+        run: python .github/scripts/add_hall_address_sets.py
+      - name: Validate Kingdom Hall address sets
+        run: |
+          node --check territories/app-main.js
+          node --check territories/directions.js
+          node --check territories/hall-address-sets.js
+          grep -q "createBoundaryAroundAddresses" territories/app-main.js
+          grep -q "KINGDOM HALL ADDRESS SET" territories/hall-address-sets.js
+          grep -q "denver-2027-territory-logo.png" territories/app-main.js
+          grep -q "denver-2027-territory-logo.png" territories/directions.js
+          grep -q "hall-address-sets.js" territories/bootstrap.js
+          grep -q "territories-20261010-3" territories/bootstrap.js
+      - name: Commit Kingdom Hall address sets
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/app-main.js territories/directions.js territories/bootstrap.js territories/index.html
+          git commit -m 'Add saved Hall address sets and editable outer boundaries' || exit 0
+          git push
