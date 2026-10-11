@@ -1,4 +1,4 @@
-const SOURCE_VERSION = 'territories-20261010-12';
+const SOURCE_VERSION = 'territories-20261010-14';
 const UPLOADED_COLOR = '#7952c7';
 const UPLOADED_BORDER = '#4d2e8f';
 const OFFICIAL_COLOR = '#6b7c8f';
@@ -68,7 +68,7 @@ function updateCounts() {
   if (official) official.textContent = counts.official.toLocaleString();
   if (avoid) avoid.textContent = counts.avoid.toLocaleString();
   const button = document.getElementById('addAssessorAddressesButton');
-  if (button && !scanBusy) { button.disabled = !planner?.isAdmin?.(); button.title = counts.uploaded ? 'Add official assessor/GIS addresses around the uploaded list.' : 'Upload or load an address file first; selecting the button will explain what is missing.'; }
+  if (button && !scanBusy) { button.disabled = false; button.classList.remove('admin-control'); button.title = counts.uploaded ? 'Add official assessor/GIS addresses around the uploaded list.' : 'Select the button to see what is needed before the scan can begin.'; }
   syncCardVisibility();
 }
 function applySourceColors() {
@@ -136,7 +136,7 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 function injectCard() {
-  if (document.getElementById('addressSourceMergeCard')) { placeAvoidAfterAssessor(); return true; }
+  if (document.getElementById('addressSourceMergeCard')) { placeAvoidAfterAssessor(); ensureAssessorFallbackUi(); return true; }
   const bulkCard = document.getElementById('bulkAddressCard');
   const avoidCard = document.getElementById('avoidWorkflowCard');
   if (!bulkCard || !avoidCard) return false;
@@ -163,6 +163,7 @@ function injectCard() {
   placeAvoidAfterAssessor();
   const assessorButton = document.getElementById('addAssessorAddressesButton');
   if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';
+  ensureAssessorFallbackUi();
   return true;
 }
 function setMessage(message, state = 'waiting') {
@@ -243,6 +244,85 @@ async function addAssessorAddresses() {
   }
 }
 
+
+function ensureAssessorFallbackUi() {
+  const card = document.getElementById('addressSourceMergeCard');
+  if (!card) return false;
+
+  const padding = document.getElementById('assessorBoundaryPadding');
+  if (padding) {
+    padding.max = '2';
+    const value = Number(padding.value);
+    if (!Number.isFinite(value) || value < 0.02 || value > 2) padding.value = '0.35';
+  }
+
+  const actions = card.querySelector('.address-source-actions');
+  if (actions && !document.getElementById('directAssessorLimit')) {
+    const field = document.createElement('div');
+    field.className = 'field';
+    field.innerHTML = `
+      <label for="directAssessorLimit">Official records per pass</label>
+      <select id="directAssessorLimit">
+        <option value="50">50 — safest</option>
+        <option value="100" selected>100 — recommended</option>
+        <option value="250">250 — faster computer</option>
+      </select>
+      <small>Each click checks one small page of official records and then stops. Select the button again to continue.</small>`;
+    actions.insertBefore(field, actions.lastElementChild || null);
+  }
+
+  let ready = document.getElementById('assessorScannerReady');
+  if (!ready) {
+    ready = document.createElement('small');
+    ready.id = 'assessorScannerReady';
+    ready.style.cssText = 'display:block;margin:7px 0;padding:7px 9px;border-radius:9px;background:#eef9f3;color:#246147;font-size:8.5px;font-weight:800';
+    ready.textContent = 'Assessor/GIS scanner v14 ready — selecting the blue button should change its text immediately.';
+    const message = document.getElementById('addressSourceMergeMessage');
+    if (message) message.insertAdjacentElement('beforebegin', ready);
+    else card.appendChild(ready);
+  }
+
+  const button = document.getElementById('addAssessorAddressesButton');
+  if (!button) return false;
+  button.disabled = false;
+  button.classList.remove('admin-control');
+  button.dataset.assessorFallbackVersion = 'territories-20261010-14';
+
+  if (button.dataset.assessorFallbackBound !== 'true') {
+    button.dataset.assessorFallbackBound = 'true';
+    button.addEventListener('click', async event => {
+      if (button.dataset.directScannerVersion) return;
+      event.preventDefault();
+      event.stopPropagation();
+      button.textContent = 'Loading Assessor / GIS Scanner…';
+      button.setAttribute('aria-busy', 'true');
+      setMessage('The blue button was selected. Loading the direct assessor/GIS scanner now…', 'working');
+      try {
+        const module = await import('./assessor-scan-direct.js?v=territories-20261010-14');
+        const runner = module.startDirectScan || module.runDirectScan || globalThis.__denverDirectAssessorScan?.run;
+        if (typeof runner !== 'function') throw new Error('The direct scanner did not expose a start function.');
+        await runner();
+      } catch (error) {
+        console.error('Assessor fallback could not start.', error);
+        button.textContent = 'Add Assessor / GIS Addresses';
+        button.removeAttribute('aria-busy');
+        setMessage(`The scanner could not start: ${error?.message || 'Unknown error'}`, 'error');
+        toast(`The assessor/GIS scanner could not start: ${error?.message || 'Unknown error'}`, true);
+      }
+    });
+  }
+
+  if (!button._denverEnableObserver) {
+    button._denverEnableObserver = new MutationObserver(() => {
+      if (button.getAttribute('aria-busy') !== 'true' && button.disabled) button.disabled = false;
+    });
+    button._denverEnableObserver.observe(button, { attributes: true, attributeFilter: ['disabled'] });
+  }
+
+  placeAvoidAfterAssessor();
+  return true;
+}
+
 async function initialize() {
   for (let index = 0; index < 300; index += 1) {
     const candidate = globalThis.__denverTerritoryPlannerAPI;
@@ -252,6 +332,7 @@ async function initialize() {
   if (!planner) return;
   plannerMap = planner.getMap();
   injectStyles();
+  ensureAssessorFallbackUi();
   injectLegend();
 
   for (let index = 0; index < 160; index += 1) {
@@ -268,6 +349,7 @@ async function initialize() {
   [0, 120, 450, 1200, 2800].forEach(delay => setTimeout(() => {
     injectLegend();
     injectCard();
+    ensureAssessorFallbackUi();
     scheduleApplyColors(20);
   }, delay));
   console.info(`Denver 2027 uploaded/assessor address source colors loaded (${SOURCE_VERSION}).`);

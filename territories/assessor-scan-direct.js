@@ -5,7 +5,7 @@ import {
   normalizeAddressKey
 } from './data.js';
 
-const SCAN_VERSION = 'territories-20261010-13';
+const SCAN_VERSION = 'territories-20261010-14';
 const DEFAULT_PAGE_SIZE = 100;
 const MIN_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 250;
@@ -463,6 +463,19 @@ async function runDirectScan() {
   }
 }
 
+
+async function startDirectScan() {
+  if (!planner) planner = globalThis.__denverTerritoryPlannerAPI || null;
+  if (!planner) {
+    setMessage('The Territory Planner is still starting. Wait a moment and select the button again.', 'error');
+    return;
+  }
+  injectControls();
+  placeAvoidAfterAssessor();
+  wireButton();
+  return runDirectScan();
+}
+
 function wireButton() {
   const current = document.getElementById('addAssessorAddressesButton');
   if (!current) return false;
@@ -482,7 +495,7 @@ function wireButton() {
   button.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
-    void runDirectScan();
+    void startDirectScan();
   });
 
   buttonObserver?.disconnect();
@@ -525,5 +538,9 @@ async function initialize() {
   setMessage('Ready. Select Add Assessor / GIS Addresses to check one small page of official addresses at a time.', 'waiting');
   console.info(`Denver 2027 direct assessor/GIS scanner loaded (${SCAN_VERSION}).`);
 }
+
+
+globalThis.__denverDirectAssessorScan = Object.freeze({ version: SCAN_VERSION, run: startDirectScan, inject: injectControls, wire: wireButton });
+export { startDirectScan, runDirectScan, injectControls, wireButton };
 
 initialize();
