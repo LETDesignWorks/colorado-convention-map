@@ -12,13 +12,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Show assessor source definitions
+      - name: Test assessor query variants
         run: |
           python - <<'PY'
-          from pathlib import Path
-          import base64, gzip, re
-          text = gzip.decompress(base64.b64decode(Path('territories/data.payload.txt').read_text().strip())).decode()
-          start = text.find('export const ASSESSOR_SOURCES')
-          end = text.find('export function inferSourceForHall', start)
-          print(text[start:end])
+          import json, urllib.parse, urllib.request
+
+          envelope = {
+            'xmin': -105.08,
+            'ymin': 39.47,
+            'xmax': -104.86,
+            'ymax': 39.63,
+            'spatialReference': {'wkid': 4326}
+          }
+          tests = [
+            ('colorado-current', 'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Addresses/FeatureServer/0/query', {
+              'f':'json','where':'1=1','outFields':'OBJECTID,SAUID,County,AddrNum,NumSuf,St_PreMod,PreDir,PreType,St_PreSep,StreetName,PostType,PostDir,St_PosMod,Building,Floor,Unit,AddrFull,PlaceName,Zipcode,Latitude,Longitude,Nbrhd_Comm,Addtl_Loc,Place_Type,lsCAI,ParcelID,MOD_DATE,ACT_STAT','returnGeometry':'true','returnCentroid':'false','outSR':'4326','inSR':'4326','geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','geometry':json.dumps(envelope),'resultOffset':'0','resultRecordCount':'100','geometryPrecision':'6','maxAllowableOffset':'0.00008'
+            }),
+            ('colorado-no-max-offset', 'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Addresses/FeatureServer/0/query', {
+              'f':'json','where':'1=1','outFields':'OBJECTID,AddrFull,PlaceName,Zipcode,Latitude,Longitude','returnGeometry':'true','outSR':'4326','inSR':'4326','geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','geometry':json.dumps(envelope),'resultOffset':'0','resultRecordCount':'100','geometryPrecision':'6'
+            }),
+            ('colorado-objectids-first', 'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Addresses/FeatureServer/0/query', {
+              'f':'json','where':'1=1','returnIdsOnly':'true','geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','geometry':json.dumps(envelope),'inSR':'4326'
+            }),
+            ('douglas-current', 'https://apps.douglas.co.us/gisod/rest/services/POSSE_Address/MapServer/0/query', {
+              'f':'json','where':'1=1','outFields':'OBJECTID,ADDRESS_ID,ADDRESS_NUMBER,ADDRESS_NUMBER_SUFFIX,STREET_NAME_FULL,UNIT_NO,POSTAL_NAME,ZIP_CODE,ADDRESS_STATUS_DESCRIPTION,ADDRESS_USE,LAND_USE','returnGeometry':'true','returnCentroid':'false','outSR':'4326','inSR':'4326','geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','geometry':json.dumps(envelope),'resultOffset':'0','resultRecordCount':'100','geometryPrecision':'6','maxAllowableOffset':'0.00008'
+            }),
+            ('douglas-simple', 'https://apps.douglas.co.us/gisod/rest/services/POSSE_Address/MapServer/0/query', {
+              'f':'json','where':'1=1','outFields':'*','returnGeometry':'true','outSR':'4326','inSR':'4326','geometryType':'esriGeometryEnvelope','spatialRel':'esriSpatialRelIntersects','geometry':json.dumps(envelope),'resultRecordCount':'100'
+            })
+          ]
+
+          for name, url, params in tests:
+            print('\n===', name, '===')
+            data = urllib.parse.urlencode(params).encode()
+            request = urllib.request.Request(url, data=data, headers={'Content-Type':'application/x-www-form-urlencoded','User-Agent':'Denver2027-debug/1.0'})
+            try:
+              with urllib.request.urlopen(request, timeout=45) as response:
+                body = response.read().decode('utf-8', errors='replace')
+                print('HTTP', response.status, 'bytes', len(body))
+                parsed = json.loads(body)
+                if 'error' in parsed:
+                  print('ERROR', json.dumps(parsed['error'], indent=2))
+                else:
+                  print('keys', list(parsed)[:10])
+                  print('features', len(parsed.get('features', [])), 'ids', len(parsed.get('objectIds', [])))
+                  if parsed.get('features'):
+                    print('first attrs', list(parsed['features'][0].get('attributes', {}))[:10])
+            except Exception as error:
+              print(type(error).__name__, error)
           PY
