@@ -1,4 +1,4 @@
-const SOURCE_VERSION = 'territories-20261010-14';
+const SOURCE_VERSION = 'territories-20261010-15';
 const UPLOADED_COLOR = '#7952c7';
 const UPLOADED_BORDER = '#4d2e8f';
 const OFFICIAL_COLOR = '#6b7c8f';
@@ -286,7 +286,7 @@ function ensureAssessorFallbackUi() {
   if (!button) return false;
   button.disabled = false;
   button.classList.remove('admin-control');
-  button.dataset.assessorFallbackVersion = 'territories-20261010-14';
+  button.dataset.assessorFallbackVersion = 'territories-20261010-15';
 
   if (button.dataset.assessorFallbackBound !== 'true') {
     button.dataset.assessorFallbackBound = 'true';
@@ -298,7 +298,7 @@ function ensureAssessorFallbackUi() {
       button.setAttribute('aria-busy', 'true');
       setMessage('The blue button was selected. Loading the direct assessor/GIS scanner now…', 'working');
       try {
-        const module = await import('./assessor-scan-direct.js?v=territories-20261010-14');
+        const module = await import('./assessor-scan-direct.js?v=territories-20261010-15');
         const runner = module.startDirectScan || module.runDirectScan || globalThis.__denverDirectAssessorScan?.run;
         if (typeof runner !== 'function') throw new Error('The direct scanner did not expose a start function.');
         await runner();

@@ -5,7 +5,7 @@ import {
   normalizeAddressKey
 } from './data.js';
 
-const SCAN_VERSION = 'territories-20261010-14';
+const SCAN_VERSION = 'territories-20261010-15';
 const DEFAULT_PAGE_SIZE = 100;
 const MIN_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 250;
@@ -159,9 +159,15 @@ function injectControls() {
 
 function sourceKeyForHall() {
   const selected = clean(document.getElementById('sourceSelect')?.value);
-  if (selected && !['auto', 'manual'].includes(selected) && ASSESSOR_SOURCES[selected]) return selected;
+  if (selected && !['auto', 'manual'].includes(selected) && ASSESSOR_SOURCES[selected]) {
+    // The Douglas County layer currently returns ArcGIS error 400
+    // (Failed to execute query) for spatial-envelope requests. Use the
+    // official statewide composite, which contains Douglas County addresses.
+    return selected === 'douglas' ? 'colorado' : selected;
+  }
   const hall = planner?.getSelectedHall?.();
   const inferred = hall?.id ? inferSourceForHall(hall.id) : '';
+  if (inferred === 'douglas') return 'colorado';
   return ASSESSOR_SOURCES[inferred] ? inferred : 'colorado';
 }
 
@@ -355,7 +361,7 @@ async function runDirectScan() {
   cancelRequested = false;
   setButtonState(true, 'Starting Assessor / GIS Scan…');
   document.getElementById('directAssessorCancel')?.removeAttribute('hidden');
-  setMessage('The scan button is working. Preparing one small official GIS request…', 'working');
+  setMessage('The scan button is working. Preparing one small official GIS request. Douglas County locations automatically use the Colorado statewide address composite because the county layer is currently rejecting map-envelope queries.', 'working');
   updateProgress(3, 'Preparing the official address request…');
   await nextFrame();
 
