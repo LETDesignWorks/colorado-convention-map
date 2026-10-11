@@ -1,0 +1,24 @@
+name: Inspect territory data
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-territory-data.yml'
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show assessor source definitions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64, gzip, re
+          text = gzip.decompress(base64.b64decode(Path('territories/data.payload.txt').read_text().strip())).decode()
+          start = text.find('export const ASSESSOR_SOURCES')
+          end = text.find('export function inferSourceForHall', start)
+          print(text[start:end])
+          PY
