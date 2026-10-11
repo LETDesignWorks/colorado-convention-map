@@ -1,0 +1,222 @@
+name: Patch territory assessor fallback and PDF cache v14
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-territory-v14.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install assessor fallback and refresh PDF module
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match in {path}, found {count}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Address-source card: make the button visibly ready and add a direct-import fallback.
+          path = 'territories/address-source-merge.js'
+          replace_once(path,
+              "const SOURCE_VERSION = 'territories-20261010-12';",
+              "const SOURCE_VERSION = 'territories-20261010-14';",
+              'address source version')
+
+          replace_once(path,
+              "if (button && !scanBusy) { button.disabled = !planner?.isAdmin?.(); button.title = counts.uploaded ? 'Add official assessor/GIS addresses around the uploaded list.' : 'Upload or load an address file first; selecting the button will explain what is missing.'; }",
+              "if (button && !scanBusy) { button.disabled = false; button.classList.remove('admin-control'); button.title = counts.uploaded ? 'Add official assessor/GIS addresses around the uploaded list.' : 'Select the button to see what is needed before the scan can begin.'; }",
+              'button enabled state')
+
+          helper = r'''
+function ensureAssessorFallbackUi() {
+  const card = document.getElementById('addressSourceMergeCard');
+  if (!card) return false;
+
+  const padding = document.getElementById('assessorBoundaryPadding');
+  if (padding) {
+    padding.max = '2';
+    const value = Number(padding.value);
+    if (!Number.isFinite(value) || value < 0.02 || value > 2) padding.value = '0.35';
+  }
+
+  const actions = card.querySelector('.address-source-actions');
+  if (actions && !document.getElementById('directAssessorLimit')) {
+    const field = document.createElement('div');
+    field.className = 'field';
+    field.innerHTML = `
+      <label for="directAssessorLimit">Official records per pass</label>
+      <select id="directAssessorLimit">
+        <option value="50">50 — safest</option>
+        <option value="100" selected>100 — recommended</option>
+        <option value="250">250 — faster computer</option>
+      </select>
+      <small>Each click checks one small page of official records and then stops. Select the button again to continue.</small>`;
+    actions.insertBefore(field, actions.lastElementChild || null);
+  }
+
+  let ready = document.getElementById('assessorScannerReady');
+  if (!ready) {
+    ready = document.createElement('small');
+    ready.id = 'assessorScannerReady';
+    ready.style.cssText = 'display:block;margin:7px 0;padding:7px 9px;border-radius:9px;background:#eef9f3;color:#246147;font-size:8.5px;font-weight:800';
+    ready.textContent = 'Assessor/GIS scanner v14 ready — selecting the blue button should change its text immediately.';
+    const message = document.getElementById('addressSourceMergeMessage');
+    if (message) message.insertAdjacentElement('beforebegin', ready);
+    else card.appendChild(ready);
+  }
+
+  const button = document.getElementById('addAssessorAddressesButton');
+  if (!button) return false;
+  button.disabled = false;
+  button.classList.remove('admin-control');
+  button.dataset.assessorFallbackVersion = 'territories-20261010-14';
+
+  if (button.dataset.assessorFallbackBound !== 'true') {
+    button.dataset.assessorFallbackBound = 'true';
+    button.addEventListener('click', async event => {
+      if (button.dataset.directScannerVersion) return;
+      event.preventDefault();
+      event.stopPropagation();
+      button.textContent = 'Loading Assessor / GIS Scanner…';
+      button.setAttribute('aria-busy', 'true');
+      setMessage('The blue button was selected. Loading the direct assessor/GIS scanner now…', 'working');
+      try {
+        const module = await import('./assessor-scan-direct.js?v=territories-20261010-14');
+        const runner = module.startDirectScan || module.runDirectScan || globalThis.__denverDirectAssessorScan?.run;
+        if (typeof runner !== 'function') throw new Error('The direct scanner did not expose a start function.');
+        await runner();
+      } catch (error) {
+        console.error('Assessor fallback could not start.', error);
+        button.textContent = 'Add Assessor / GIS Addresses';
+        button.removeAttribute('aria-busy');
+        setMessage(`The scanner could not start: ${error?.message || 'Unknown error'}`, 'error');
+        toast(`The assessor/GIS scanner could not start: ${error?.message || 'Unknown error'}`, true);
+      }
+    });
+  }
+
+  if (!button._denverEnableObserver) {
+    button._denverEnableObserver = new MutationObserver(() => {
+      if (button.getAttribute('aria-busy') !== 'true' && button.disabled) button.disabled = false;
+    });
+    button._denverEnableObserver.observe(button, { attributes: true, attributeFilter: ['disabled'] });
+  }
+
+  placeAvoidAfterAssessor();
+  return true;
+}
+
+'''
+          file = Path(path)
+          text = file.read_text(encoding='utf-8')
+          marker = 'async function initialize() {'
+          if 'function ensureAssessorFallbackUi()' not in text:
+              if marker not in text:
+                  raise SystemExit('address-source initialize marker not found')
+              text = text.replace(marker, helper + marker, 1)
+
+          text = text.replace(
+              "if (document.getElementById('addressSourceMergeCard')) { placeAvoidAfterAssessor(); return true; }",
+              "if (document.getElementById('addressSourceMergeCard')) { placeAvoidAfterAssessor(); ensureAssessorFallbackUi(); return true; }",
+              1)
+          text = text.replace(
+              "if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';\n  return true;",
+              "if (assessorButton) assessorButton.dataset.responsiveScannerOnly = 'true';\n  ensureAssessorFallbackUi();\n  return true;",
+              1)
+          text = text.replace(
+              "plannerMap = planner.getMap();\n  injectStyles();",
+              "plannerMap = planner.getMap();\n  injectStyles();\n  ensureAssessorFallbackUi();",
+              1)
+          text = text.replace(
+              "injectCard();\n    scheduleApplyColors(20);",
+              "injectCard();\n    ensureAssessorFallbackUi();\n    scheduleApplyColors(20);",
+              1)
+          file.write_text(text, encoding='utf-8')
+
+          # Direct scanner: expose a callable start function so the card can load it on demand.
+          path = 'territories/assessor-scan-direct.js'
+          replace_once(path,
+              "const SCAN_VERSION = 'territories-20261010-13';",
+              "const SCAN_VERSION = 'territories-20261010-14';",
+              'direct scanner version')
+
+          insertion = r'''
+async function startDirectScan() {
+  if (!planner) planner = globalThis.__denverTerritoryPlannerAPI || null;
+  if (!planner) {
+    setMessage('The Territory Planner is still starting. Wait a moment and select the button again.', 'error');
+    return;
+  }
+  injectControls();
+  placeAvoidAfterAssessor();
+  wireButton();
+  return runDirectScan();
+}
+
+'''
+          file = Path(path)
+          text = file.read_text(encoding='utf-8')
+          marker = 'function wireButton() {'
+          if 'async function startDirectScan()' not in text:
+              if marker not in text:
+                  raise SystemExit('direct scanner wire marker not found')
+              text = text.replace(marker, insertion + marker, 1)
+          text = text.replace('void runDirectScan();', 'void startDirectScan();', 1)
+          export_block = "\nglobalThis.__denverDirectAssessorScan = Object.freeze({ version: SCAN_VERSION, run: startDirectScan, inject: injectControls, wire: wireButton });\nexport { startDirectScan, runDirectScan, injectControls, wireButton };\n\ninitialize();\n"
+          if 'globalThis.__denverDirectAssessorScan' not in text:
+              if not text.rstrip().endswith('initialize();'):
+                  raise SystemExit('direct scanner initialize ending not found')
+              text = text.rstrip()[:-len('initialize();')] + export_block
+          file.write_text(text, encoding='utf-8')
+
+          # Refresh the PDF module and all cache-busting references. The v13 PDF already
+          # places the full map on page 1 and starts the address list on page 2.
+          path = 'territories/territory-flex-grouping-pdf.js'
+          replace_once(path,
+              "const FLEX_VERSION = 'territories-20261010-7';",
+              "const FLEX_VERSION = 'territories-20261010-14';",
+              'PDF module version')
+
+          for path in ['territories/bootstrap.js', 'territories/index.html']:
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              if 'territories-20261010-13' not in text:
+                  raise SystemExit(f'version 13 not found in {path}')
+              file.write_text(text.replace('territories-20261010-13', 'territories-20261010-14'), encoding='utf-8')
+
+          Path('.github/workflows/patch-territory-v14.yml').unlink()
+          PY
+
+      - name: Validate JavaScript
+        shell: bash
+        run: |
+          node --check territories/address-source-merge.js
+          node --check territories/assessor-scan-direct.js
+          node --check territories/territory-flex-grouping-pdf.js
+          node --check territories/bootstrap.js
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add -A
+          git commit -m 'Add assessor scan fallback and refresh duplex PDFs'
+          git push origin main
