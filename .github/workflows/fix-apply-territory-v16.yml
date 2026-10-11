@@ -1,0 +1,52 @@
+name: Fix Apply Denver 2027 Territory Planner v16
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-apply-territory-v16.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the website
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Correct the Python regular-expression replacement
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/apply-territory-v16.yml')
+          text = workflow.read_text(encoding='utf-8')
+          old = 'updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)'
+          new = 'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)'
+          if old in text:
+              text = text.replace(old, new, 1)
+              workflow.write_text(text, encoding='utf-8')
+          elif new not in text:
+              raise SystemExit('The expected sub_once line was not found.')
+
+          Path('.github/workflows/fix-apply-territory-v16.yml').unlink(missing_ok=True)
+          PY
+
+      - name: Commit the corrected workflow
+        shell: bash
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No workflow correction was needed.'
+            exit 0
+          fi
+          git commit -m 'Fix Territory Planner v16 workflow execution'
+          git push origin main
