@@ -276,7 +276,7 @@ function ensureAssessorFallbackUi() {
     ready = document.createElement('small');
     ready.id = 'assessorScannerReady';
     ready.style.cssText = 'display:block;margin:7px 0;padding:7px 9px;border-radius:9px;background:#eef9f3;color:#246147;font-size:8.5px;font-weight:800';
-    ready.textContent = 'Assessor/GIS scanner v14 ready — selecting the blue button should change its text immediately.';
+    ready.textContent = 'Assessor/GIS scanner v15 ready — selecting the blue button should change its text immediately.';
     const message = document.getElementById('addressSourceMergeMessage');
     if (message) message.insertAdjacentElement('beforebegin', ready);
     else card.appendChild(ready);
