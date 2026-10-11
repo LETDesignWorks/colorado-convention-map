@@ -208,3 +208,12 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
 @media(max-width:700px){.territory-route-grid,.territory-route-metrics{grid-template-columns:1fr 1fr}.territory-route-destination-field,.territory-route-departure{grid-column:1/-1}.territory-route-actions{grid-template-columns:1fr}.territory-route-step{grid-template-columns:26px 1fr}.territory-route-step-distance{grid-column:2;text-align:left}}
 @media(max-width:480px){.territory-route-grid,.territory-route-metrics,.territory-meeting-builder .two-col{grid-template-columns:1fr}.territory-route-destination-field,.territory-route-departure{grid-column:auto}}
 @media print{.territory-directions-card{display:none!important}}
+
+/* territories-20261011-16 — map legend placement and assessor color */
+.map-legend{top:auto!important;right:auto!important;left:12px!important;bottom:58px!important}
+.map-note{left:auto!important;right:12px!important;bottom:12px!important}
+.house-symbol{background:#16A6A1!important;box-shadow:0 0 0 1px #0B6F6B!important}
+@media(max-width:880px){
+  .map-legend{top:auto!important;right:auto!important;left:8px!important;bottom:56px!important}
+  .map-note{left:auto!important;right:8px!important;bottom:8px!important}
+}

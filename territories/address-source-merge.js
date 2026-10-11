@@ -1,7 +1,8 @@
-const SOURCE_VERSION = 'territories-20261010-15';
+const SOURCE_VERSION = 'territories-20261011-16';
 const UPLOADED_COLOR = '#7952c7';
 const UPLOADED_BORDER = '#4d2e8f';
-const OFFICIAL_COLOR = '#6b7c8f';
+const OFFICIAL_COLOR = '#16A6A1';
+const OFFICIAL_BORDER = '#0B6F6B';
 
 let planner = null;
 let plannerMap = null;
@@ -81,13 +82,13 @@ function applySourceColors() {
     if (currentFill === '#ffbd00' || currentFill === 'rgb(255,189,0)') return;
     const uploaded = isUploadedAddress(house);
     marker.setStyle?.({
-      color: uploaded ? UPLOADED_BORDER : '#ffffff',
+      color: uploaded ? UPLOADED_BORDER : OFFICIAL_BORDER,
       weight: uploaded ? 2.2 : 1.4,
       fillColor: uploaded ? UPLOADED_COLOR : OFFICIAL_COLOR,
       fillOpacity: uploaded ? 0.96 : 0.90,
       dashArray: null
     });
-    marker.setRadius?.(uploaded ? 5.4 : 4.1);
+    marker.setRadius?.(uploaded ? 5.4 : 5.0);
     if (uploaded) marker.bringToFront?.();
   });
   updateCounts();
@@ -107,7 +108,7 @@ function injectLegend() {
   uploaded.innerHTML = '<span class="legend-symbol uploaded-source-symbol">•</span>Uploaded-file address — unassigned';
   const official = document.createElement('div');
   official.id = 'officialSourceLegend';
-  official.innerHTML = '<span class="legend-symbol official-source-symbol">•</span>Assessor/GIS or manually added address';
+  official.innerHTML = '<span class="legend-symbol official-source-symbol">•</span>Assessor/GIS address — teal until assigned';
   const anchor = original || legend.children[1] || null;
   legend.insertBefore(uploaded, anchor);
   legend.insertBefore(official, anchor);
@@ -118,7 +119,7 @@ function injectStyles() {
   style.id = 'territory-address-source-styles';
   style.textContent = `
     .uploaded-source-symbol{background:${UPLOADED_COLOR}!important;border-color:${UPLOADED_BORDER}!important;color:#fff!important}
-    .official-source-symbol{background:${OFFICIAL_COLOR}!important;border-color:#fff!important;color:#fff!important}
+    .official-source-symbol{background:${OFFICIAL_COLOR}!important;border-color:${OFFICIAL_BORDER}!important;color:#fff!important}
     .address-source-merge-card{border-color:#c7b8e8;background:linear-gradient(145deg,#fff,#f7f4fd)}
     .address-source-key{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
     .address-source-key article{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;border:1px solid #d8d0e9;border-radius:11px;background:#fff;padding:9px}
@@ -148,10 +149,10 @@ function injectCard() {
       <div><span class="eyebrow">OPTIONAL — COMPLETE THE ADDRESS MAP</span><h2>Add the remaining assessor / GIS addresses</h2></div>
       <span class="private-chip">Administrator only</span>
     </div>
-    <p class="section-copy">Uploaded-file homes stay purple while they are unassigned. Official assessor/GIS or manually added homes stay gray. Once a home is placed in a territory, its territory color takes over.</p>
+    <p class="section-copy">Uploaded-file homes stay purple while they are unassigned. Official assessor/GIS homes stay teal. Once a home is placed in a territory, its territory color takes over.</p>
     <div class="address-source-key">
       <article><span class="address-source-dot uploaded"></span><div><strong>Uploaded-file addresses</strong><small>Purple until assigned</small></div><b id="sourceUploadedCount">0</b></article>
-      <article><span class="address-source-dot official"></span><div><strong>Assessor/GIS addresses</strong><small>Gray until assigned</small></div><b id="sourceOfficialCount">0</b></article>
+      <article><span class="address-source-dot official"></span><div><strong>Assessor/GIS addresses</strong><small>Teal until assigned</small></div><b id="sourceOfficialCount">0</b></article>
     </div>
     <div class="address-source-actions">
       <div class="field"><label for="assessorBoundaryPadding">Automatic boundary padding</label><input id="assessorBoundaryPadding" type="number" min="0.02" max="3" step="0.05" value="0.35"><small>Miles around the uploaded address set when no outer boundary exists.</small></div>
@@ -189,7 +190,7 @@ function finishScan(startOfficialCount, errorMessage = '') {
     const counts = sourceCounts();
     const added = Math.max(0, counts.official - startOfficialCount);
     if (errorMessage) setMessage(errorMessage, 'error');
-    else setMessage(`${added.toLocaleString()} new assessor/GIS address${added === 1 ? '' : 'es'} added. The map now shows ${counts.uploaded.toLocaleString()} uploaded-file addresses in purple and ${counts.official.toLocaleString()} assessor/GIS or manually added addresses in gray. Review the map, then save the Kingdom Hall address set.`, 'success');
+    else setMessage(`${added.toLocaleString()} new assessor/GIS address${added === 1 ? '' : 'es'} added. The map now shows ${counts.uploaded.toLocaleString()} uploaded-file addresses in purple and ${counts.official.toLocaleString()} assessor/GIS addresses in teal. Review the map, then save the Kingdom Hall address set.`, 'success');
     updateCounts();
   }, 180);
 }
@@ -276,7 +277,7 @@ function ensureAssessorFallbackUi() {
     ready = document.createElement('small');
     ready.id = 'assessorScannerReady';
     ready.style.cssText = 'display:block;margin:7px 0;padding:7px 9px;border-radius:9px;background:#eef9f3;color:#246147;font-size:8.5px;font-weight:800';
-    ready.textContent = 'Assessor/GIS scanner v15 ready — selecting the blue button should change its text immediately.';
+    ready.textContent = 'Assessor/GIS scanner v16 ready — selecting the blue button should change its text immediately.';
     const message = document.getElementById('addressSourceMergeMessage');
     if (message) message.insertAdjacentElement('beforebegin', ready);
     else card.appendChild(ready);
@@ -286,7 +287,7 @@ function ensureAssessorFallbackUi() {
   if (!button) return false;
   button.disabled = false;
   button.classList.remove('admin-control');
-  button.dataset.assessorFallbackVersion = 'territories-20261010-15';
+  button.dataset.assessorFallbackVersion = 'territories-20261011-16';
 
   if (button.dataset.assessorFallbackBound !== 'true') {
     button.dataset.assessorFallbackBound = 'true';
@@ -298,7 +299,7 @@ function ensureAssessorFallbackUi() {
       button.setAttribute('aria-busy', 'true');
       setMessage('The blue button was selected. Loading the direct assessor/GIS scanner now…', 'working');
       try {
-        const module = await import('./assessor-scan-direct.js?v=territories-20261010-15');
+        const module = await import('./assessor-scan-direct.js?v=territories-20261011-16');
         const runner = module.startDirectScan || module.runDirectScan || globalThis.__denverDirectAssessorScan?.run;
         if (typeof runner !== 'function') throw new Error('The direct scanner did not expose a start function.');
         await runner();

@@ -1,7 +1,7 @@
-const FLEX_VERSION = 'territories-20261010-15';
+const FLEX_VERSION = 'territories-20261011-16';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
-const ROUND_LOGO_URL = new URL('../assets/denver-2027-logo.png', import.meta.url).href;
+const ROUND_LOGO_URL = LOGO_URL;
 const TILE_SIZE = 256;
 const OSM_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
@@ -487,8 +487,8 @@ function milesBetween(a, b) {
   try { return turf.distance(turf.point([Number(a.lng), Number(a.lat)]), turf.point([Number(b.lng), Number(b.lat)]), { units: 'miles' }); }
   catch { return Number.POSITIVE_INFINITY; }
 }
-function relevantAvoids(allAvoids, houses, geometry) {
-  return allAvoids.filter(avoid => pointInsideGeometry(avoid, geometry) || houses.some(house => milesBetween(avoid, house) <= 0.25));
+function relevantAvoids(allAvoids, houses, geometry, territoryId = '') {
+  return allAvoids.filter(avoid => (territoryId && String(avoid.avoidTerritoryId || '') === String(territoryId)) || pointInsideGeometry(avoid, geometry) || houses.some(house => milesBetween(avoid, house) <= 0.25));
 }
 function mercatorWorld(lng, lat, zoom) {
   const scale = TILE_SIZE * (2 ** zoom);
@@ -549,11 +549,11 @@ async function mapLimit(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, run));
   return results;
 }
-async function buildStreetMapImage(territory, houses, avoids, geometry, status) {
-  const width = 1200, height = 760;
+async function buildStreetMapImage(territory, houses, avoids, geometry, status, options = {}) {
+  const width = Number(options.width) || 1200, height = Number(options.height) || 760;
   const coordinates = mapCoordinates(houses, avoids, geometry);
   if (!coordinates.length) return null;
-  const viewport = chooseViewport(coordinates, width, height);
+  const viewport = chooseViewport(coordinates, width, height, Number(options.padding) || 70);
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d');
@@ -599,19 +599,27 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status) 
     ring.forEach((pair, index) => { const [x, y] = project(Number(pair[0]), Number(pair[1])); if (index) context.lineTo(x, y); else context.moveTo(x, y); });
     context.closePath(); context.fillStyle = `${color}20`; context.fill(); context.strokeStyle = color; context.lineWidth = 7; context.stroke();
   }
+
+  const detailMode = Boolean(options.detail);
+  const markerRadius = detailMode ? 15 : houses.length >= 70 ? 7.5 : houses.length >= 45 ? 8.5 : 9.5;
+  const markerFont = detailMode ? 12 : houses.length >= 70 ? 7.5 : houses.length >= 45 ? 8.5 : 9.5;
+  const showHouseNumbers = detailMode || houses.length <= 28;
   houses.forEach((house, index) => {
     const [x, y] = project(Number(house.lng), Number(house.lat));
-    context.beginPath(); context.arc(x, y, 13, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
-    context.fillStyle = '#fff'; context.font = 'bold 12px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(index + 1), x, y + 0.5);
+    const pdfNumber = Number(house._pdfNumber) || index + 1;
+    context.beginPath(); context.arc(x, y, markerRadius, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = detailMode ? 3 : 2.4; context.stroke();
+    context.fillStyle = '#fff'; context.font = `bold ${markerFont}px Arial`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(pdfNumber), x, y + 0.4);
     const houseNumber = clean(house.address).match(/^\s*(\d+[A-Za-z]?)/)?.[1];
-    if (houseNumber) {
-      context.font = 'bold 13px Arial'; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = 4; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + 17, y); context.fillStyle = '#65798c'; context.fillText(houseNumber, x + 17, y);
+    if (houseNumber && showHouseNumbers) {
+      const labelFont = detailMode ? 14 : 10.5;
+      const offset = markerRadius + (detailMode ? 6 : 4);
+      context.font = `bold ${labelFont}px Arial`; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = detailMode ? 4.5 : 3.5; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + offset, y); context.fillStyle = '#557086'; context.fillText(houseNumber, x + offset, y);
     }
   });
   avoids.forEach(avoid => {
     const [x, y] = project(Number(avoid.lng), Number(avoid.lat));
-    context.beginPath(); context.arc(x, y, 12, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
-    context.beginPath(); context.moveTo(x - 5, y - 5); context.lineTo(x + 5, y + 5); context.moveTo(x - 5, y + 5); context.lineTo(x + 5, y - 5); context.stroke();
+    context.beginPath(); context.arc(x, y, detailMode ? 13 : 9, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
+    const cross = detailMode ? 5 : 3.7; context.beginPath(); context.moveTo(x - cross, y - cross); context.lineTo(x + cross, y + cross); context.moveTo(x - cross, y + cross); context.lineTo(x + cross, y - cross); context.stroke();
   });
   context.fillStyle = 'rgba(255,255,255,.94)'; context.fillRect(10, height - 29, 230, 22);
   context.fillStyle = '#43566a'; context.font = '12px Arial'; context.textAlign = 'left'; context.textBaseline = 'alphabetic'; context.fillText(OSM_ATTRIBUTION, 17, height - 13);
@@ -620,6 +628,91 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status) 
   context.beginPath(); context.moveTo(width - 38, 61); context.lineTo(width - 38, 42); context.lineTo(width - 45, 51); context.moveTo(width - 38, 42); context.lineTo(width - 31, 51); context.strokeStyle = '#20384f'; context.lineWidth = 2; context.stroke();
   return { dataUrl: canvas.toDataURL('image/jpeg', 0.93), streetTilesLoaded: loaded };
 }
+
+function pdfProjectedPoint(item, viewport) {
+  const point = mercatorWorld(Number(item.lng), Number(item.lat), viewport.zoom);
+  return { item, x: point.x - viewport.left, y: point.y - viewport.top };
+}
+function splitDensePdfCluster(items, maximum = 18) {
+  if (items.length <= maximum) return [items];
+  const latitudes = items.map(item => Number(item.lat));
+  const longitudes = items.map(item => Number(item.lng));
+  const latSpan = Math.max(...latitudes) - Math.min(...latitudes);
+  const lngSpan = Math.max(...longitudes) - Math.min(...longitudes);
+  const sorted = [...items].sort((a, b) => lngSpan >= latSpan
+    ? Number(a.lng) - Number(b.lng) || Number(b.lat) - Number(a.lat)
+    : Number(b.lat) - Number(a.lat) || Number(a.lng) - Number(b.lng));
+  const middle = Math.ceil(sorted.length / 2);
+  return [
+    ...splitDensePdfCluster(sorted.slice(0, middle), maximum),
+    ...splitDensePdfCluster(sorted.slice(middle), maximum)
+  ];
+}
+function densePdfClusters(houses, avoids, geometry) {
+  if (houses.length < 2) return [];
+  const width = 1200, height = 760;
+  const viewport = chooseViewport(mapCoordinates(houses, avoids, geometry), width, height, 70);
+  const points = houses.map(house => pdfProjectedPoint(house, viewport));
+  const parent = points.map((_, index) => index);
+  const find = index => {
+    let current = index;
+    while (parent[current] !== current) {
+      parent[current] = parent[parent[current]];
+      current = parent[current];
+    }
+    return current;
+  };
+  const union = (a, b) => {
+    const rootA = find(a), rootB = find(b);
+    if (rootA !== rootB) parent[rootB] = rootA;
+  };
+  const overlapDistance = houses.length >= 70 ? 30 : houses.length >= 45 ? 33 : 36;
+  for (let a = 0; a < points.length; a += 1) {
+    for (let b = a + 1; b < points.length; b += 1) {
+      if (Math.hypot(points[a].x - points[b].x, points[a].y - points[b].y) < overlapDistance) union(a, b);
+    }
+  }
+  const components = new Map();
+  points.forEach((point, index) => {
+    const root = find(index);
+    if (!components.has(root)) components.set(root, []);
+    components.get(root).push(point.item);
+  });
+  return [...components.values()]
+    .filter(component => component.length >= 2)
+    .flatMap(component => splitDensePdfCluster(component, 18))
+    .sort((a, b) => Math.min(...a.map(item => Number(item._pdfNumber) || 9999)) - Math.min(...b.map(item => Number(item._pdfNumber) || 9999)))
+    .slice(0, 8);
+}
+async function addDenseDetailPages(doc, logo, territory, houses, allAvoids, geometry, hall, congregation, status) {
+  const clusters = densePdfClusters(houses, allAvoids, geometry);
+  for (let index = 0; index < clusters.length; index += 1) {
+    const cluster = clusters[index];
+    const detailGeometry = territoryGeometry({}, cluster) || geometry;
+    const detailAvoids = allAvoids.filter(avoid =>
+      cluster.some(house => milesBetween(avoid, house) <= 0.16) ||
+      (String(avoid.avoidTerritoryId || '') === String(territory.id) && pointInsideGeometry(avoid, detailGeometry))
+    );
+    status.textContent = `Creating zoomed map detail ${index + 1} of ${clusters.length}…`;
+    const mapResult = await buildStreetMapImage(
+      territory, cluster, detailAvoids, detailGeometry, status,
+      { detail: true, width: 1200, height: 760, padding: 105 }
+    );
+    if (!mapResult?.dataUrl) continue;
+    doc.addPage('letter', 'landscape');
+    const numbers = cluster.map(item => Number(item._pdfNumber)).filter(Number.isFinite).sort((a, b) => a - b);
+    pdfHeader(doc, logo, `${territory.name} — Zoomed Map Detail ${index + 1}`, `${congregation} • ${hall?.name || ''} • Address markers ${numbers.join(', ')}`);
+    doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
+    doc.setDrawColor(169, 188, 204);
+    doc.roundedRect(0.43, 1.17, 10.14, 6.55, 0.07, 0.07, 'S');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(66, 81, 97);
+    doc.text('This enlarged detail is added automatically because one or more numbered address dots overlap on the full territory map.', 0.48, 7.93);
+  }
+  return clusters.length;
+}
+
 async function imageCanvasData(url, fallback = false) {
   try {
     const response = await fetch(url, { cache: 'no-store' });
@@ -703,13 +796,15 @@ function addAvoidPages(doc, logo, territory, allAvoids, relevantIds, hall, congr
       let y = 1.55;
       while (index < avoids.length) {
         const avoid = avoids[index];
+        const assigned = String(avoid.avoidTerritoryId || '') === String(territory.id);
         const near = relevantIds.has(String(avoid.id));
-        const label = `${index + 1}. ${avoid.address}${near ? '  —  NEAR THIS TERRITORY' : ''}`;
+        const suffix = assigned ? '  —  THIS TERRITORY — AVOID' : near ? '  —  NEAR THIS TERRITORY' : '';
+        const label = `${index + 1}. ${avoid.address}${suffix}`;
         const lines = doc.splitTextToSize(label, 4.48);
         const needed = Math.max(0.30, lines.length * 0.17 + 0.09);
         if (y + needed > 7.91) break;
         doc.setFillColor(201, 54, 43); doc.circle(columns[column] + 0.07, y - 0.02, 0.065, 'F');
-        doc.setFont('helvetica', near ? 'bold' : 'normal'); doc.setFontSize(8.1); doc.setTextColor(near ? 151 : 70, near ? 45 : 57, near ? 37 : 72); doc.text(lines, columns[column] + 0.20, y);
+        doc.setFont('helvetica', assigned || near ? 'bold' : 'normal'); doc.setFontSize(8.1); doc.setTextColor(assigned || near ? 151 : 70, assigned || near ? 45 : 57, assigned || near ? 37 : 72); doc.text(lines, columns[column] + 0.20, y);
         y += needed; index += 1;
       }
     }
@@ -727,12 +822,13 @@ async function generateTerritoryPdf(territoryId, button) {
   const assigned = planner.getHouses().filter(house => house.included !== false && !house.avoid && String(house.territoryId) === String(territory.id));
   const invalid = assigned.filter(house => !validCoordinates(house));
   if (invalid.length) return toast(`${invalid.length.toLocaleString()} address location${invalid.length === 1 ? ' needs' : 's need'} repair before this PDF can be created.`, true);
-  const houses = sortedByAddress(assigned.filter(validCoordinates));
+  const houses = sortedByAddress(assigned.filter(validCoordinates)).map((house, index) => ({ ...house, _pdfNumber: index + 1 }));
   if (!houses.length) return toast('This territory does not have mapped assigned addresses.', true);
-  const geometry = territoryGeometry(territory, houses);
-  if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);
   const allAvoids = planner.getHouses().filter(house => house.avoid && validCoordinates(house));
-  const mapAvoids = relevantAvoids(allAvoids, houses, geometry);
+  const assignedAvoids = allAvoids.filter(house => String(house.avoidTerritoryId || '') === String(territory.id));
+  const geometry = territoryGeometry(territory, [...houses, ...assignedAvoids]);
+  if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);
+  const mapAvoids = relevantAvoids(allAvoids, houses, geometry, territory.id);
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) return toast('The PDF library did not load. Refresh the page and try again.', true);
   pdfBusy = true;
@@ -741,7 +837,7 @@ async function generateTerritoryPdf(territoryId, button) {
   const status = statusPill('Loading Denver 2027 logo…');
   try {
     const logo = await imageCanvasData(LOGO_URL);
-    const mapResult = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status);
+    const mapResult = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { detail: false, width: 1200, height: 760, padding: 70 });
     status.textContent = 'Creating printable territory pages…';
     await sleepFrame();
     const hall = selectedHall(), congregation = selectedCongregation();
@@ -754,21 +850,22 @@ async function generateTerritoryPdf(territoryId, button) {
     doc.roundedRect(0.43, 1.17, 10.14, 6.68, 0.07, 0.07, 'S');
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(188, 202, 214);
-    doc.roundedRect(7.94, 7.38, 2.38, 0.30, 0.04, 0.04, 'FD');
+    doc.roundedRect(0.62, 7.38, 2.78, 0.30, 0.04, 0.04, 'FD');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.3);
     doc.setTextColor(43, 59, 75);
-    doc.text(`${houses.length} homes • Red X = Avoid / Do Not Visit`, 8.06, 7.57);
+    doc.text(`Number = address list • Red X = Avoid`, 0.74, 7.57);
 
     // Back: always begin the complete address list on page 2.
     addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
+    const detailCount = await addDenseDetailPages(doc, logo, territory, houses, allAvoids, geometry, hall, congregation, status);
     addAvoidPages(doc, logo, territory, allAvoids, new Set(mapAvoids.map(house => String(house.id))), hall, congregation);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
     status.textContent = 'Downloading territory PDF…';
     triggerDownload(doc.output('blob'), filename);
-    toast(`${territory.name} PDF created with the territory map on the front, the complete address list beginning on the back, and the Avoid / Do Not Visit appendix.`);
+    toast(`${territory.name} PDF created with the full territory map on the front, the complete address list beginning on the back, ${detailCount ? `${detailCount} automatic zoomed map detail${detailCount === 1 ? '' : 's'}, ` : ''}and the Avoid / Do Not Visit appendix.`);
   } catch (error) {
     console.error(error);
     toast(`The territory PDF could not be generated: ${error?.message || 'Unknown error'}`, true);

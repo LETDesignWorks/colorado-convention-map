@@ -5,7 +5,7 @@ import {
   normalizeAddressKey
 } from './data.js';
 
-const SCAN_VERSION = 'territories-20261010-15';
+const SCAN_VERSION = 'territories-20261011-16';
 const DEFAULT_PAGE_SIZE = 100;
 const MIN_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 250;
@@ -419,9 +419,12 @@ async function runDirectScan() {
         included: true,
         territoryId: null
       };
-      houses.push(newRecord);
-      addressIndex.add(key);
-      added += 1;
+      if (planner.addHouseRecord?.(newRecord)) {
+        addressIndex.add(key);
+        added += 1;
+      } else {
+        duplicates += 1;
+      }
 
       if (index > 0 && index % 20 === 0) {
         updateProgress(44 + ((index / Math.max(1, features.length)) * 38), `${index.toLocaleString()} of ${features.length.toLocaleString()} records compared • ${added.toLocaleString()} new`);
@@ -429,6 +432,8 @@ async function runDirectScan() {
       }
     }
 
+    const collapsedDuplicates = Number(planner.dedupeHouses?.() || 0);
+    duplicates += collapsedDuplicates;
     const nextOffset = cursor.offset + features.length;
     const complete = !features.length || features.length < count || payload?.exceededTransferLimit === false;
     saveCursor(signature, { offset: nextOffset, complete });
