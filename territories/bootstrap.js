@@ -1,4 +1,4 @@
-const version = 'territories-20261011-20';
+const version = 'territories-20261011-21';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -17,19 +17,19 @@ try {
   document.head.appendChild(style);
   document.body.innerHTML = template;
   await import('../assets/branding.js?v=bus-status-sync-20260927-1');
-  await import('./app-main.js?v=territories-20261011-20');
-  await import('./directions.js?v=territories-20261011-20');
-  await import('./bulk-addresses.js?v=territories-20261011-20');
-  await import('./avoid-address-upload.js?v=territories-20261011-20');
-  await import('./hall-address-sets.js?v=territories-20261011-20');
-  await import('./territory-workflow-ui.js?v=territories-20261011-20');
-  await import('./territory-flex-grouping-pdf.js?v=territories-20261011-20');
-  await import('./address-source-merge.js?v=territories-20261011-20');
-  await import('./assessor-scan-direct.js?v=territories-20261011-20');
-  await import('./assessor-full-boundary.js?v=territories-20261011-20');
-  await import('./assessor-one-click.js?v=territories-20261011-20');
-  await import('./modern-basemap.js?v=territories-20261011-20');
-  await import('./territory-extra-addresses.js?v=territories-20261011-20');
+  await import('./app-main.js?v=territories-20261011-21');
+  await import('./directions.js?v=territories-20261011-21');
+  await import('./bulk-addresses.js?v=territories-20261011-21');
+  await import('./avoid-address-upload.js?v=territories-20261011-21');
+  await import('./hall-address-sets.js?v=territories-20261011-21');
+  await import('./territory-workflow-ui.js?v=territories-20261011-21');
+  await import('./territory-flex-grouping-pdf.js?v=territories-20261011-21');
+  await import('./address-source-merge.js?v=territories-20261011-21');
+  await import('./assessor-scan-direct.js?v=territories-20261011-21');
+  await import('./assessor-full-boundary.js?v=territories-20261011-21');
+  await import('./assessor-one-click.js?v=territories-20261011-21');
+  await import('./modern-basemap.js?v=territories-20261011-21');
+  await import('./territory-extra-addresses.js?v=territories-20261011-21');
 } catch (error) {
   console.error(error);
   document.body.innerHTML = `<div style="margin:18px;padding:16px;border:1px solid #d89b96;border-radius:12px;background:#fff2f1;color:#7f2d28;font:600 14px/1.5 system-ui,sans-serif">The Ministry Territory Planner could not start: ${String(error?.message || error)}</div>`;

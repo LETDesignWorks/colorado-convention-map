@@ -1,4 +1,4 @@
-const FLEX_VERSION = 'territories-20261011-20';
+const FLEX_VERSION = 'territories-20261011-21';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -481,15 +481,18 @@ function territoryGeometry(territory, houses) {
   }
 }
 function pointInsideGeometry(item, geometry) {
-  try { return turf.booleanPointInPolygon(turf.point([Number(item.lng), Number(item.lat)]), turf.feature(geometry)); }
+  if (!validCoordinates(item) || !geometry) return false;
+  try { return turf.booleanPointInPolygon(turf.point([Number(item.lng), Number(item.lat)]), geometry.type === 'Feature' ? geometry : turf.feature(geometry)); }
   catch { return false; }
 }
 function milesBetween(a, b) {
   try { return turf.distance(turf.point([Number(a.lng), Number(a.lat)]), turf.point([Number(b.lng), Number(b.lat)]), { units: 'miles' }); }
   catch { return Number.POSITIVE_INFINITY; }
 }
-function relevantAvoids(allAvoids, houses, geometry, territoryId = '') {
-  return allAvoids.filter(avoid => (territoryId && String(avoid.avoidTerritoryId || '') === String(territoryId)) || pointInsideGeometry(avoid, geometry) || houses.some(house => milesBetween(avoid, house) <= 0.25));
+function relevantAvoids(allAvoids, geometry) {
+  // The current boundary is authoritative, including after a territory is edited.
+  // Old assignments and nearby homes must not pull outside avoids into a PDF.
+  return allAvoids.filter(avoid => avoid.avoid && pointInsideGeometry(avoid, geometry));
 }
 function mercatorWorld(lng, lat, zoom) {
   const scale = TILE_SIZE * (2 ** zoom);
@@ -558,7 +561,7 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d');
-  context.fillStyle = '#eef3f6'; context.fillRect(0, 0, width, height);
+  context.fillStyle = '#fff'; context.fillRect(0, 0, width, height);
   const firstX = Math.floor(viewport.left / TILE_SIZE), lastX = Math.floor((viewport.left + width) / TILE_SIZE);
   const firstY = Math.floor(viewport.top / TILE_SIZE), lastY = Math.floor((viewport.top + height) / TILE_SIZE);
   const tileCount = 2 ** viewport.zoom;
@@ -586,10 +589,7 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
     image.close?.();
   });
   if (!loaded) {
-    context.fillStyle = '#f6f8fa'; context.fillRect(0, 0, width, height);
-    context.strokeStyle = '#d4dfe7'; context.lineWidth = 1;
-    for (let x = 0; x < width; x += 80) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
-    for (let y = 0; y < height; y += 80) { context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
+    context.fillStyle = '#fff'; context.fillRect(0, 0, width, height);
   }
   const project = (lng, lat) => {
     const point = mercatorWorld(lng, lat, viewport.zoom);
@@ -609,19 +609,22 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   }
 
   const detailMode = Boolean(options.detail);
-  const markerRadius = detailMode ? 15 : houses.length >= 70 ? 7.5 : houses.length >= 45 ? 8.5 : 9.5;
-  const markerFont = detailMode ? 12 : houses.length >= 70 ? 7.5 : houses.length >= 45 ? 8.5 : 9.5;
+  const markerRadius = detailMode ? 9 : houses.length >= 70 ? 5.5 : houses.length >= 45 ? 6.5 : 7;
+  const markerFont = detailMode ? 9 : houses.length >= 70 ? 7 : houses.length >= 45 ? 7.5 : 8;
   const showHouseNumbers = detailMode || houses.length <= 28;
   houses.forEach((house, index) => {
     const [x, y] = project(Number(house.lng), Number(house.lat));
     const pdfNumber = Number(house._pdfNumber) || index + 1;
-    context.beginPath(); context.arc(x, y, markerRadius, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = detailMode ? 3 : 2.4; context.stroke();
-    context.fillStyle = '#fff'; context.font = `bold ${markerFont}px Arial`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(pdfNumber), x, y + 0.4);
+    context.beginPath(); context.arc(x, y, markerRadius, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = detailMode ? 1.6 : 1.2; context.stroke();
+    context.fillStyle = '#fff'; context.font = `bold ${markerFont}px Arial`;
+    const numberWidth = context.measureText(String(pdfNumber)).width;
+    const fittedFont = markerFont * Math.min(1, markerRadius * 1.65 / Math.max(1, numberWidth));
+    context.font = `bold ${fittedFont}px Arial`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(pdfNumber), x, y + 0.3);
     const houseNumber = clean(house.address).match(/^\s*(\d+[A-Za-z]?)/)?.[1];
     if (houseNumber && showHouseNumbers) {
-      const labelFont = detailMode ? 14 : 10.5;
-      const offset = markerRadius + (detailMode ? 6 : 4);
-      context.font = `bold ${labelFont}px Arial`; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = detailMode ? 4.5 : 3.5; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + offset, y); context.fillStyle = '#557086'; context.fillText(houseNumber, x + offset, y);
+      const labelFont = detailMode ? 9.5 : 8;
+      const offset = markerRadius + 3;
+      context.font = `bold ${labelFont}px Arial`; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = 2; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + offset, y); context.fillStyle = '#557086'; context.fillText(houseNumber, x + offset, y);
     }
   });
   avoids.forEach(avoid => {
@@ -692,15 +695,12 @@ function densePdfClusters(houses, avoids, geometry) {
     .sort((a, b) => Math.min(...a.map(item => Number(item._pdfNumber) || 9999)) - Math.min(...b.map(item => Number(item._pdfNumber) || 9999)))
     .slice(0, 8);
 }
-async function addDenseDetailPages(doc, logo, territory, houses, allAvoids, geometry, hall, congregation, status) {
-  const clusters = densePdfClusters(houses, allAvoids, geometry);
+async function addDenseDetailPages(doc, logo, territory, houses, territoryAvoids, geometry, hall, congregation, status) {
+  const clusters = densePdfClusters(houses, territoryAvoids, geometry);
   for (let index = 0; index < clusters.length; index += 1) {
     const cluster = clusters[index];
     const detailGeometry = territoryGeometry({}, cluster) || geometry;
-    const detailAvoids = allAvoids.filter(avoid =>
-      cluster.some(house => milesBetween(avoid, house) <= 0.16) ||
-      (String(avoid.avoidTerritoryId || '') === String(territory.id) && pointInsideGeometry(avoid, detailGeometry))
-    );
+    const detailAvoids = relevantAvoids(territoryAvoids, detailGeometry);
     status.textContent = `Creating zoomed map detail ${index + 1} of ${clusters.length}…`;
     const mapResult = await buildStreetMapImage(
       territory, cluster, detailAvoids, detailGeometry, status,
@@ -711,8 +711,6 @@ async function addDenseDetailPages(doc, logo, territory, houses, allAvoids, geom
     const numbers = cluster.map(item => Number(item._pdfNumber)).filter(Number.isFinite).sort((a, b) => a - b);
     pdfHeader(doc, logo, `${territory.name} — Zoomed Map Detail ${index + 1}`, `${congregation} • ${hall?.name || ''} • Address markers ${numbers.join(', ')}`);
     doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
-    doc.setDrawColor(169, 188, 204);
-    doc.roundedRect(0.43, 1.17, 10.14, 6.55, 0.07, 0.07, 'S');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(66, 81, 97);
@@ -760,10 +758,10 @@ function pdfHeader(doc, logo, title, subtitle) {
   const x = used ? 2.15 : 2.02;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(11, 68, 126); doc.text(title, x, 0.43);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(72, 87, 104); doc.text(subtitle, x, 0.70);
-  doc.setDrawColor(174, 193, 209); doc.line(0.35, 1.03, 10.65, 1.03);
+  doc.setLineWidth(0.008); doc.setDrawColor(174, 193, 209); doc.line(0.35, 1.03, 10.65, 1.03);
 }
 function pdfFooter(doc, page, count) {
-  doc.setDrawColor(210, 219, 227); doc.line(0.35, 8.12, 10.65, 8.12);
+  doc.setLineWidth(0.008); doc.setDrawColor(210, 219, 227); doc.line(0.35, 8.12, 10.65, 8.12);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(93, 106, 120);
   doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
   doc.text(`Page ${page} of ${count}`, 10.65, 8.32, { align: 'right' });
@@ -787,32 +785,26 @@ function addAddressListPages(doc, logo, territory, houses, startIndex, hall, con
     }
   }
 }
-function addAvoidPages(doc, logo, territory, allAvoids, relevantIds, hall, congregation) {
-  const avoids = sortedByAddress(allAvoids);
+function addAvoidPages(doc, logo, territory, territoryAvoids, hall, congregation) {
+  const avoids = sortedByAddress(territoryAvoids);
+  if (!avoids.length) return;
   let index = 0;
   do {
     doc.addPage('letter', 'landscape');
-    pdfHeader(doc, logo, `${territory.name} — Avoid / Do Not Visit`, `${congregation} • ${hall?.name || ''} • ${avoids.length} saved avoid address${avoids.length === 1 ? '' : 'es'}`);
+    pdfHeader(doc, logo, `${territory.name} — Avoid / Do Not Visit`, `${congregation} • ${hall?.name || ''} • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'} in this territory`);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(82, 94, 108);
-    doc.text('This appendix is included with every territory PDF. Addresses marked NEAR THIS TERRITORY are also shown as red X dots on its map.', 0.48, 1.22);
-    if (!avoids.length) {
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(72, 88, 104); doc.text('No Avoid / Do Not Visit addresses are currently saved for this Hall and congregation.', 0.55, 1.70);
-      break;
-    }
+    doc.text('Only addresses inside this territory are listed below and shown as red X dots on its map.', 0.48, 1.22);
     const columns = [0.55, 5.55];
     for (let column = 0; column < 2 && index < avoids.length; column += 1) {
       let y = 1.55;
       while (index < avoids.length) {
         const avoid = avoids[index];
-        const assigned = String(avoid.avoidTerritoryId || '') === String(territory.id);
-        const near = relevantIds.has(String(avoid.id));
-        const suffix = assigned ? '  —  THIS TERRITORY — AVOID' : near ? '  —  NEAR THIS TERRITORY' : '';
-        const label = `${index + 1}. ${avoid.address}${suffix}`;
+        const label = `${index + 1}. ${avoid.address}`;
         const lines = doc.splitTextToSize(label, 4.48);
         const needed = Math.max(0.30, lines.length * 0.17 + 0.09);
         if (y + needed > 7.91) break;
         doc.setFillColor(201, 54, 43); doc.circle(columns[column] + 0.07, y - 0.02, 0.065, 'F');
-        doc.setFont('helvetica', assigned || near ? 'bold' : 'normal'); doc.setFontSize(8.1); doc.setTextColor(assigned || near ? 151 : 70, assigned || near ? 45 : 57, assigned || near ? 37 : 72); doc.text(lines, columns[column] + 0.20, y);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.1); doc.setTextColor(151, 45, 37); doc.text(lines, columns[column] + 0.20, y);
         y += needed; index += 1;
       }
     }
@@ -833,10 +825,9 @@ async function generateTerritoryPdf(territoryId, button) {
   const houses = sortedByAddress(assigned.filter(validCoordinates)).map((house, index) => ({ ...house, _pdfNumber: index + 1 }));
   if (!houses.length) return toast('This territory does not have mapped assigned addresses.', true);
   const allAvoids = planner.getHouses().filter(house => house.avoid && validCoordinates(house));
-  const assignedAvoids = allAvoids.filter(house => String(house.avoidTerritoryId || '') === String(territory.id));
-  const geometry = territoryGeometry(territory, [...houses, ...assignedAvoids]);
+  const geometry = territoryGeometry(territory, houses);
   if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);
-  const mapAvoids = relevantAvoids(allAvoids, houses, geometry, territory.id);
+  const mapAvoids = relevantAvoids(allAvoids, geometry);
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) return toast('The PDF library did not load. Refresh the page and try again.', true);
   pdfBusy = true;
@@ -850,30 +841,27 @@ async function generateTerritoryPdf(territoryId, button) {
     await sleepFrame();
     const hall = selectedHall(), congregation = selectedCongregation();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
-    pdfHeader(doc, logo, territory.name, `${congregation} • ${hall?.name || ''} • ${houses.length} homes • ${allAvoids.length} Hall avoid address${allAvoids.length === 1 ? '' : 'es'}`);
+    pdfHeader(doc, logo, territory.name, `${congregation} • ${hall?.name || ''} • ${houses.length} homes${mapAvoids.length ? ` • ${mapAvoids.length} avoid address${mapAvoids.length === 1 ? '' : 'es'}` : ''}`);
 
     // Front: a full-width territory map suitable for the front side of a duplex print.
     if (mapResult?.dataUrl) doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.68, undefined, 'FAST');
-    doc.setDrawColor(169, 188, 204);
-    doc.roundedRect(0.43, 1.17, 10.14, 6.68, 0.07, 0.07, 'S');
     doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(188, 202, 214);
-    doc.roundedRect(0.62, 7.38, 2.78, 0.30, 0.04, 0.04, 'FD');
+    doc.rect(0.62, 7.38, mapAvoids.length ? 2.78 : 1.75, 0.30, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.3);
     doc.setTextColor(43, 59, 75);
-    doc.text(`Number = address list • Red X = Avoid`, 0.74, 7.57);
+    doc.text(`Number = address list${mapAvoids.length ? ' • Red X = Avoid' : ''}`, 0.74, 7.57);
 
     // Back: always begin the complete address list on page 2.
     addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
-    const detailCount = await addDenseDetailPages(doc, logo, territory, houses, allAvoids, geometry, hall, congregation, status);
-    addAvoidPages(doc, logo, territory, allAvoids, new Set(mapAvoids.map(house => String(house.id))), hall, congregation);
+    const detailCount = await addDenseDetailPages(doc, logo, territory, houses, mapAvoids, geometry, hall, congregation, status);
+    addAvoidPages(doc, logo, territory, mapAvoids, hall, congregation);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
     status.textContent = 'Downloading territory PDF…';
     triggerDownload(doc.output('blob'), filename);
-    toast(`${territory.name} PDF created with the full territory map on the front, the complete address list beginning on the back, ${detailCount ? `${detailCount} automatic zoomed map detail${detailCount === 1 ? '' : 's'}, ` : ''}and the Avoid / Do Not Visit appendix.`);
+    toast(`${territory.name} PDF created with the full territory map on the front and the complete address list beginning on the back${detailCount ? `, plus ${detailCount} automatic zoomed map detail${detailCount === 1 ? '' : 's'}` : ''}${mapAvoids.length ? ', and the Avoid / Do Not Visit appendix for this territory' : ''}.`);
   } catch (error) {
     console.error(error);
     toast(`The territory PDF could not be generated: ${error?.message || 'Unknown error'}`, true);
