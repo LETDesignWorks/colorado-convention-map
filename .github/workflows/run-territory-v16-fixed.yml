@@ -1,0 +1,88 @@
+name: Run Corrected Denver 2027 Territory Planner v16
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-territory-v16-fixed.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: territory-planner-v16-fixed
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the website
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Extract and run the corrected v16 patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          workflow = Path('.github/workflows/apply-territory-v16.yml').read_text(encoding='utf-8')
+          match = re.search(r"cat > /tmp/patch_v16\.py <<'PY_PATCH'\n(.*?)\n\s*PY_PATCH", workflow, re.S)
+          if not match:
+              raise SystemExit('Could not extract the v16 patch script from apply-territory-v16.yml.')
+
+          script = textwrap.dedent(match.group(1))
+          old = 'updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)'
+          new = 'updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=flags)'
+          if old not in script:
+              raise SystemExit('The expected regular-expression replacement line was not found.')
+          script = script.replace(old, new, 1)
+          Path('/tmp/patch_v16_fixed.py').write_text(script, encoding='utf-8')
+          PY
+
+          python /tmp/patch_v16_fixed.py
+
+          # The original one-time patch removes workflow files. Restore them here so
+          # the GitHub Actions token only publishes website and asset changes.
+          git checkout -- .github/workflows/apply-territory-v16.yml 2>/dev/null || true
+          git checkout -- .github/workflows/inspect-territory-data.yml 2>/dev/null || true
+
+      - name: Validate JavaScript and official logo
+        shell: bash
+        run: |
+          node --check territories/app-main.js
+          node --check territories/address-source-merge.js
+          node --check territories/avoid-address-upload.js
+          node --check territories/assessor-scan-direct.js
+          node --check territories/territory-flex-grouping-pdf.js
+          node --check territories/bootstrap.js
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+
+          data = Path('assets/denver-2027-territory-logo.png').read_bytes()
+          if data[:8] != b'\x89PNG\r\n\x1a\n':
+              raise SystemExit('Official Denver 2027 logo is not a PNG.')
+          width, height = struct.unpack('>II', data[16:24])
+          if (width, height) != (997, 559):
+              raise SystemExit(f'Unexpected official logo dimensions: {width} x {height}.')
+          print(f'Official Denver 2027 logo verified: {width} x {height}.')
+          PY
+
+      - name: Publish the v16 website update
+        shell: bash
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add assets/denver-2027-territory-logo.png territories
+          if git diff --cached --quiet; then
+            echo 'The v16 website changes are already present.'
+            exit 0
+          fi
+          git commit -m 'Apply Territory Planner v16 map and PDF improvements'
+          git push origin main
