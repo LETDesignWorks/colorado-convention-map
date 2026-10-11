@@ -1,10 +1,11 @@
-const FLEX_VERSION = 'territories-20261011-16';
+const FLEX_VERSION = 'territories-20261011-20';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
 const TILE_SIZE = 256;
-const OSM_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
+const CLEAN_STREET_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+const OSM_FALLBACK_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const CLEAN_STREET_ATTRIBUTION = 'Esri, HERE, Garmin, USGS, © OpenStreetMap contributors, GIS User Community';
 const EARTH_MILES_PER_DEGREE = 69.0;
 
 let planner = null;
@@ -565,10 +566,17 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   for (let tileX = firstX; tileX <= lastX; tileX += 1) for (let tileY = firstY; tileY <= lastY; tileY += 1) {
     if (tileY < 0 || tileY >= tileCount) continue;
     const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
-    jobs.push({ tileX, tileY, url: OSM_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY) });
+    jobs.push({
+      tileX, tileY,
+      url: CLEAN_STREET_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY),
+      fallbackUrl: OSM_FALLBACK_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY)
+    });
   }
-  status.textContent = `Loading ${jobs.length} street-map tiles…`;
-  const images = await mapLimit(jobs, 6, job => fetchTileBitmap(job.url));
+  status.textContent = `Loading ${jobs.length} clean street-map tiles…`;
+  const images = await mapLimit(jobs, 10, async job => {
+    try { return await fetchTileBitmap(job.url); }
+    catch { return await fetchTileBitmap(job.fallbackUrl); }
+  });
   let loaded = 0;
   jobs.forEach((job, index) => {
     const image = images[index];
@@ -621,12 +629,12 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
     context.beginPath(); context.arc(x, y, detailMode ? 13 : 9, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
     const cross = detailMode ? 5 : 3.7; context.beginPath(); context.moveTo(x - cross, y - cross); context.lineTo(x + cross, y + cross); context.moveTo(x - cross, y + cross); context.lineTo(x + cross, y - cross); context.stroke();
   });
-  context.fillStyle = 'rgba(255,255,255,.94)'; context.fillRect(10, height - 29, 230, 22);
-  context.fillStyle = '#43566a'; context.font = '12px Arial'; context.textAlign = 'left'; context.textBaseline = 'alphabetic'; context.fillText(OSM_ATTRIBUTION, 17, height - 13);
+  context.fillStyle = 'rgba(255,255,255,.94)'; context.fillRect(10, height - 31, 570, 24);
+  context.fillStyle = '#43566a'; context.font = '10.5px Arial'; context.textAlign = 'left'; context.textBaseline = 'alphabetic'; context.fillText(CLEAN_STREET_ATTRIBUTION, 17, height - 14);
   context.fillStyle = 'rgba(255,255,255,.95)'; context.beginPath(); context.arc(width - 38, 42, 25, 0, Math.PI * 2); context.fill(); context.strokeStyle = '#91a3b4'; context.lineWidth = 2; context.stroke();
   context.fillStyle = '#20384f'; context.font = 'bold 15px Arial'; context.textAlign = 'center'; context.fillText('N', width - 38, 36);
   context.beginPath(); context.moveTo(width - 38, 61); context.lineTo(width - 38, 42); context.lineTo(width - 45, 51); context.moveTo(width - 38, 42); context.lineTo(width - 31, 51); context.strokeStyle = '#20384f'; context.lineWidth = 2; context.stroke();
-  return { dataUrl: canvas.toDataURL('image/jpeg', 0.93), streetTilesLoaded: loaded };
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.95), streetTilesLoaded: loaded, basemap: 'Esri World Street Map' };
 }
 
 function pdfProjectedPoint(item, viewport) {
