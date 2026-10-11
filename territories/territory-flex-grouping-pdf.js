@@ -1,4 +1,4 @@
-const FLEX_VERSION = 'territories-20261010-7';
+const FLEX_VERSION = 'territories-20261010-13';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = new URL('../assets/denver-2027-logo.png', import.meta.url).href;
@@ -747,42 +747,28 @@ async function generateTerritoryPdf(territoryId, button) {
     const hall = selectedHall(), congregation = selectedCongregation();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
     pdfHeader(doc, logo, territory.name, `${congregation} • ${hall?.name || ''} • ${houses.length} homes • ${allAvoids.length} Hall avoid address${allAvoids.length === 1 ? '' : 'es'}`);
-    if (mapResult?.dataUrl) doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 7.05, 6.68, undefined, 'FAST');
-    doc.setDrawColor(169, 188, 204); doc.roundedRect(0.43, 1.17, 7.05, 6.68, 0.07, 0.07, 'S');
-    const panelX = 7.72;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(11, 68, 126); doc.text('Territory Information', panelX, 1.30);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.05); doc.setTextColor(45, 60, 76);
-    const information = [
-      `Territory: ${territory.name}`,
-      `Congregation: ${congregation}`,
-      `Meeting location: ${hall?.name || ''}`,
-      `Hall address: ${hall?.address || ''}`,
-      `Homes / stops: ${houses.length}`,
-      `Avoid addresses near map: ${mapAvoids.length}`,
-      `All Hall avoid addresses: ${allAvoids.length}`,
-      `Map: ${mapResult?.streetTilesLoaded ? 'OpenStreetMap street background' : 'Fallback planning background'}`
-    ];
-    let y = 1.54;
-    for (const line of information) {
-      const lines = doc.splitTextToSize(line, 2.82); doc.text(lines, panelX, y); y += lines.length * 0.17 + 0.055;
-    }
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(11, 68, 126); doc.text('Address Key', panelX, y + 0.08); y += 0.31;
-    let index = 0;
-    while (index < houses.length && y < 7.87) {
-      const lines = doc.splitTextToSize(`${index + 1}. ${houses[index].address}`, 2.82);
-      const needed = lines.length * 0.15 + 0.05;
-      if (y + needed > 7.87) break;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.15); doc.setTextColor(45, 60, 76); doc.text(lines, panelX, y);
-      y += needed; index += 1;
-    }
-    if (index < houses.length) addAddressListPages(doc, logo, territory, houses, index, hall, congregation);
+
+    // Front: a full-width territory map suitable for the front side of a duplex print.
+    if (mapResult?.dataUrl) doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.68, undefined, 'FAST');
+    doc.setDrawColor(169, 188, 204);
+    doc.roundedRect(0.43, 1.17, 10.14, 6.68, 0.07, 0.07, 'S');
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(188, 202, 214);
+    doc.roundedRect(7.94, 7.38, 2.38, 0.30, 0.04, 0.04, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.3);
+    doc.setTextColor(43, 59, 75);
+    doc.text(`${houses.length} homes • Red X = Avoid / Do Not Visit`, 8.06, 7.57);
+
+    // Back: always begin the complete address list on page 2.
+    addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
     addAvoidPages(doc, logo, territory, allAvoids, new Set(mapAvoids.map(house => String(house.id))), hall, congregation);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
     status.textContent = 'Downloading territory PDF…';
     triggerDownload(doc.output('blob'), filename);
-    toast(`${territory.name} PDF created with the Denver 2027 logo, street-map background, numbered homes, and Avoid / Do Not Visit appendix.`);
+    toast(`${territory.name} PDF created with the territory map on the front, the complete address list beginning on the back, and the Avoid / Do Not Visit appendix.`);
   } catch (error) {
     console.error(error);
     toast(`The territory PDF could not be generated: ${error?.message || 'Unknown error'}`, true);
