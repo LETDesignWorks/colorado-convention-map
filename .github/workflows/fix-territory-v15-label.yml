@@ -1,0 +1,37 @@
+name: Correct territory scanner v15 label
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-territory-v15-label.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Correct visible scanner label
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('territories/address-source-merge.js')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('Assessor/GIS scanner v14 ready', 'Assessor/GIS scanner v15 ready')
+          path.write_text(text, encoding='utf-8')
+          Path('.github/workflows/fix-territory-v15-label.yml').unlink()
+          PY
+          node --check territories/address-source-merge.js
+      - name: Commit label correction
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add -A
+          git commit -m 'Correct assessor scanner version label'
+          git push origin main
