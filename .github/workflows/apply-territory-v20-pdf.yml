@@ -1,0 +1,98 @@
+name: Apply Territory Planner v20 PDF Basemap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-territory-v20-pdf.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: territory-planner-v20-pdf
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the website
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply clean street basemap to territory PDFs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('territories/territory-flex-grouping-pdf.js')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          text = re.sub(
+              r"const FLEX_VERSION = '[^']+';",
+              "const FLEX_VERSION = 'territories-20261011-20';",
+              text,
+              count=1
+          )
+
+          replace_once(
+              "const OSM_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';\nconst OSM_ATTRIBUTION = '© OpenStreetMap contributors';",
+              "const CLEAN_STREET_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';\nconst OSM_FALLBACK_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';\nconst CLEAN_STREET_ATTRIBUTION = 'Esri, HERE, Garmin, USGS, © OpenStreetMap contributors, GIS User Community';",
+              'replace PDF tile constants'
+          )
+
+          replace_once(
+              "    jobs.push({ tileX, tileY, url: OSM_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY) });",
+              "    jobs.push({\n      tileX, tileY,\n      url: CLEAN_STREET_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY),\n      fallbackUrl: OSM_FALLBACK_TILE.replace('{z}', viewport.zoom).replace('{x}', wrappedX).replace('{y}', tileY)\n    });",
+              'replace PDF tile job'
+          )
+
+          replace_once(
+              "  status.textContent = `Loading ${jobs.length} street-map tiles…`;\n  const images = await mapLimit(jobs, 6, job => fetchTileBitmap(job.url));",
+              "  status.textContent = `Loading ${jobs.length} clean street-map tiles…`;\n  const images = await mapLimit(jobs, 10, async job => {\n    try { return await fetchTileBitmap(job.url); }\n    catch { return await fetchTileBitmap(job.fallbackUrl); }\n  });",
+              'add clean street tile fallback'
+          )
+
+          replace_once(
+              "  context.fillStyle = 'rgba(255,255,255,.94)'; context.fillRect(10, height - 29, 230, 22);\n  context.fillStyle = '#43566a'; context.font = '12px Arial'; context.textAlign = 'left'; context.textBaseline = 'alphabetic'; context.fillText(OSM_ATTRIBUTION, 17, height - 13);",
+              "  context.fillStyle = 'rgba(255,255,255,.94)'; context.fillRect(10, height - 31, 570, 24);\n  context.fillStyle = '#43566a'; context.font = '10.5px Arial'; context.textAlign = 'left'; context.textBaseline = 'alphabetic'; context.fillText(CLEAN_STREET_ATTRIBUTION, 17, height - 14);",
+              'replace PDF attribution'
+          )
+
+          replace_once(
+              "  return { dataUrl: canvas.toDataURL('image/jpeg', 0.93), streetTilesLoaded: loaded };",
+              "  return { dataUrl: canvas.toDataURL('image/jpeg', 0.95), streetTilesLoaded: loaded, basemap: 'Esri World Street Map' };",
+              'increase PDF map quality'
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          node --check territories/territory-flex-grouping-pdf.js
+
+      - name: Publish PDF basemap update
+        shell: bash
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories/territory-flex-grouping-pdf.js
+          if git diff --cached --quiet; then
+            echo 'PDF basemap was already current.'
+            exit 0
+          fi
+          git commit -m 'Use clean street basemap in territory PDFs'
+          git pull --rebase origin main
+          git push origin main
