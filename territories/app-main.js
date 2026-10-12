@@ -2831,30 +2831,34 @@ function territoryStreetMapPoints(territoryHouses, geometry, avoidHouses = []) {
     ...avoidHouses.map(house => [Number(house.lng), Number(house.lat)])
   ].filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
 }
-function territoryStreetMapViewport(territoryHouses, geometry, avoidHouses = []) {
-  const width = 1050;
-  const height = 992;
-  const padding = 72;
-  const points = territoryStreetMapPoints(territoryHouses, geometry, avoidHouses);
+function territoryStreetMapViewport(territoryHouses, geometry, avoidHouses = [], options = {}) {
+  const width = 1200;
+  const height = 775;
+  const padding = options.tight ? 50 : 72;
+  // The overview includes the complete outline. The closer view fits every
+  // included home and contained avoid address, without distant boundary corners.
+  const points = territoryStreetMapPoints(territoryHouses, options.tight ? null : geometry, avoidHouses);
   if (!points.length) return null;
-  let selected = null;
-  for (let zoom = 18; zoom >= 11; zoom -= 1) {
-    const worldPoints = points.map(([lng, lat]) => webMercatorWorldPoint(lng, lat, zoom));
-    const minX = Math.min(...worldPoints.map(point => point.x));
-    const maxX = Math.max(...worldPoints.map(point => point.x));
-    const minY = Math.min(...worldPoints.map(point => point.y));
-    const maxY = Math.max(...worldPoints.map(point => point.y));
-    selected = { zoom, minX, maxX, minY, maxY };
-    if ((maxX - minX) <= width - (padding * 2) && (maxY - minY) <= height - (padding * 2)) break;
-  }
-  const centerX = (selected.minX + selected.maxX) / 2;
-  const centerY = (selected.minY + selected.maxY) / 2;
+  const sourcePoints = points.map(([lng, lat]) => webMercatorWorldPoint(lng, lat, 18));
+  const minX = Math.min(...sourcePoints.map(point => point.x));
+  const maxX = Math.max(...sourcePoints.map(point => point.x));
+  const minY = Math.min(...sourcePoints.map(point => point.y));
+  const maxY = Math.max(...sourcePoints.map(point => point.y));
+  const fit = Math.min((width - 2 * padding) / Math.max(maxX - minX, 1), (height - 2 * padding) / Math.max(maxY - minY, 1));
+  const fittedZoom = 18 + Math.log2(fit);
+  const displayZoom = options.tight ? Math.min(20, fittedZoom) : Math.min(18, Math.floor(fittedZoom));
+  const zoom = Math.max(0, Math.min(18, Math.floor(displayZoom)));
+  const sourceFactor = 2 ** (zoom - 18);
+  const scale = 2 ** (displayZoom - zoom);
+  const centerX = ((minX + maxX) / 2) * sourceFactor;
+  const centerY = ((minY + maxY) / 2) * sourceFactor;
   return {
     width,
     height,
-    zoom: selected.zoom,
-    left: centerX - (width / 2),
-    top: centerY - (height / 2)
+    zoom,
+    scale,
+    left: centerX - (width / (2 * scale)),
+    top: centerY - (height / (2 * scale))
   };
 }
 async function loadStreetMapTile(url) {
@@ -2870,8 +2874,8 @@ async function loadStreetMapTile(url) {
     image.src = objectUrl;
   });
 }
-async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = []) {
-  const viewport = territoryStreetMapViewport(territoryHouses, geometry, avoidHouses);
+async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = [], options = {}) {
+  const viewport = territoryStreetMapViewport(territoryHouses, geometry, avoidHouses, options);
   if (!viewport) return null;
   const canvas = document.createElement('canvas');
   canvas.width = viewport.width;
@@ -2882,19 +2886,19 @@ async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = 
   const tileSize = 256;
   const tileCount = 2 ** viewport.zoom;
   const firstX = Math.floor(viewport.left / tileSize);
-  const lastX = Math.floor((viewport.left + viewport.width) / tileSize);
+  const lastX = Math.floor((viewport.left + viewport.width / viewport.scale) / tileSize);
   const firstY = Math.floor(viewport.top / tileSize);
-  const lastY = Math.floor((viewport.top + viewport.height) / tileSize);
+  const lastY = Math.floor((viewport.top + viewport.height / viewport.scale) / tileSize);
   const jobs = [];
   for (let tileY = firstY; tileY <= lastY; tileY += 1) {
     if (tileY < 0 || tileY >= tileCount) continue;
     for (let tileX = firstX; tileX <= lastX; tileX += 1) {
       const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
-      const drawX = (tileX * tileSize) - viewport.left;
-      const drawY = (tileY * tileSize) - viewport.top;
+      const drawX = ((tileX * tileSize) - viewport.left) * viewport.scale;
+      const drawY = ((tileY * tileSize) - viewport.top) * viewport.scale;
       const url = `https://tile.openstreetmap.org/${viewport.zoom}/${wrappedX}/${tileY}.png`;
       jobs.push(loadStreetMapTile(url).then(image => {
-        context.drawImage(image, drawX, drawY, tileSize, tileSize);
+        context.drawImage(image, drawX, drawY, tileSize * viewport.scale, tileSize * viewport.scale);
         if (typeof image.close === 'function') image.close();
         return true;
       }).catch(error => {
@@ -2912,9 +2916,10 @@ async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = 
 }
 function projectStreetMapPoint(streetMap, lng, lat, mapX, mapY, mapW, mapH) {
   const point = webMercatorWorldPoint(lng, lat, streetMap.zoom);
+  const scale = streetMap.scale || 1;
   return [
-    mapX + (((point.x - streetMap.left) / streetMap.width) * mapW),
-    mapY + (((point.y - streetMap.top) / streetMap.height) * mapH)
+    mapX + (((point.x - streetMap.left) * scale / streetMap.width) * mapW),
+    mapY + (((point.y - streetMap.top) * scale / streetMap.height) * mapH)
   ];
 }
 
@@ -2943,60 +2948,41 @@ function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
   doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.32, { align: 'right' });
 }
-function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null, avoidHouses = []) {
-  const mapX = 0.42, mapY = 1.18, mapW = 7.05, mapH = 6.66;
+function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null, avoidHouses = [], options = {}) {
+  const mapX = .43, mapY = 1.17, mapW = 10.14, mapH = 6.55;
+  const viewport = streetMap || territoryStreetMapViewport(territoryHouses, geometry, avoidHouses, options);
+  if (!viewport) return;
+  // The tighter view may crop the true outline; all map artwork stays inside
+  // the image area, including when the street tiles are unavailable.
+  doc.saveGraphicsState();
+  doc.rect(mapX, mapY, mapW, mapH, null);
+  doc.clip();
+  doc.discardPath();
   if (streetMap?.dataUrl) {
     doc.addImage(streetMap.dataUrl, 'JPEG', mapX, mapY, mapW, mapH, undefined, 'FAST');
   } else {
     doc.setFillColor(255, 255, 255);
     doc.rect(mapX, mapY, mapW, mapH, 'F');
   }
-  const rings = geometryRings(geometry.geometry || geometry);
-  const allCoords = rings.flat();
-  const points = [...allCoords, ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)]), ...avoidHouses.map(house => [Number(house.lng), Number(house.lat)])];
-  if (!points.length) return;
-  let project;
-  if (streetMap?.dataUrl) {
-    project = ([lng, lat]) => projectStreetMapPoint(streetMap, lng, lat, mapX, mapY, mapW, mapH);
-  } else {
-    let minLng = Math.min(...points.map(point => point[0]));
-    let maxLng = Math.max(...points.map(point => point[0]));
-    let minLat = Math.min(...points.map(point => point[1]));
-    let maxLat = Math.max(...points.map(point => point[1]));
-    const lngPad = Math.max((maxLng - minLng) * .08, .00035);
-    const latPad = Math.max((maxLat - minLat) * .08, .00035);
-    minLng -= lngPad; maxLng += lngPad; minLat -= latPad; maxLat += latPad;
-    const meanLat = ((minLat + maxLat) / 2) * Math.PI / 180;
-    const cosLat = Math.max(.2, Math.cos(meanLat));
-    const minX = minLng * cosLat, maxX = maxLng * cosLat;
-    const spanX = Math.max(maxX - minX, .000001), spanY = Math.max(maxLat - minLat, .000001);
-    const scale = Math.min((mapW - .30) / spanX, (mapH - .38) / spanY);
-    const usedW = spanX * scale, usedH = spanY * scale;
-    const offsetX = mapX + (mapW - usedW) / 2;
-    const offsetY = mapY + (mapH - usedH) / 2;
-    project = ([lng, lat]) => [offsetX + ((lng * cosLat) - minX) * scale, offsetY + (maxLat - lat) * scale];
-  }
+  const shape = geometry?.geometry || geometry;
+  const polygons = shape?.type === 'MultiPolygon' ? shape.coordinates : shape?.type === 'Polygon' ? [shape.coordinates] : [];
+  const project = ([lng, lat]) => projectStreetMapPoint(viewport, lng, lat, mapX, mapY, mapW, mapH);
   const color = hexRgb(TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length]);
-  if (streetMap?.dataUrl) {
-    doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(.060);
-    for (const ring of rings) {
-      for (let index = 1; index < ring.length; index += 1) {
-        const [x1, y1] = project(ring[index - 1]);
-        const [x2, y2] = project(ring[index]);
-        doc.line(x1, y1, x2, y2);
-      }
-    }
-  }
+  doc.saveGraphicsState();
+  doc.setGState(new doc.GState({ opacity: .08, 'stroke-opacity': .45 }));
+  doc.setFillColor(...color);
   doc.setDrawColor(...color);
-  doc.setLineWidth(.030);
-  for (const ring of rings) {
-    for (let index = 1; index < ring.length; index += 1) {
-      const [x1, y1] = project(ring[index - 1]);
-      const [x2, y2] = project(ring[index]);
-      doc.line(x1, y1, x2, y2);
+  doc.setLineWidth(.55 / 72);
+  for (const polygon of polygons) {
+    const path = [];
+    for (const ring of polygon) {
+      if (ring.length < 3) continue;
+      ring.forEach((point, index) => path.push({ op: index ? 'l' : 'm', c: project(point) }));
+      path.push({ op: 'h', c: [] });
     }
+    if (path.length) { doc.path(path); doc.fillStrokeEvenOdd(); }
   }
+  doc.restoreGraphicsState();
   territoryHouses.forEach((house, index) => {
     const [x, y] = project([Number(house.lng), Number(house.lat)]);
     const label = addressHouseNumber(house.address) || `#${index + 1}`;
@@ -3039,26 +3025,30 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     doc.text(houseNumber, textX, textY, { align: placeRight ? 'left' : 'right' });
   }
 });
-  if (streetMap?.dataUrl) {
-    doc.setFillColor(255, 255, 255);
-    doc.setDrawColor(195, 205, 214);
-    doc.roundedRect(mapX + .07, mapY + mapH - .23, 1.68, .16, .03, .03, 'FD');
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.2);
-    doc.setTextColor(73, 86, 101);
-    doc.text('© OpenStreetMap contributors', mapX + .13, mapY + mapH - .12);
-  }
+  // Keep the north badge wholly within the reserved margin around the homes.
+  const northX = mapX + mapW - .203, northY = mapY + .203;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(193, 204, 214);
-  doc.circle(mapX + mapW - .23, mapY + .36, .18, 'FD');
+  doc.setLineWidth(.007);
+  doc.circle(northX, northY, .152, 'FD');
   doc.setTextColor(31, 52, 71);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('N', mapX + mapW - .23, mapY + .27, { align: 'center' });
-  doc.setLineWidth(.018);
-  doc.line(mapX + mapW - .23, mapY + .60, mapX + mapW - .23, mapY + .34);
-  doc.line(mapX + mapW - .23, mapY + .34, mapX + mapW - .29, mapY + .43);
-  doc.line(mapX + mapW - .23, mapY + .34, mapX + mapW - .17, mapY + .43);
+  doc.setFontSize(6);
+  doc.text('N', northX, northY - .01, { align: 'center' });
+  doc.setLineWidth(.010);
+  doc.line(northX, northY + .095, northX, northY + .025);
+  doc.line(northX, northY + .025, northX - .03, northY + .060);
+  doc.line(northX, northY + .025, northX + .03, northY + .060);
+  doc.restoreGraphicsState();
+  const legend = `Street number = home${territoryHouses.some(house => !addressHouseNumber(house.address)) ? ' • # = address list entry' : ''} • Red X = Avoid • Shading = territory`;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(73, 86, 101);
+  doc.text(legend, mapX, 7.93);
+  if (streetMap?.dataUrl) {
+    doc.setFontSize(5.2);
+    doc.text('© OpenStreetMap contributors', mapX + mapW, 7.93, { align: 'right' });
+  }
 }
 function addAddressListPage(doc, logoData, territory, territoryHouses, startIndex) {
   doc.addPage('letter', 'landscape');
@@ -3136,54 +3126,21 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   try {
     let logoData = null;
     try { logoData = await imageDataUrl(new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href); } catch { /* PDF remains usable without image */ }
-    let streetMap = null;
-    try { streetMap = await buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses); }
-    catch (error) { console.warn('Street background could not be included in this PDF.', error); }
+    const maps = [];
+    for (const tight of [false, true]) {
+      let streetMap = null;
+      try { streetMap = await buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses, { tight }); }
+      catch (error) { console.warn('Street background could not be included in this PDF.', error); }
+      maps.push({ tight, streetMap });
+    }
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
-    drawPdfHeader(doc, logoData, territory.name, `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses${avoidHouses.length ? ` • ${avoidHouses.length} avoid` : ''}`);
-    drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap, avoidHouses);
-    const panelX = 7.72;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(11, 68, 126);
-    doc.text('Territory Information', panelX, 1.28);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.2);
-    doc.setTextColor(45, 60, 76);
-    const info = [
-      `Territory: ${territory.name}`,
-      `Congregation: ${selectedCongregation}`,
-      `Meeting location: ${selectedHall?.name || ''}`,
-      `Hall address: ${selectedHall?.address || ''}`,
-      `Homes / stops: ${territoryHouses.length}`,
-      `Avoid / do not visit: ${avoidHouses.length}`,
-      `Boundary: ${territory.geometry ? 'Manually edited' : 'Automatic outline'}`,
-      `Map: Numbers = street numbers${territoryHouses.some(house => !addressHouseNumber(house.address)) ? '; # = address list entry' : ''}. Red X = Avoid.`
-    ];
-    let y = 1.52;
-    for (const line of info) {
-      const wrapped = doc.splitTextToSize(line, 2.82);
-      doc.text(wrapped, panelX, y);
-      y += wrapped.length * .18 + .06;
+    const subtitle = `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses${avoidHouses.length ? ` • ${avoidHouses.length} avoid` : ''}`;
+    for (const { tight, streetMap } of maps) {
+      if (tight) doc.addPage('letter', 'landscape');
+      drawPdfHeader(doc, logoData, `${territory.name} — ${tight ? 'Closer View' : 'Overview'}`, subtitle);
+      drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap, avoidHouses, { tight });
     }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(11, 68, 126);
-    doc.text('Address Key', panelX, y + .08);
-    y += .32;
     let nextIndex = 0;
-    while (nextIndex < territoryHouses.length && y < 7.85) {
-      const label = `${nextIndex + 1}. ${territoryHouses[nextIndex].address}`;
-      const lines = doc.splitTextToSize(label, 2.82);
-      const needed = lines.length * .15 + .06;
-      if (y + needed > 7.85) break;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.2);
-      doc.setTextColor(45, 60, 76);
-      doc.text(lines, panelX, y);
-      y += needed;
-      nextIndex += 1;
-    }
     while (nextIndex < territoryHouses.length) nextIndex = addAddressListPage(doc, logoData, territory, territoryHouses, nextIndex);
     let avoidIndex = 0;
     while (avoidIndex < avoidHouses.length) avoidIndex = addAvoidAddressListPage(doc, logoData, territory, avoidHouses, avoidIndex);
@@ -3193,7 +3150,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       drawPdfFooter(doc, page, pageCount);
     }
     doc.save(`${slug(selectedCongregation)}-${slug(territory.name)}-territory.pdf`);
-    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${avoidHouses.length ? ` and ${avoidHouses.length} red avoid dot${avoidHouses.length === 1 ? '' : 's'}` : ''}${streetMap ? ' and street labels' : ''}.`);
+    toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${avoidHouses.length ? ` and ${avoidHouses.length} red avoid dot${avoidHouses.length === 1 ? '' : 's'}` : ''} with overview and closer maps${maps.some(item => item.streetMap) ? ' and street labels' : ''}.`);
   } catch (error) {
     toast(`Could not create the territory PDF: ${friendlyError(error)}`, true);
   } finally {
