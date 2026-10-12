@@ -2999,53 +2999,19 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
   }
   territoryHouses.forEach((house, index) => {
     const [x, y] = project([Number(house.lng), Number(house.lat)]);
-    doc.setFillColor(...color);
-    doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(.010);
-    doc.circle(x, y, .065, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(4.5);
-    doc.setTextColor(255, 255, 255);
-    const markerText = String(index + 1);
-    doc.setFontSize(4.5 * Math.min(1, .108 / Math.max(.001, doc.getTextWidth(markerText))));
-    doc.text(markerText, x, y + .015, { align: 'center' });
-
-    const houseNumber = addressHouseNumber(house.address);
-  if (houseNumber) {
-    const mapCenterX = mapX + (mapW / 2);
-    const mapCenterY = mapY + (mapH / 2);
-    const placeRight = x >= mapCenterX;
-    const placeBelow = y >= mapCenterY;
-    doc.setFontSize(4.5);
-    const labelW = doc.getTextWidth(houseNumber) + .025;
-    const labelH = .11;
-    const horizontalGap = .075;
-    const verticalGap = .025;
-    let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
-    let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
-    labelY += index % 2 === 0 ? -.015 : .015;
-    labelX = Math.max(mapX + .025, Math.min(mapX + mapW - labelW - .025, labelX));
-    labelY = Math.max(mapY + .025, Math.min(mapY + mapH - labelH - .025, labelY));
-    const connectorX = placeRight ? labelX : labelX + labelW;
-    const connectorY = labelY + (labelH / 2);
-    const textX = labelX + (labelW / 2);
-    const textY = labelY + .078;
-
-    doc.setDrawColor(181, 197, 209);
-    doc.setLineWidth(.004);
-    doc.line(x + (placeRight ? .060 : -.060), y, connectorX, connectorY);
+    const label = addressHouseNumber(house.address) || `#${index + 1}`;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(4.5);
     doc.setTextColor(255, 255, 255);
     const halo = .005;
-    doc.text(houseNumber, textX - halo, textY, { align: 'center' });
-    doc.text(houseNumber, textX + halo, textY, { align: 'center' });
-    doc.text(houseNumber, textX, textY - halo, { align: 'center' });
-    doc.text(houseNumber, textX, textY + halo, { align: 'center' });
+    const textOptions = { align: 'center', baseline: 'middle' };
+    doc.text(label, x - halo, y, textOptions);
+    doc.text(label, x + halo, y, textOptions);
+    doc.text(label, x, y - halo, textOptions);
+    doc.text(label, x, y + halo, textOptions);
     doc.setTextColor(85, 112, 134);
-    doc.text(houseNumber, textX, textY, { align: 'center' });
-  }
-});
+    doc.text(label, x, y, textOptions);
+  });
   avoidHouses.forEach((house, index) => {
   const [x, y] = project([Number(house.lng), Number(house.lat)]);
   doc.setFillColor(201, 54, 43);
@@ -3191,7 +3157,8 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       `Hall address: ${selectedHall?.address || ''}`,
       `Homes / stops: ${territoryHouses.length}`,
       `Avoid / do not visit: ${avoidHouses.length}`,
-      `Boundary: ${territory.geometry ? 'Manually edited' : 'Automatic outline'}`
+      `Boundary: ${territory.geometry ? 'Manually edited' : 'Automatic outline'}`,
+      `Map: Numbers = street numbers${territoryHouses.some(house => !addressHouseNumber(house.address)) ? '; # = address list entry' : ''}. Red X = Avoid.`
     ];
     let y = 1.52;
     for (const line of info) {

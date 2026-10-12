@@ -1,4 +1,4 @@
-const version = 'territories-20261012-22';
+const version = 'territories-20261012-23';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });

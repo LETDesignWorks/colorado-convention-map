@@ -1,4 +1,4 @@
-const VERSION = 'territories-20261012-22';
+const VERSION = 'territories-20261012-23';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const MODE_KEY = 'denver2027-territory-workflow-mode';
 const MODE_BOUNDARY = 'boundary';
@@ -481,12 +481,16 @@ function buildVectorMap(territory, houses, avoids, geometry) {
   }
   houses.forEach((house, index) => {
     const [x, y] = viewport.project(Number(house.lng), Number(house.lat));
-    const label = String(index + 1);
-    context.font = `bold ${label.length > 2 ? 9 : 10}px Arial`;
-    const radius = Math.max(9, context.measureText(label).width / 2 + 2);
-    context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fillStyle = color; context.fill();
-    context.strokeStyle = '#fff'; context.lineWidth = 2; context.stroke();
-    context.fillStyle = '#fff'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(label, x, y + 0.5);
+    const label = clean(house.address).match(/^\s*(\d+[A-Za-z]?)/)?.[1] || `#${index + 1}`;
+    context.font = 'bold 9px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = 1.4;
+    context.lineJoin = 'round';
+    context.strokeText(label, x, y);
+    context.fillStyle = '#557086';
+    context.fillText(label, x, y);
   });
   avoids.forEach(house => {
     const [x, y] = viewport.project(Number(house.lng), Number(house.lat));
@@ -494,7 +498,9 @@ function buildVectorMap(territory, houses, avoids, geometry) {
     context.strokeStyle = '#fff'; context.lineWidth = 2; context.stroke();
     context.beginPath(); context.moveTo(x - 3, y - 3); context.lineTo(x + 3, y + 3); context.moveTo(x - 3, y + 3); context.lineTo(x + 3, y - 3); context.stroke();
   });
-  context.fillStyle = '#40566d'; context.font = '14px Arial'; context.textAlign = 'left'; context.fillText('Planning map — numbered dots match the address key', 18, canvas.height - 18);
+  const hasListNumber = houses.some(house => !clean(house.address).match(/^\s*(\d+[A-Za-z]?)/));
+  const legend = `Numbers = street numbers${hasListNumber ? ' • # = address list entry' : ''} • Red X = Avoid`;
+  context.fillStyle = '#40566d'; context.font = '14px Arial'; context.textAlign = 'left'; context.fillText(legend, 18, canvas.height - 18);
   return canvas.toDataURL('image/jpeg', 0.92);
 }
 async function imageDataUrl(url) {
