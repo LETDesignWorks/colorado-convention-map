@@ -1,4 +1,4 @@
-const VERSION = 'territories-20261010-6';
+const VERSION = 'territories-20261012-22';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const MODE_KEY = 'denver2027-territory-workflow-mode';
 const MODE_BOUNDARY = 'boundary';
@@ -396,7 +396,10 @@ function wireGroupingOverrides() {
 
 function geometryForTerritory(territory, houses) {
   if (territory?.geometry) {
-    try { return JSON.parse(JSON.stringify(territory.geometry)); } catch { /* continue */ }
+    try {
+      const geometry = territory.geometry.type === 'Feature' ? territory.geometry.geometry : territory.geometry;
+      return ['Polygon', 'MultiPolygon'].includes(geometry?.type) ? JSON.parse(JSON.stringify(geometry)) : null;
+    } catch { return null; }
   }
   const points = houses.map(house => turf.point([Number(house.lng), Number(house.lat)]));
   if (!points.length) return null;
@@ -409,13 +412,14 @@ function geometryForTerritory(territory, houses) {
     try { return turf.bboxPolygon(turf.bbox(turf.featureCollection(points))).geometry; } catch { return null; }
   }
 }
-function geometryRings(geometry) {
+function geometryPolygons(geometry) {
   if (!geometry) return [];
-  if (geometry.type === 'Feature') return geometryRings(geometry.geometry);
-  if (geometry.type === 'Polygon') return geometry.coordinates || [];
-  if (geometry.type === 'MultiPolygon') return (geometry.coordinates || []).flat();
+  if (geometry.type === 'Feature') return geometryPolygons(geometry.geometry);
+  if (geometry.type === 'Polygon') return [geometry.coordinates || []];
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates || [];
   return [];
 }
+function geometryRings(geometry) { return geometryPolygons(geometry).flat(); }
 function projectedViewport(houses, geometry, width = 1200, height = 760, padding = 70) {
   const coords = [...geometryRings(geometry).flat(), ...houses.map(house => [Number(house.lng), Number(house.lat)])].filter(pair => pair.every(Number.isFinite));
   if (!coords.length) return null;
@@ -447,12 +451,8 @@ function buildVectorMap(territory, houses, avoids, geometry) {
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const context = canvas.getContext('2d');
-  context.fillStyle = '#f5f8fa';
+  context.fillStyle = '#ffffff';
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.strokeStyle = '#d5e0e8';
-  context.lineWidth = 1;
-  for (let x = 0; x < canvas.width; x += 80) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, canvas.height); context.stroke(); }
-  for (let y = 0; y < canvas.height; y += 80) { context.beginPath(); context.moveTo(0, y); context.lineTo(canvas.width, y); context.stroke(); }
   const color = colorForTerritory(territory);
   context.strokeStyle = '#ffffff';
   context.lineWidth = 12;
@@ -467,27 +467,32 @@ function buildVectorMap(territory, houses, avoids, geometry) {
   context.strokeStyle = color;
   context.lineWidth = 6;
   context.fillStyle = `${color}22`;
-  for (const ring of geometryRings(geometry)) {
+  for (const polygon of geometryPolygons(geometry)) {
     context.beginPath();
-    ring.forEach((point, index) => {
-      const [x, y] = viewport.project(Number(point[0]), Number(point[1]));
-      if (index) context.lineTo(x, y); else context.moveTo(x, y);
-    });
-    context.closePath();
-    context.fill();
+    for (const ring of polygon) {
+      ring.forEach((point, index) => {
+        const [x, y] = viewport.project(Number(point[0]), Number(point[1]));
+        if (index) context.lineTo(x, y); else context.moveTo(x, y);
+      });
+      context.closePath();
+    }
+    context.fill('evenodd');
     context.stroke();
   }
   houses.forEach((house, index) => {
     const [x, y] = viewport.project(Number(house.lng), Number(house.lat));
-    context.beginPath(); context.arc(x, y, 12, 0, Math.PI * 2); context.fillStyle = color; context.fill();
-    context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
-    context.fillStyle = '#fff'; context.font = 'bold 12px Arial'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(index + 1), x, y + 0.5);
+    const label = String(index + 1);
+    context.font = `bold ${label.length > 2 ? 9 : 10}px Arial`;
+    const radius = Math.max(9, context.measureText(label).width / 2 + 2);
+    context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fillStyle = color; context.fill();
+    context.strokeStyle = '#fff'; context.lineWidth = 2; context.stroke();
+    context.fillStyle = '#fff'; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(label, x, y + 0.5);
   });
   avoids.forEach(house => {
     const [x, y] = viewport.project(Number(house.lng), Number(house.lat));
-    context.beginPath(); context.arc(x, y, 11, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill();
-    context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
-    context.beginPath(); context.moveTo(x - 4, y - 4); context.lineTo(x + 4, y + 4); context.moveTo(x - 4, y + 4); context.lineTo(x + 4, y - 4); context.stroke();
+    context.beginPath(); context.arc(x, y, 9, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill();
+    context.strokeStyle = '#fff'; context.lineWidth = 2; context.stroke();
+    context.beginPath(); context.moveTo(x - 3, y - 3); context.lineTo(x + 3, y + 3); context.moveTo(x - 3, y + 3); context.lineTo(x + 3, y - 3); context.stroke();
   });
   context.fillStyle = '#40566d'; context.font = '14px Arial'; context.textAlign = 'left'; context.fillText('Planning map — numbered dots match the address key', 18, canvas.height - 18);
   return canvas.toDataURL('image/jpeg', 0.92);
@@ -524,7 +529,7 @@ function addPdfFooter(doc, page, count) {
 function sortedHouses(houses) {
   return [...houses].sort((a, b) => clean(a.address).localeCompare(clean(b.address), undefined, { numeric: true }));
 }
-function addAddressPages(doc, logo, territory, houses, hall, congregation) {
+function addAddressPages(doc, logo, territory, houses, hall, congregation, startIndex = 0) {
   let index = 0;
   while (index < houses.length) {
     doc.addPage('letter', 'landscape');
@@ -533,7 +538,7 @@ function addAddressPages(doc, logo, territory, houses, hall, congregation) {
     for (let column = 0; column < 2 && index < houses.length; column += 1) {
       let y = 1.25;
       while (index < houses.length && y < 7.88) {
-        const text = `${index + 1}. ${houses[index].address}`;
+        const text = `${startIndex + index + 1}. ${houses[index].address}`;
         const lines = doc.splitTextToSize(text, 4.55);
         const need = Math.max(0.22, lines.length * 0.17 + 0.07);
         if (y + need > 7.88) break;
@@ -567,7 +572,11 @@ async function generateReliablePdf(territoryId, button) {
   if (!houses.length) return toast('This territory does not have mapped assigned addresses.', true);
   const geometry = geometryForTerritory(territory, houses);
   if (!geometry) return toast('A usable territory outline could not be created from these addresses.', true);
-  const avoids = api.getHouses().filter(house => house.avoid && validCoordinates(house) && (() => { try { return turf.booleanPointInPolygon(turf.point([Number(house.lng), Number(house.lat)]), turf.feature(geometry)); } catch { return false; } })());
+  const avoids = api.getHouses().filter(house => {
+    if (!house.avoid || !validCoordinates(house)) return false;
+    try { return turf.booleanPointInPolygon(turf.point([Number(house.lng), Number(house.lat)]), geometry); }
+    catch { return false; }
+  });
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) return toast('The PDF library did not load. Refresh the page and try again.', true);
   pdfBusy = true;
@@ -584,7 +593,6 @@ async function generateReliablePdf(territoryId, button) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
     addPdfHeader(doc, logo, territory.name, `${congregation} • ${hall?.name || ''} • ${houses.length} addresses${avoids.length ? ` • ${avoids.length} avoid` : ''}`);
     if (mapImage) doc.addImage(mapImage, 'JPEG', 0.43, 1.17, 7.05, 6.68, undefined, 'FAST');
-    doc.setDrawColor(174, 190, 204); doc.roundedRect(0.43, 1.17, 7.05, 6.68, 0.07, 0.07, 'S');
     const panelX = 7.72;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(11, 68, 126); doc.text('Territory Information', panelX, 1.30);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.1); doc.setTextColor(45, 60, 76);
@@ -608,7 +616,7 @@ async function generateReliablePdf(territoryId, button) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(45, 60, 76); doc.text(lines, panelX, y);
       y += need; index += 1;
     }
-    if (index < houses.length) addAddressPages(doc, logo, territory, houses.slice(index), hall, congregation);
+    if (index < houses.length) addAddressPages(doc, logo, territory, houses.slice(index), hall, congregation, index);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); addPdfFooter(doc, page, pageCount); }
     status.textContent = 'Downloading PDF…';

@@ -1,4 +1,4 @@
-const FLEX_VERSION = 'territories-20261011-21';
+const FLEX_VERSION = 'territories-20261012-22';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -609,22 +609,37 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   }
 
   const detailMode = Boolean(options.detail);
-  const markerRadius = detailMode ? 9 : houses.length >= 70 ? 5.5 : houses.length >= 45 ? 6.5 : 7;
-  const markerFont = detailMode ? 9 : houses.length >= 70 ? 7 : houses.length >= 45 ? 7.5 : 8;
+  const baseRadius = detailMode ? 7.5 : houses.length >= 70 ? 5 : houses.length >= 45 ? 5.5 : 6;
+  const baseFont = detailMode ? 8 : houses.length >= 70 ? 6.5 : houses.length >= 45 ? 7 : 7.25;
   const showHouseNumbers = detailMode || houses.length <= 28;
-  houses.forEach((house, index) => {
+  const projectedHouses = houses.map(house => {
     const [x, y] = project(Number(house.lng), Number(house.lat));
+    return { house, x, y, nearestDistance: Number.POSITIVE_INFINITY };
+  });
+  for (let a = 0; a < projectedHouses.length; a += 1) {
+    for (let b = a + 1; b < projectedHouses.length; b += 1) {
+      const distance = Math.hypot(projectedHouses[a].x - projectedHouses[b].x, projectedHouses[a].y - projectedHouses[b].y);
+      projectedHouses[a].nearestDistance = Math.min(projectedHouses[a].nearestDistance, distance);
+      projectedHouses[b].nearestDistance = Math.min(projectedHouses[b].nearestDistance, distance);
+    }
+  }
+  projectedHouses.forEach(({ house, x, y, nearestDistance }, index) => {
+    // Keep the marker on its mapped home and shrink it modestly in tight groups.
+    // Automatic detail pages still handle locations too close to separate here.
+    const crowdScale = Math.max(0.84, Math.min(1, nearestDistance / (baseRadius * 2 + 3)));
+    const markerRadius = baseRadius * crowdScale;
+    const markerFont = baseFont * crowdScale;
     const pdfNumber = Number(house._pdfNumber) || index + 1;
-    context.beginPath(); context.arc(x, y, markerRadius, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = detailMode ? 1.6 : 1.2; context.stroke();
+    context.beginPath(); context.arc(x, y, markerRadius, 0, Math.PI * 2); context.fillStyle = color; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = detailMode ? 1.3 : 1; context.stroke();
     context.fillStyle = '#fff'; context.font = `bold ${markerFont}px Arial`;
     const numberWidth = context.measureText(String(pdfNumber)).width;
     const fittedFont = markerFont * Math.min(1, markerRadius * 1.65 / Math.max(1, numberWidth));
     context.font = `bold ${fittedFont}px Arial`; context.textAlign = 'center'; context.textBaseline = 'middle'; context.fillText(String(pdfNumber), x, y + 0.3);
     const houseNumber = clean(house.address).match(/^\s*(\d+[A-Za-z]?)/)?.[1];
     if (houseNumber && showHouseNumbers) {
-      const labelFont = detailMode ? 9.5 : 8;
-      const offset = markerRadius + 3;
-      context.font = `bold ${labelFont}px Arial`; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = 2; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + offset, y); context.fillStyle = '#557086'; context.fillText(houseNumber, x + offset, y);
+      const labelFont = (detailMode ? 8.5 : 7.25) * crowdScale;
+      const offset = markerRadius + 2;
+      context.font = `bold ${labelFont}px Arial`; context.textAlign = 'left'; context.textBaseline = 'middle'; context.lineWidth = 1.6; context.strokeStyle = '#fff'; context.strokeText(houseNumber, x + offset, y); context.fillStyle = '#557086'; context.fillText(houseNumber, x + offset, y);
     }
   });
   avoids.forEach(avoid => {
@@ -822,8 +837,10 @@ async function generateTerritoryPdf(territoryId, button) {
   const assigned = planner.getHouses().filter(house => house.included !== false && !house.avoid && String(house.territoryId) === String(territory.id));
   const invalid = assigned.filter(house => !validCoordinates(house));
   if (invalid.length) return toast(`${invalid.length.toLocaleString()} address location${invalid.length === 1 ? ' needs' : 's need'} repair before this PDF can be created.`, true);
-  const houses = sortedByAddress(assigned.filter(validCoordinates)).map((house, index) => ({ ...house, _pdfNumber: index + 1 }));
-  if (!houses.length) return toast('This territory does not have mapped assigned addresses.', true);
+  const mappedAssigned = assigned.filter(validCoordinates);
+  const insideBoundary = territory.geometry ? mappedAssigned.filter(house => pointInsideGeometry(house, territory.geometry)) : mappedAssigned;
+  const houses = sortedByAddress(insideBoundary).map((house, index) => ({ ...house, _pdfNumber: index + 1 }));
+  if (!houses.length) return toast('This territory does not have mapped assigned addresses inside its boundary.', true);
   const allAvoids = planner.getHouses().filter(house => house.avoid && validCoordinates(house));
   const geometry = territoryGeometry(territory, houses);
   if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);

@@ -69,6 +69,7 @@ let boundaryPreservesAddresses = false;
 let houses = [];
 let territories = [];
 let selectedHouseIds = new Set();
+let focusedTerritoryId = null;
 let currentBoundaryId = null;
 let currentPlanId = null;
 let reviewRecords = new Map();
@@ -77,6 +78,7 @@ let publicHallRecords = new Map();
 const hallMarkers = new Map();
 const houseMarkers = new Map();
 const territoryLayers = new Map();
+const territoryMapGeometries = new Map();
 
 const els = Object.fromEntries([
   'loginButton','signOutButton','planStatusChip','summaryHall','summaryCongregation','summaryHouses','summaryAvoid','summaryTerritories',
@@ -269,6 +271,13 @@ function validMapCoordinates(item) {
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(Math.abs(lat) < 1 && Math.abs(lng) < 1);
 }
 function pointFeature(item) { return turf.point([Number(item.lng), Number(item.lat)]); }
+function houseInsideTerritoryGeometry(house, geometry) {
+  if (!validMapCoordinates(house) || !geometry) return false;
+  try {
+    const feature = geometry.type === 'Feature' ? geometry : turf.feature(geometry.geometry || geometry);
+    return turf.booleanPointInPolygon(pointFeature(house), feature);
+  } catch { return false; }
+}
 function boundaryFeature() { return boundaryGeometry ? turf.feature(boundaryGeometry) : null; }
 function pointInsideBoundary(item) {
   if (!boundaryGeometry) return true;
@@ -568,6 +577,7 @@ function includedAddressesInsideGeometry(value) {
 }
 function updateLiveTerritoryBoundaryCount({ mode, geometry = null, territoryId = '', vertexCount = 0 }) {
   liveTerritoryCountContext = { mode, territoryId };
+  if (mode === 'edit') renderHouseMarkers();
   const box = els.territoryBoundaryLiveCount;
   if (!box) return;
   box.hidden = false;
@@ -1839,6 +1849,19 @@ function updateMapHouseDisplayNotice(shown, visible, total) {
   notice.hidden = !limited;
   if (limited) notice.textContent = `Showing ${shown.toLocaleString()} of ${visible.toLocaleString()} visible address dots (${total.toLocaleString()} loaded). Zoom in to display the remaining nearby homes.`;
 }
+function visibleMapHouses() {
+  const editing = territories.some(territory => territory.id === activeTerritoryEditId);
+  const focusedId = editing ? activeTerritoryEditId : focusedTerritoryId;
+  const hasFocus = focusedId && territories.some(territory => territory.id === focusedId);
+  const geometries = editing
+    ? [combinedGeometryFromFeatureGroup(territoryEditGroup)].filter(Boolean)
+    : hasFocus
+      ? [territoryMapGeometries.get(focusedId)].filter(Boolean)
+      : [...territoryMapGeometries.values()];
+  // Avoid records remain in the directory, but only appear on a map that contains them.
+  return houses.filter(house => validMapCoordinates(house) &&
+    (!house.avoid || geometries.some(geometry => houseInsideTerritoryGeometry(house, geometry))));
+}
 function renderHouseMarkers() {
   if (!map || !houseGroup) return;
   if (!map._denverHouseViewportRefreshBound) {
@@ -1853,7 +1876,7 @@ function renderHouseMarkers() {
   houseGroup.clearLayers();
   houseMarkers.clear();
 
-  const valid = houses.filter(validMapCoordinates);
+  const valid = visibleMapHouses();
   const paddedBounds = map.getBounds?.()?.pad?.(0.18);
   const visible = paddedBounds
     ? valid.filter(house => paddedBounds.contains([Number(house.lat), Number(house.lng)]))
@@ -1947,6 +1970,7 @@ function editTerritoryBoundary(id) {
   if (!geometry) { toast('This territory needs at least one house or a manually drawn boundary.', true); return; }
   cancelTerritoryBoundaryEdit(false);
   activeTerritoryEditId = id;
+  focusedTerritoryId = id;
   territoryGroup.clearLayers();
   territoryEditGroup.clearLayers();
   const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
@@ -2004,8 +2028,15 @@ async function syncTerritoryHomesToBoundary(id) {
 }
 
 function territoryGeometry(territory) {
-  if (territory?.geometry) return turf.feature(JSON.parse(JSON.stringify(territory.geometry)));
-  const points = houses.filter(house => ((house.included && !house.avoid && house.territoryId === territory.id) || (house.avoid && house.avoidTerritoryId === territory.id)) && validMapCoordinates(house)).map(pointFeature);
+  if (territory?.geometry) {
+    const geometry = geometryObject(territory.geometry);
+    if (!['Polygon', 'MultiPolygon'].includes(geometry?.type)) return null;
+    try { return turf.feature(JSON.parse(JSON.stringify(geometry))); }
+    catch { return null; }
+  }
+  // Only assigned visitable homes define an automatic outline; an old avoid assignment
+  // must not expand the territory to include an otherwise outside address.
+  const points = houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house)).map(pointFeature);
   if (!points.length) return null;
   try {
     if (points.length === 1) return turf.buffer(points[0], .045, { units: 'kilometers', steps: 16 });
@@ -2020,9 +2051,11 @@ function territoryGeometry(territory) {
 function renderTerritoryLayers() {
   territoryGroup.clearLayers();
   territoryLayers.clear();
+  territoryMapGeometries.clear();
   for (const territory of territories) {
     const geometry = territoryGeometry(territory);
     if (!geometry) continue;
+    territoryMapGeometries.set(territory.id, geometry);
     const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
     const manuallyEdited = Boolean(territory.geometry);
     const layer = L.geoJSON(geometry, { style: {
@@ -2054,6 +2087,7 @@ function toggleHouseSelection(id) {
 }
 function clearSelection(removeLayer = true) {
   selectedHouseIds.clear();
+  focusedTerritoryId = null;
   if (removeLayer && selectionLayer) { map.removeLayer(selectionLayer); selectionLayer = null; }
   renderHouseMarkers();
   renderHouseList();
@@ -2061,6 +2095,7 @@ function clearSelection(removeLayer = true) {
 }
 function selectHousesWithin(feature) {
   selectedHouseIds.clear();
+  focusedTerritoryId = null;
   for (const house of houses) {
     if (!house.included || house.avoid) continue;
     try { if (turf.booleanPointInPolygon(pointFeature(house), feature)) selectedHouseIds.add(house.id); } catch { /* ignore */ }
@@ -2081,7 +2116,12 @@ function selectArea() {
   toast('Draw around the houses to select, then close the shape.');
 }
 function selectTerritoryHouses(territoryId) {
-  selectedHouseIds = new Set(houses.filter(house => (house.included && house.territoryId === territoryId) || (house.avoid && house.avoidTerritoryId === territoryId)).map(house => house.id));
+  const territory = territories.find(item => item.id === territoryId);
+  if (!territory) return;
+  focusedTerritoryId = territoryId;
+  const geometry = territoryMapGeometries.get(territoryId) || territoryGeometry(territory);
+  const insideAvoidIds = new Set(avoidHousesInsideGeometry(geometry).map(house => house.id));
+  selectedHouseIds = new Set(houses.filter(house => (house.included && !house.avoid && house.territoryId === territoryId) || insideAvoidIds.has(house.id)).map(house => house.id));
   renderHouseMarkers();
   renderHouseList();
   updateSelectionUi();
@@ -2374,11 +2414,14 @@ function deleteTerritory(id) {
   if (!confirm(`Delete ${territory.name} and leave its houses unassigned?`)) return;
   houses.forEach(house => { if (house.territoryId === id) house.territoryId = null; if (house.avoidTerritoryId === id) house.avoidTerritoryId = null; });
   territories = territories.filter(item => item.id !== id);
+  if (focusedTerritoryId === id) focusedTerritoryId = null;
   renderAllPlanningData();
 }
 function zoomTerritory(id) {
+  focusedTerritoryId = id;
   const layer = territoryLayers.get(id);
   if (layer?.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [35, 35], maxZoom: 17 });
+  renderHouseMarkers();
 }
 function renderTerritoryList() {
   if (!territories.length) {
@@ -2742,20 +2785,15 @@ function hexRgb(hex) {
   return [parseInt(normalized.slice(0, 2), 16), parseInt(normalized.slice(2, 4), 16), parseInt(normalized.slice(4, 6), 16)];
 }
 function territoryHousesSorted(territory) {
-  return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house)).sort((a, b) => {
+  return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house) &&
+    (!territory.geometry || houseInsideTerritoryGeometry(house, territory.geometry))).sort((a, b) => {
     const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
     return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
   });
 }
-function avoidHousesInsideGeometry(geometry, territoryId = '') {
-  if (!geometry) return [];
-  const feature = geometry.type === 'Feature' ? geometry : turf.feature(geometry.geometry || geometry);
-  return houses.filter(house => {
-    if (!house.avoid) return false;
-    if (territoryId && String(house.avoidTerritoryId || '') === String(territoryId)) return true;
-    try { return turf.booleanPointInPolygon(pointFeature(house), feature); }
-    catch { return false; }
-  }).sort((a, b) => {
+function avoidHousesInsideGeometry(geometry) {
+  // Current geometry is authoritative, including holes and edited boundaries.
+  return houses.filter(house => house.avoid && houseInsideTerritoryGeometry(house, geometry)).sort((a, b) => {
     const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
     return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
   });
@@ -2839,7 +2877,7 @@ async function buildTerritoryStreetMap(territoryHouses, geometry, avoidHouses = 
   canvas.width = viewport.width;
   canvas.height = viewport.height;
   const context = canvas.getContext('2d');
-  context.fillStyle = '#f2efe9';
+  context.fillStyle = '#fff';
   context.fillRect(0, 0, canvas.width, canvas.height);
   const tileSize = 256;
   const tileCount = 2 ** viewport.zoom;
@@ -2892,10 +2930,12 @@ function drawPdfHeader(doc, logoData, title, subtitle = '') {
   doc.setTextColor(70, 84, 101);
   if (subtitle) doc.text(subtitle, textX, 0.68);
   doc.setDrawColor(176, 194, 210);
+  doc.setLineWidth(.008);
   doc.line(0.35, 0.98, 10.65, 0.98);
 }
 function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.setDrawColor(211, 220, 228);
+  doc.setLineWidth(.008);
   doc.line(0.35, 8.12, 10.65, 8.12);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
@@ -2908,12 +2948,9 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
   if (streetMap?.dataUrl) {
     doc.addImage(streetMap.dataUrl, 'JPEG', mapX, mapY, mapW, mapH, undefined, 'FAST');
   } else {
-    doc.setFillColor(248, 250, 252);
+    doc.setFillColor(255, 255, 255);
     doc.rect(mapX, mapY, mapW, mapH, 'F');
   }
-  doc.setDrawColor(174, 190, 204);
-  doc.setLineWidth(.018);
-  doc.roundedRect(mapX, mapY, mapW, mapH, 0.08, 0.08, 'S');
   const rings = geometryRings(geometry.geometry || geometry);
   const allCoords = rings.flat();
   const points = [...allCoords, ...territoryHouses.map(house => [Number(house.lng), Number(house.lat)]), ...avoidHouses.map(house => [Number(house.lng), Number(house.lat)])];
@@ -2964,12 +3001,14 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     const [x, y] = project([Number(house.lng), Number(house.lat)]);
     doc.setFillColor(...color);
     doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(.016);
-    doc.circle(x, y, .092, 'FD');
+    doc.setLineWidth(.010);
+    doc.circle(x, y, .065, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.2);
+    doc.setFontSize(4.5);
     doc.setTextColor(255, 255, 255);
-    doc.text(String(index + 1), x, y + .018, { align: 'center' });
+    const markerText = String(index + 1);
+    doc.setFontSize(4.5 * Math.min(1, .108 / Math.max(.001, doc.getTextWidth(markerText))));
+    doc.text(markerText, x, y + .015, { align: 'center' });
 
     const houseNumber = addressHouseNumber(house.address);
   if (houseNumber) {
@@ -2977,10 +3016,11 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     const mapCenterY = mapY + (mapH / 2);
     const placeRight = x >= mapCenterX;
     const placeBelow = y >= mapCenterY;
-    const labelW = Math.max(.24, Math.min(.50, .09 + (houseNumber.length * .067)));
-    const labelH = .16;
-    const horizontalGap = .115;
-    const verticalGap = .065;
+    doc.setFontSize(4.5);
+    const labelW = doc.getTextWidth(houseNumber) + .025;
+    const labelH = .11;
+    const horizontalGap = .075;
+    const verticalGap = .025;
     let labelX = placeRight ? x + horizontalGap : x - horizontalGap - labelW;
     let labelY = placeBelow ? y + verticalGap : y - verticalGap - labelH;
     labelY += index % 2 === 0 ? -.015 : .015;
@@ -2989,20 +3029,20 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
     const connectorX = placeRight ? labelX : labelX + labelW;
     const connectorY = labelY + (labelH / 2);
     const textX = labelX + (labelW / 2);
-    const textY = labelY + .112;
+    const textY = labelY + .078;
 
     doc.setDrawColor(181, 197, 209);
-    doc.setLineWidth(.006);
-    doc.line(x + (placeRight ? .082 : -.082), y, connectorX, connectorY);
+    doc.setLineWidth(.004);
+    doc.line(x + (placeRight ? .060 : -.060), y, connectorX, connectorY);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.4);
+    doc.setFontSize(4.5);
     doc.setTextColor(255, 255, 255);
-    const halo = .007;
+    const halo = .005;
     doc.text(houseNumber, textX - halo, textY, { align: 'center' });
     doc.text(houseNumber, textX + halo, textY, { align: 'center' });
     doc.text(houseNumber, textX, textY - halo, { align: 'center' });
     doc.text(houseNumber, textX, textY + halo, { align: 'center' });
-    doc.setTextColor(139, 160, 176);
+    doc.setTextColor(85, 112, 134);
     doc.text(houseNumber, textX, textY, { align: 'center' });
   }
 });
@@ -3011,18 +3051,18 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
   doc.setFillColor(201, 54, 43);
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(.018);
-  doc.circle(x, y, .088, 'FD');
+  doc.circle(x, y, .070, 'FD');
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(.014);
-  doc.line(x - .034, y - .034, x + .034, y + .034);
-  doc.line(x - .034, y + .034, x + .034, y - .034);
+  doc.line(x - .027, y - .027, x + .027, y + .027);
+  doc.line(x - .027, y + .027, x + .027, y - .027);
   const houseNumber = addressHouseNumber(house.address);
   if (houseNumber) {
     const placeRight = index % 2 === 0;
-    const textX = placeRight ? x + .12 : x - .12;
+    const textX = placeRight ? x + .095 : x - .095;
     const textY = y + .018;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.1);
+    doc.setFontSize(4.5);
     doc.setTextColor(255, 255, 255);
     const halo = .007;
     doc.text(houseNumber, textX - halo, textY, { align: placeRight ? 'left' : 'right' });
@@ -3121,7 +3161,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
   const territoryHouses = territoryHousesSorted(territory);
   if (!territoryHouses.length) { toast('This territory does not have any mapped assigned addresses.', true); return; }
   const geometry = territoryGeometry(territory);
-  const avoidHouses = avoidHousesInsideGeometry(geometry, territory.id);
+  const avoidHouses = avoidHousesInsideGeometry(geometry);
   if (!geometry) { toast('This territory does not have a usable map boundary.', true); return; }
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) { toast('The PDF library did not load. Refresh the page and try again.', true); return; }
@@ -3195,6 +3235,8 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
 }
 
 function clearPlanWorkspace(resetSelection = true) {
+  cancelTerritoryBoundaryEdit(false);
+  focusedTerritoryId = null;
   boundaryGeometry = null;
   boundaryPreservesAddresses = false;
   houses = [];
@@ -3256,6 +3298,10 @@ function wireEvents() {
   els.drawTerritoryButton.addEventListener('click', drawManualTerritoryBoundary);
   els.selectAreaButton.addEventListener('click', selectArea);
   els.clearSelectionButton.addEventListener('click', () => clearSelection(true));
+  els.pdfTerritorySelect.addEventListener('change', () => {
+    focusedTerritoryId = els.pdfTerritorySelect.value || null;
+    renderHouseMarkers();
+  });
   els.clearAllTerritoriesButton.addEventListener('click', clearAllTerritories);
   els.excludeSelectionButton.addEventListener('click', includeExcludeSelected);
   els.assignSelectedButton.addEventListener('click', assignSelected);
