@@ -41,6 +41,8 @@ const makeHomes = (rows, columns, dx, dy) => Array.from({ length: rows * columns
 const samples = [
   { name: 'neighborhood', homes: makeHomes(5, 8, 0.00040, 0.00055) },
   { name: 'crowded', homes: makeHomes(10, 8, 0.00016, 0.00040) },
+  { name: 'irregular', homes: makeHomes(5, 8, 0.00020, 0.00045).map((home, i) => ({ ...home,
+    lat: home.lat + Math.sin(i * 2.7) * 0.000035, lng: home.lng + Math.cos(i * 1.3) * 0.000025 })) },
   { name: 'single-home', homes: [{ ...makeHomes(1, 1, 0, 0)[0], address: '123 1/2 Sample Avenue' }] },
   { name: 'shared-position', homes: Array.from({ length: 12 }, (_, i) => ({ ...makeHomes(1, 1, 0, 0)[0],
     id: `unit-${i}`, address: `${1200 + Math.floor(i / 4) * 2} Sample Street Apt ${i + 1}` })) }
@@ -86,9 +88,10 @@ try {
         const map = await pdfTest.buildStreetMapImage(fixture.territory, sample.homes, avoids, geometry, {}, { view });
         maps.push({ view, tiles: map.streetTilesLoaded, scale: 2 ** map.viewport.zoom * map.viewport.scale,
           overlaps: map.labelLayout.overlapPairs.length,
+          leaderCrossings: map.labelLayout.leaderCrossings.length,
           collisions: map.labelLayout.overlapPairs.map(pair => pair.map(label => ({ lines: label.lines, x: label.x, y: label.y, bounds: label.bounds, angle: label.angle, radius: label.radius }))),
           labels: map.labelLayout.labels.map(label => ({ x: label.x, y: label.y, lines: label.lines, bounds: label.bounds,
-            fontSize: label.fontSize, angle: label.angle, homes: label.houses.map(h => h.id) })) });
+            fontSize: label.fontSize, angle: label.angle, anchorX: label.anchorX, anchorY: label.anchorY, leader: label.leader, homes: label.houses.map(h => h.id) })) });
       }
       return maps;
     }, sample);
@@ -98,10 +101,22 @@ try {
       assert.equal(map.overlaps, 0, `${sample.name} ${map.view}: label collisions ${JSON.stringify(map.collisions)}`);
       assert.deepEqual(map.labels.flatMap(l => l.homes).sort(), sample.homes.map(h => h.id).sort());
       for (const label of map.labels) {
-        assert.ok(label.fontSize >= 14 && label.fontSize <= 20);
+        assert.equal(label.fontSize, 22);
+        assert.equal(label.angle, 0);
+        if (label.leader) {
+          assert.deepEqual(label.leader.start, { x: label.anchorX, y: label.anchorY });
+          assert.ok(Math.hypot(label.x - label.anchorX, label.y - label.anchorY) > 1);
+        } else {
+          assert.equal(label.x, label.anchorX);
+          assert.equal(label.y, label.anchorY);
+        }
         assert.ok(label.bounds.left >= 0 && label.bounds.right <= 1200 && label.bounds.top >= 0 && label.bounds.bottom < 740);
         assert.ok(label.lines.every(line => /^\d[\dA-Za-z /-]*$/.test(line)));
       }
+    }
+    if (sample.name === 'crowded') {
+      assert.ok(result.every(map => map.labels.some(label => label.leader)), 'Crowded maps need leader lines');
+      assert.ok(result.every(map => map.leaderCrossings === 0), 'Ordered crowded streets need clear, uncrossed leaders');
     }
     assert.ok(result[1].scale > result[0].scale, `${sample.name}: closer map is closer`);
     const downloaded = page.waitForEvent('download', { timeout: 120000 });

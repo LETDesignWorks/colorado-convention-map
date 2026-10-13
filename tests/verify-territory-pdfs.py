@@ -1,4 +1,4 @@
-"""Check exported pages, numbers, filtering, and actual PDF text anchors.
+"""Check exported pages, numbers, filtering, and actual PDF text and leader positions.
 
 Run after territory-pdf.mjs. Requires pypdf and pdfplumber.
 """
@@ -23,6 +23,15 @@ for sample in report:
     assert '8888 Avoid Street' in texts[-1]
     with pdfplumber.open(path) as pdf:
         for page_index, map_data in enumerate(sample['maps']):
+            expected_leaders = [label['leader'] for label in map_data['labels'] if label.get('leader')]
+            actual_leaders = [line for line in pdf.pages[page_index].lines
+                              if line['stroking_color'] == (0.25, 0.33, 0.41)]
+            assert len(actual_leaders) == len(expected_leaders), (path, 'missing leaders')
+            for actual, expected in zip(actual_leaders, expected_leaders):
+                for point, key in zip(actual['pts'], ['start', 'end']):
+                    wanted = ((0.43 + expected[key]['x'] * 10.14 / 1200) * 72,
+                              (1.17 + expected[key]['y'] * 6.55 / 775) * 72)
+                    assert math.dist(point, wanted) < 0.01, (path, 'leader moved from home or label')
             # Halo and fill both use this text color. Their glyphs must all exist.
             chars = [char for char in pdf.pages[page_index].chars
                      if char['non_stroking_color'] == (0.098, 0.188, 0.267)]
@@ -45,7 +54,7 @@ for sample in report:
                 actual_y = (min(g['top'] for g in glyphs) + max(g['bottom'] for g in glyphs)) / 2
                 # PDF font bounding boxes include unused descent below the digits.
                 assert math.hypot(actual_x - expected_x, actual_y - expected_y) < 1.5, (
-                    path, page_index, text, 'number moved off its home',
+                    path, page_index, text, 'number moved off its intended label position',
                     (actual_x, actual_y), (expected_x, expected_y))
             assert 'Sample Street' not in texts[page_index]
-    print(f'{path.name}: two maps, all numbers anchored, lists and filtering verified')
+    print(f'{path.name}: two maps, all numbers and leaders positioned correctly, lists and filtering verified')

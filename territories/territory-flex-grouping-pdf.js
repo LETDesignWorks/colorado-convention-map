@@ -1,6 +1,6 @@
-import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-25';
+import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-26';
 
-const FLEX_VERSION = 'territories-20261013-25';
+const FLEX_VERSION = 'territories-20261013-26';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -683,6 +683,24 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
   doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
   // Keep numbers as vector text so they remain crisp on paper and when zoomed.
   const scaleX = 10.14 / mapResult.viewport.width, scaleY = 6.55 / mapResult.viewport.height;
+  const mapX = x => 0.43 + x * scaleX, mapY = y => 1.17 + y * scaleY;
+  const leaders = mapResult.labelLayout.labels.filter(label => label.leader);
+  // A white under-stroke separates leaders from roads and boundary shading.
+  for (const halo of [true, false]) {
+    doc.setDrawColor(...(halo ? [255, 255, 255] : [65, 85, 104]));
+    doc.setLineWidth((halo ? 3.4 : 1.15) * scaleX);
+    leaders.forEach(({ leader }) => doc.line(mapX(leader.start.x), mapY(leader.start.y), mapX(leader.end.x), mapY(leader.end.y)));
+  }
+  leaders.forEach(({ anchorX, anchorY }) => {
+    doc.setFillColor(255, 255, 255); doc.circle(mapX(anchorX), mapY(anchorY), 3.8 * scaleX, 'F');
+    doc.setFillColor(25, 48, 68); doc.circle(mapX(anchorX), mapY(anchorY), 2.5 * scaleX, 'F');
+  });
+  // Opaque white backings keep every horizontal number readable over the map.
+  doc.setFillColor(255, 255, 255);
+  mapResult.labelLayout.labels.forEach(label => {
+    doc.roundedRect(mapX(label.bounds.left), mapY(label.bounds.top), label.halfWidth * 2 * scaleX,
+      label.halfHeight * 2 * scaleY, 3 * scaleX, 3 * scaleY, 'F');
+  });
   const textRuns = mapResult.labelLayout.labels.flatMap(label => label.lines.map((text, index) => {
     const offset = (index - (label.lines.length - 1) / 2) * label.fontSize * 1.15;
     const radians = label.angle * Math.PI / 180;
@@ -705,7 +723,7 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
       doc.text(text, startX, startY, { angle: -label.angle, renderingMode });
     });
   }
-  const legend = `Numbers = street house numbers • Shading = territory${avoids.length ? ' • Red X = Avoid' : ''}`;
+  const legend = `Numbers = street house numbers${leaders.length ? ' • Leader dot = exact home location' : ''} • Shading = territory${avoids.length ? ' • Red X = Avoid' : ''}`;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.3); doc.setTextColor(43, 59, 75);
   doc.text(legend, 0.48, 7.93);
 }
