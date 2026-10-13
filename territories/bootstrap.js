@@ -1,4 +1,4 @@
-const version = 'territories-20261013-26';
+const version = 'territories-20261013-27';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -23,7 +23,7 @@ try {
   await import('./avoid-address-upload.js?v=territories-20261012-22');
   await import('./hall-address-sets.js?v=territories-20261012-22');
   await import('./territory-workflow-ui.js?v=territories-20261012-22');
-  await import('./territory-flex-grouping-pdf.js?v=territories-20261013-26');
+  await import('./territory-flex-grouping-pdf.js?v=territories-20261013-27');
   await import('./address-source-merge.js?v=territories-20261012-22');
   await import('./assessor-scan-direct.js?v=territories-20261012-22');
   await import('./assessor-full-boundary.js?v=territories-20261012-22');

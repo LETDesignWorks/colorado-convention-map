@@ -43,6 +43,14 @@ const samples = [
   { name: 'crowded', homes: makeHomes(10, 8, 0.00016, 0.00040) },
   { name: 'irregular', homes: makeHomes(5, 8, 0.00020, 0.00045).map((home, i) => ({ ...home,
     lat: home.lat + Math.sin(i * 2.7) * 0.000035, lng: home.lng + Math.cos(i * 1.3) * 0.000025 })) },
+  // Synthetic curved streets exercise a density similar to a large walking
+  // territory without including anyone's actual address or avoid-address list.
+  { name: 'walking-145', homes: Array.from({ length: 145 }, (_, i) => {
+    const street = Math.floor(i / 29), position = i % 29, progress = Math.floor(position / 2) / 14;
+    return { id: `walking-${i}`, address: `${2000 + i * 2} Sample Street ${street + 1}`,
+      lng: -104.945 + street * 0.0009 + Math.sin(progress * Math.PI * 1.8 + street * 0.5) * 0.00018 + (position % 2 ? 0.00016 : -0.00016),
+      lat: 39.58 + progress * 0.0042 + Math.sin(street) * 0.0001, territoryId: 'sample', included: true };
+  }) },
   { name: 'single-home', homes: [{ ...makeHomes(1, 1, 0, 0)[0], address: '123 1/2 Sample Avenue' }] },
   { name: 'shared-position', homes: Array.from({ length: 12 }, (_, i) => ({ ...makeHomes(1, 1, 0, 0)[0],
     id: `unit-${i}`, address: `${1200 + Math.floor(i / 4) * 2} Sample Street Apt ${i + 1}` })) }
@@ -101,7 +109,7 @@ try {
       assert.equal(map.overlaps, 0, `${sample.name} ${map.view}: label collisions ${JSON.stringify(map.collisions)}`);
       assert.deepEqual(map.labels.flatMap(l => l.homes).sort(), sample.homes.map(h => h.id).sort());
       for (const label of map.labels) {
-        assert.equal(label.fontSize, 22);
+        assert.ok([17, 18, 20, 22].includes(label.fontSize));
         assert.equal(label.angle, 0);
         if (label.leader) {
           assert.deepEqual(label.leader.start, { x: label.anchorX, y: label.anchorY });
@@ -117,6 +125,11 @@ try {
     if (sample.name === 'crowded') {
       assert.ok(result.every(map => map.labels.some(label => label.leader)), 'Crowded maps need leader lines');
       assert.ok(result.every(map => map.leaderCrossings === 0), 'Ordered crowded streets need clear, uncrossed leaders');
+    }
+    if (sample.name === 'walking-145') {
+      assert.ok(result.every(map => map.leaderCrossings === 0), 'Dense curved streets need uncrossed leaders');
+      assert.ok(result.every(map => map.labels.every(label => Math.hypot(label.x - label.anchorX, label.y - label.anchorY) <= 40)),
+        'Curved-street numbers should stay close to their homes');
     }
     assert.ok(result[1].scale > result[0].scale, `${sample.name}: closer map is closer`);
     const downloaded = page.waitForEvent('download', { timeout: 120000 });

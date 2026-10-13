@@ -1,6 +1,6 @@
-import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-26';
+import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 
-const FLEX_VERSION = 'territories-20261013-26';
+const FLEX_VERSION = 'territories-20261013-27';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -563,11 +563,22 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   const closer = options.view === 'closer';
   const coordinates = mapCoordinates(houses, avoids, closer ? null : geometry);
   if (!coordinates.length) return null;
-  const viewport = chooseViewport(coordinates, width, height, Number(options.padding) || (closer ? 55 : 90), closer ? 8 : 2, true);
+  const padding = Number(options.padding) || (closer ? 55 : 90);
+  let viewport = chooseViewport(coordinates, width, height, padding, closer ? 8 : 2, true);
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d');
-  const labelLayout = pdfMapLabelLayout(context, houses, avoids, viewport, options);
+  let labelLayout = pdfMapLabelLayout(context, houses, avoids, viewport, options);
+  // Dense overviews can use a little more of the page before resorting to long
+  // leaders. Retain the full boundary and at least 60 px of surrounding context.
+  if (!closer && (labelLayout.overlapPairs.length || labelLayout.leaderCrossings.length
+    || labelLayout.labels.some(label => Math.hypot(label.x - label.anchorX, label.y - label.anchorY) > 80))) {
+    for (const nextPadding of [75, 60].filter(value => value < padding)) {
+      const nextViewport = chooseViewport(coordinates, width, height, nextPadding, 2, true);
+      const nextLayout = pdfMapLabelLayout(context, houses, avoids, nextViewport, options);
+      if (nextLayout.cost < labelLayout.cost) { viewport = nextViewport; labelLayout = nextLayout; }
+    }
+  }
   context.fillStyle = '#fff'; context.fillRect(0, 0, width, height);
   const tileSize = TILE_SIZE * viewport.scale;
   const firstX = Math.floor(viewport.left / tileSize), lastX = Math.floor((viewport.left + width) / tileSize);
@@ -695,9 +706,10 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
     doc.setFillColor(255, 255, 255); doc.circle(mapX(anchorX), mapY(anchorY), 3.8 * scaleX, 'F');
     doc.setFillColor(25, 48, 68); doc.circle(mapX(anchorX), mapY(anchorY), 2.5 * scaleX, 'F');
   });
-  // Opaque white backings keep every horizontal number readable over the map.
+  // Keep the basemap visible under numbers that fit on a home. Only displaced
+  // callouts need a compact white backing; every number also gets a white halo.
   doc.setFillColor(255, 255, 255);
-  mapResult.labelLayout.labels.forEach(label => {
+  leaders.forEach(label => {
     doc.roundedRect(mapX(label.bounds.left), mapY(label.bounds.top), label.halfWidth * 2 * scaleX,
       label.halfHeight * 2 * scaleY, 3 * scaleX, 3 * scaleY, 'F');
   });

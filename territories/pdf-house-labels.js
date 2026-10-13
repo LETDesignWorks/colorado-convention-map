@@ -24,6 +24,9 @@ function crosses(a, b) {
 }
 function lineHitsBox(line, box) {
   if (!line) return false;
+  const limits = box.bounds;
+  if (Math.max(line.start.x, line.end.x) < limits.left || Math.min(line.start.x, line.end.x) > limits.right
+    || Math.max(line.start.y, line.end.y) < limits.top || Math.min(line.start.y, line.end.y) > limits.bottom) return false;
   if (pointInBox(line.start, box) || pointInBox(line.end, box)) return true;
   const b = box.bounds, corners = [{ x: b.left, y: b.top }, { x: b.right, y: b.top },
     { x: b.right, y: b.bottom }, { x: b.left, y: b.bottom }];
@@ -38,8 +41,8 @@ function leaderFor(label) {
 }
 
 export function layoutHouseLabels(context, homes, avoids, viewport, options = {}) {
-  // All numbers remain horizontal and print at 13.4 pt. Move crowded labels
-  // into clear space with leaders instead of rotating or shrinking the text.
+  // Keep house numbers near their homes, with horizontal print sizes of 10.3-13.4 pt.
+  // A modest local size adjustment is preferable to a long, hard-to-follow leader.
   const fontSize = 22, halo = 2.4;
   const locations = new Map();
   homes.forEach(home => {
@@ -55,8 +58,8 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
   context.font = `bold ${fontSize}px Arial`;
   const originals = [...locations.values()].map(label => {
     const lines = [...label.numbers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const width = Math.max(...lines.map(line => context.measureText(line).width)) + 10;
-    const height = fontSize * 0.76 + (lines.length - 1) * fontSize * 1.15 + 8;
+    const width = Math.max(...lines.map(line => context.measureText(line).width)) + 6;
+    const height = fontSize * 0.76 + (lines.length - 1) * fontSize * 1.15 + 6;
     return { ...label, lines, fontSize, angle: 0, halo, ...rectangle(label.anchorX, label.anchorY, width, height), leader: null };
   });
   context.restore();
@@ -68,23 +71,30 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
   const inside = label => label.bounds.left >= 8 && label.bounds.right <= viewport.width - 8
     && label.bounds.top >= 8 && label.bounds.bottom <= viewport.height - 38
     && !(label.bounds.right > viewport.width - 46 && label.bounds.top < 46);
-  const candidateAt = (label, x, y) => {
-    const candidate = { ...label, ...rectangle(x, y, label.halfWidth * 2, label.halfHeight * 2) };
+  const candidateAt = (label, x, y, size = label.fontSize) => {
+    const ratio = size / label.fontSize;
+    const width = (label.halfWidth * 2 - 6) * ratio + 6;
+    const height = (label.halfHeight * 2 - 6) * ratio + 6;
+    const candidate = { ...label, fontSize: size, ...rectangle(x, y, width, height) };
     candidate.leader = leaderFor(candidate);
     return candidate;
   };
   const candidates = originals.map(label => {
-    const variants = [label];
-    const stepX = label.halfWidth * 2 + 5, stepY = label.halfHeight * 2 + 5;
-    for (let row = -9; row <= 9; row += 1) {
-      for (let column = -7; column <= 7; column += 1) {
-        if (row || column) variants.push(candidateAt(label, label.anchorX + column * stepX, label.anchorY + row * stepY));
+    const variants = [];
+    for (const size of [22, 20, 18, 17]) {
+      const sized = candidateAt(label, label.anchorX, label.anchorY, size);
+      variants.push(sized);
+      const stepX = sized.halfWidth * 2 + 4, stepY = sized.halfHeight * 2 + 4;
+      for (let row = -4; row <= 4; row += 1) {
+        for (let column = -3; column <= 3; column += 1) {
+          if (row || column) variants.push(candidateAt(sized, label.anchorX + column * stepX, label.anchorY + row * stepY));
+        }
       }
-    }
-    for (const distance of [25, 40, 60, 90, 130, 180, 250, 340]) {
-      for (let angle = 0; angle < 16; angle += 1) {
-        const radians = angle * Math.PI / 8;
-        variants.push(candidateAt(label, label.anchorX + Math.cos(radians) * distance, label.anchorY + Math.sin(radians) * distance));
+      for (const distance of [12, 16, 22, 35, 55, 80, 110, 150]) {
+        for (let angle = 0; angle < 16; angle += 1) {
+          const radians = angle * Math.PI / 8;
+          variants.push(candidateAt(sized, label.anchorX + Math.cos(radians) * distance, label.anchorY + Math.sin(radians) * distance));
+        }
       }
     }
     return variants.filter(inside).filter(candidate => !candidate.leader || !pointInBox(candidate.leader.start, candidate))
@@ -93,7 +103,8 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
       Math.hypot(a.x - label.anchorX, a.y - label.anchorY) - Math.hypot(b.x - label.anchorX, b.y - label.anchorY));
   });
   const cost = (candidate, index, placed) => {
-    let penalty = Math.hypot(candidate.x - candidate.anchorX, candidate.y - candidate.anchorY);
+    const distance = Math.hypot(candidate.x - candidate.anchorX, candidate.y - candidate.anchorY);
+    let penalty = distance + Math.max(0, distance - 65) ** 2 / 8 + (22 - candidate.fontSize) * 8;
     if (candidate.leader) penalty += 12;
     for (const marker of avoidMarkers) {
       if (overlaps(candidate, marker)) penalty += 1000000;
@@ -108,11 +119,12 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
     }
     return penalty;
   };
-  const place = order => {
+  const place = (order, maximumSize = 22) => {
     const placed = new Array(originals.length);
     for (const index of order) {
       let best = null, bestCost = Infinity;
       for (const candidate of candidates[index]) {
+        if (candidate.fontSize > maximumSize) continue;
         const distance = Math.hypot(candidate.x - candidate.anchorX, candidate.y - candidate.anchorY);
         if (distance > bestCost) break;
         const penalty = cost(candidate, index, placed);
@@ -125,7 +137,10 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
   };
   const indexes = originals.map((_, i) => i);
   const byRow = [...indexes].sort((a, b) => originals[a].anchorY - originals[b].anchorY || originals[a].anchorX - originals[b].anchorX);
-  const layouts = [place(byRow), place([...byRow].reverse())];
+  const layouts = [];
+  for (const size of [22, 20, 18, 17]) {
+    layouts.push(place(byRow, size), place([...byRow].reverse(), size));
+  }
   // Nearby homes on one street can fan into an ordered row. Moving them as a
   // group keeps the leaders from crisscrossing or chasing distant empty spots.
   const rows = [];
@@ -134,31 +149,32 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
     if (last && originals[index].anchorY - originals[last[0]].anchorY < 10) last.push(index);
     else rows.push([index]);
   });
-  const placeRows = direction => {
-    const placed = new Array(originals.length);
+  const placeRows = (direction, size) => {
+    const rowLabels = originals.map(label => candidateAt(label, label.anchorX, label.anchorY, size));
+    const placed = new Array(rowLabels.length);
     for (const row of rows) {
-      const ordered = [...row].sort((a, b) => originals[a].anchorX - originals[b].anchorX);
+      const ordered = [...row].sort((a, b) => rowLabels[a].anchorX - rowLabels[b].anchorX);
       const groups = [];
       for (const index of ordered) {
         const group = groups.at(-1);
-        if (group && originals[index].bounds.left < originals[group.at(-1)].bounds.right + 6) group.push(index);
+        if (group && rowLabels[index].bounds.left < rowLabels[group.at(-1)].bounds.right + 6) group.push(index);
         else groups.push([index]);
       }
       for (const group of groups) {
-        const widths = group.map(i => originals[i].halfWidth * 2);
+        const widths = group.map(i => rowLabels[i].halfWidth * 2);
         const totalWidth = widths.reduce((a, b) => a + b, 0) + (group.length - 1) * 7;
         if (totalWidth > viewport.width - 16) return null;
-        const center = group.reduce((sum, i) => sum + originals[i].anchorX, 0) / group.length;
-        const rowY = group.reduce((sum, i) => sum + originals[i].anchorY, 0) / group.length;
-        const height = Math.max(...group.map(i => originals[i].halfHeight * 2));
-        const step = height / 2 + 10 + Math.max(...group.map(i => Math.abs(originals[i].anchorY - rowY)));
+        const center = group.reduce((sum, i) => sum + rowLabels[i].anchorX, 0) / group.length;
+        const rowY = group.reduce((sum, i) => sum + rowLabels[i].anchorY, 0) / group.length;
+        const height = Math.max(...group.map(i => rowLabels[i].halfHeight * 2));
+        const step = height / 2 + 10 + Math.max(...group.map(i => Math.abs(rowLabels[i].anchorY - rowY)));
         let left = Math.max(8, Math.min(viewport.width - 8 - totalWidth, center - totalWidth / 2));
         const centers = widths.map(width => { const x = left + width / 2; left += width + 7; return x; });
         let best = null, bestCost = Infinity;
         for (const offset of [0, direction * step, -direction * step, direction * step * 2, -direction * step * 2]) {
           const next = [...placed];
           group.forEach((index, i) => {
-            const candidate = candidateAt(originals[index], centers[i], rowY + offset);
+            const candidate = candidateAt(rowLabels[index], centers[i], rowY + offset);
             if (offset && candidate.leader) {
               // Connect to the near edge of the entire row, so a long fan line
               // cannot run through the white backing of its neighbour.
@@ -178,15 +194,18 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
     }
     return { labels: placed, cost: placed.reduce((sum, label, i) => sum + cost(label, i, placed), 0) };
   };
-  for (const direction of [1, -1]) {
-    const layout = placeRows(direction);
-    if (layout) layouts.push(layout);
+  for (const size of [22, 20, 18, 17]) {
+    for (const direction of [1, -1]) {
+      const layout = placeRows(direction, size);
+      if (layout) layouts.push(layout);
+    }
   }
   const centerX = originals.reduce((sum, label) => sum + label.anchorX, 0) / (originals.length || 1);
   const centerY = originals.reduce((sum, label) => sum + label.anchorY, 0) / (originals.length || 1);
   layouts.push(place([...indexes].sort((a, b) => Math.hypot(originals[b].anchorX - centerX, originals[b].anchorY - centerY)
     - Math.hypot(originals[a].anchorX - centerX, originals[a].anchorY - centerY))));
-  const labels = layouts.sort((a, b) => a.cost - b.cost)[0].labels;
+  const bestLayout = layouts.sort((a, b) => a.cost - b.cost)[0];
+  const labels = bestLayout.labels;
   const overlapPairs = [];
   labels.forEach((label, i) => {
     labels.slice(i + 1).forEach(other => { if (overlaps(label, other)) overlapPairs.push([label, other]); });
@@ -197,5 +216,5 @@ export function layoutHouseLabels(context, homes, avoids, viewport, options = {}
     if (!label.leader) return;
     labels.slice(i + 1).forEach(other => { if (other.leader && crosses(label.leader, other.leader)) leaderCrossings.push([label, other]); });
   });
-  return { labels, avoidMarkers, overlapPairs, leaderCrossings };
+  return { labels, avoidMarkers, overlapPairs, leaderCrossings, cost: bestLayout.cost };
 }
