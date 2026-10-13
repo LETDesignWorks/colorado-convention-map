@@ -1,4 +1,6 @@
-const FLEX_VERSION = 'territories-20261012-24';
+import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-25';
+
+const FLEX_VERSION = 'territories-20261013-25';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -552,60 +554,16 @@ async function mapLimit(items, limit, worker) {
   await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, run));
   return results;
 }
-function pdfHouseNumber(house, index = 0) {
-  return clean(house.address).match(/^(\d+[A-Za-z]?(?:[-–]\d+[A-Za-z]?)?)/)?.[1] || `#${Number(house._pdfNumber) || index + 1}`;
-}
-function pdfLabelOverlap(a, b) {
-  return a.bounds.left < b.bounds.right && a.bounds.right > b.bounds.left
-    && a.bounds.top < b.bounds.bottom && a.bounds.bottom > b.bounds.top;
-}
 function pdfMapLabelLayout(context, houses, avoids, viewport, options = {}) {
-  const closer = options.view === 'closer', baseFont = closer ? 8.5 : 7.25, minimumFont = closer ? 7.25 : 6.5;
-  const locations = new Map();
-  houses.forEach((house, index) => {
-    const key = `${Number(house.lng)},${Number(house.lat)}`;
-    if (!locations.has(key)) locations.set(key, { ...pdfProjectedPoint(house, viewport), houses: [], numbers: new Set(), fontSize: baseFont });
-    const label = locations.get(key);
-    label.houses.push(house);
-    label.numbers.add(pdfHouseNumber(house, index));
-  });
-  const labels = [...locations.values()].map(label => ({ ...label, text: [...label.numbers].join('/') }));
-  const avoidMarkers = avoids.map(avoid => {
-    const point = pdfProjectedPoint(avoid, viewport), radius = closer ? 13 : 9, extent = radius + 1.5;
-    return { ...point, radius, houses: [], bounds: { left: point.x - extent, right: point.x + extent, top: point.y - extent, bottom: point.y + extent } };
-  });
-  context.save();
-  const measure = label => {
-    context.font = `bold ${label.fontSize}px Arial`;
-    // Include the white text halo and a small gap in the footprint used for fitting.
-    const halfWidth = context.measureText(label.text).width / 2 + 1.1, halfHeight = label.fontSize / 2 + 1.1;
-    label.bounds = { left: label.x - halfWidth, right: label.x + halfWidth, top: label.y - halfHeight, bottom: label.y + halfHeight };
-  };
-  const collisions = () => {
-    const pairs = [];
-    labels.forEach((label, index) => {
-      for (let other = index + 1; other < labels.length; other += 1) if (pdfLabelOverlap(label, labels[other])) pairs.push([label, labels[other]]);
-      avoidMarkers.forEach(avoid => { if (pdfLabelOverlap(label, avoid)) pairs.push([label, avoid]); });
-    });
-    return pairs;
-  };
-  labels.forEach(measure);
-  let overlapPairs = collisions();
-  while (overlapPairs.length) {
-    const crowded = new Set(overlapPairs.flat().filter(label => label.houses.length && label.fontSize > minimumFont));
-    if (!crowded.size) break;
-    crowded.forEach(label => { label.fontSize = Math.max(minimumFont, label.fontSize - 0.25); measure(label); });
-    overlapPairs = collisions();
-  }
-  context.restore();
-  return { labels, avoidMarkers, overlapPairs };
+  return layoutHouseLabels(context, houses.map(house => pdfProjectedPoint(house, viewport)),
+    avoids.map(avoid => pdfProjectedPoint(avoid, viewport)), viewport, options);
 }
 async function buildStreetMapImage(territory, houses, avoids, geometry, status, options = {}) {
-  const width = Number(options.width) || 1200, height = Number(options.height) || 760;
+  const width = Number(options.width) || 1200, height = Number(options.height) || 775;
   const closer = options.view === 'closer';
   const coordinates = mapCoordinates(houses, avoids, closer ? null : geometry);
   if (!coordinates.length) return null;
-  const viewport = chooseViewport(coordinates, width, height, Number(options.padding) || (closer ? 50 : 70), closer ? 4 : 1, closer);
+  const viewport = chooseViewport(coordinates, width, height, Number(options.padding) || (closer ? 55 : 90), closer ? 8 : 2, true);
   const canvas = document.createElement('canvas');
   canvas.width = width; canvas.height = height;
   const context = canvas.getContext('2d');
@@ -655,12 +613,6 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   context.fillStyle = `${color}14`; context.fill('evenodd');
   context.strokeStyle = `${color}85`; context.lineWidth = 1.25; context.stroke();
 
-  labelLayout.labels.forEach(({ text, x, y, fontSize }) => {
-    // Put the street number directly on the mapped home, without an offset dot or box.
-    context.font = `bold ${fontSize}px Arial`; context.textAlign = 'center'; context.textBaseline = 'middle';
-    context.lineWidth = 1.4; context.strokeStyle = '#fff'; context.strokeText(text, x, y);
-    context.fillStyle = '#557086'; context.fillText(text, x, y);
-  });
   labelLayout.avoidMarkers.forEach(({ x, y, radius }) => {
     context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
     const cross = closer ? 5 : 3.7; context.beginPath(); context.moveTo(x - cross, y - cross); context.lineTo(x + cross, y + cross); context.moveTo(x - cross, y + cross); context.lineTo(x + cross, y - cross); context.stroke();
@@ -729,8 +681,31 @@ function pdfFooter(doc, page, count) {
 function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, hall, congregation, viewLabel) {
   pdfHeader(doc, logo, `${territory.name} — ${viewLabel}`, `${congregation} • ${hall?.name || ''} • ${houses.length} homes${avoids.length ? ` • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'}` : ''}`);
   doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
-  const hasListReferences = houses.some((house, index) => pdfHouseNumber(house, index).startsWith('#'));
-  const legend = `Numbers = street numbers${hasListReferences ? ' • # = address list entry' : ''} • Shading = territory${avoids.length ? ' • Red X = Avoid' : ''}`;
+  // Keep numbers as vector text so they remain crisp on paper and when zoomed.
+  const scaleX = 10.14 / mapResult.viewport.width, scaleY = 6.55 / mapResult.viewport.height;
+  const textRuns = mapResult.labelLayout.labels.flatMap(label => label.lines.map((text, index) => {
+    const offset = (index - (label.lines.length - 1) / 2) * label.fontSize * 1.15;
+    const radians = label.angle * Math.PI / 180;
+    return { text, x: 0.43 + (label.x - Math.sin(radians) * offset) * scaleX,
+      y: 1.17 + (label.y + Math.cos(radians) * offset) * scaleY, label };
+  }));
+  doc.setFont('helvetica', 'bold');
+  // Paint every halo before any dark text, so a halo cannot erase another number.
+  for (const renderingMode of ['stroke', 'fill']) {
+    doc.setDrawColor(255, 255, 255); doc.setTextColor(25, 48, 68);
+    textRuns.forEach(({ text, x, y, label }) => {
+      doc.setFontSize(label.fontSize * scaleX * 72);
+      doc.setLineWidth(label.halo * scaleX);
+      // jsPDF applies center alignment before rotation. Position the left baseline
+      // explicitly so rotating a number keeps its visual centre on the home.
+      const radians = label.angle * Math.PI / 180;
+      const halfWidth = doc.getTextWidth(text) / 2, halfCapHeight = label.fontSize * scaleX * 0.718 / 2;
+      const startX = x - Math.cos(radians) * halfWidth - Math.sin(radians) * halfCapHeight;
+      const startY = y - Math.sin(radians) * halfWidth + Math.cos(radians) * halfCapHeight;
+      doc.text(text, startX, startY, { angle: -label.angle, renderingMode });
+    });
+  }
+  const legend = `Numbers = street house numbers • Shading = territory${avoids.length ? ' • Red X = Avoid' : ''}`;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.3); doc.setTextColor(43, 59, 75);
   doc.text(legend, 0.48, 7.93);
 }
@@ -792,8 +767,10 @@ async function generateTerritoryPdf(territoryId, button) {
   if (invalid.length) return toast(`${invalid.length.toLocaleString()} address location${invalid.length === 1 ? ' needs' : 's need'} repair before this PDF can be created.`, true);
   const mappedAssigned = assigned.filter(validCoordinates);
   const insideBoundary = territory.geometry ? mappedAssigned.filter(house => pointInsideGeometry(house, territory.geometry)) : mappedAssigned;
-  const houses = sortedByAddress(insideBoundary).map((house, index) => ({ ...house, _pdfNumber: index + 1 }));
+  const houses = sortedByAddress(insideBoundary);
   if (!houses.length) return toast('This territory does not have mapped assigned addresses inside its boundary.', true);
+  const missingNumbers = houses.filter(house => !pdfHouseNumber(house));
+  if (missingNumbers.length) return toast(`${missingNumbers.length} address${missingNumbers.length === 1 ? ' is' : 'es are'} missing a street house number. Correct the address before exporting: ${missingNumbers.slice(0, 3).map(house => house.address).join('; ')}`, true);
   const allAvoids = planner.getHouses().filter(house => house.avoid && validCoordinates(house));
   const geometry = territoryGeometry(territory, houses);
   if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);
@@ -806,8 +783,8 @@ async function generateTerritoryPdf(territoryId, button) {
   const status = statusPill('Loading Denver 2027 logo…');
   try {
     const logo = await imageCanvasData(LOGO_URL);
-    const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 760, padding: 70 });
-    const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 760, padding: 50 });
+    const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 775, padding: 90 });
+    const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
     if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
     status.textContent = 'Creating printable territory pages…';
     await sleepFrame();
