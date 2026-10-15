@@ -180,7 +180,20 @@ function applyDenver2027Branding() {
   addSouthDtcRailLink();
   addSmpwLink();
   addDelegateActivitiesLink();
+  addLoadTestsLink();
   addMapLogo();
+}
+
+function addLoadTestsLink() {
+  if (location.pathname.includes('/load-tests/') || document.querySelector('a[href*="load-tests/"]')) return;
+  const nav = navHost();
+  if (!nav) return;
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('load-tests-link');
+  link.href = new URL('load-tests/', siteHomeUrl).href;
+  link.textContent = 'Load Tests';
+  link.setAttribute('aria-label', 'Open the field service load-test checklists');
+  insertBeforeRouteOrBus(nav, link);
 }
 
 if (document.readyState === 'loading') {
