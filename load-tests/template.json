@@ -1,0 +1,242 @@
+[
+  {
+    "role": "Kingdom Hall",
+    "title": "Name opener and closer; confirm 8 AM access and closing after lunch and feedback.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Name, phone, access confirmation and agreed closing time.",
+    "source": "User request; suggested follow-up Oct 16",
+    "offset": -8
+  },
+  {
+    "role": "Kingdom Hall",
+    "title": "Give access and closing details to host contact and obtain acknowledgement.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Host contact acknowledgement and date.",
+    "source": "User request; suggested follow-up Oct 16",
+    "offset": -8
+  },
+  {
+    "role": "Host",
+    "title": "Verify recruitment of 50 host publishers and 25 vehicles.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Actual host count and vehicle count reported to LC.",
+    "source": "H Needed ASAP and Oct 11; P section 2",
+    "offset": -13
+  },
+  {
+    "role": "Delegate",
+    "title": "Verify recruitment of 50 delegate-role publishers.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Actual delegate count reported to LC.",
+    "source": "D Needed ASAP and Oct 11; P section 2",
+    "offset": -13
+  },
+  {
+    "role": "Territory",
+    "title": "Confirm provider congregation and named territory contact; ask about needs.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Provider, name, phone, progress and concerns.",
+    "source": "User request; P section 9; suggested follow-up Oct 16",
+    "offset": -8
+  },
+  {
+    "role": "Territory",
+    "title": "Confirm number and languages of territories needed.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Target 25 packets at about 40 doors each; languages confirmed.",
+    "source": "P section 8",
+    "offset": -19
+  },
+  {
+    "role": "Territory",
+    "title": "Verify boundaries, special notes and do-not-call information.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Provider confirms current maps and notes.",
+    "source": "H Oct 5–9; P section 8",
+    "offset": -15
+  },
+  {
+    "role": "Kingdom Hall",
+    "title": "Verify parking capacity and arrival and vehicle flow.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Local KH contact and host contact agree on arrangements.",
+    "source": "H Oct 10–12; P sections 6 and 8",
+    "offset": -12
+  },
+  {
+    "role": "Host",
+    "title": "Assign meeting conductor, greeting lead, parking help and hospitality lead.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Names and acceptance of each assignment.",
+    "source": "P section 8",
+    "offset": -12
+  },
+  {
+    "role": "Host",
+    "title": "Assign brother for territory checkout and return.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Name, phone and backup recorded; assignment accepted.",
+    "source": "H Needed ASAP; user request; suggested follow-up Oct 16",
+    "offset": -8
+  },
+  {
+    "role": "Host",
+    "title": "Provide final host count and vehicle count; reconcile combined congregations.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Final counts to LC; 50 hosts and 25 cars are site totals.",
+    "source": "H Oct 17; P sections 2 and 8",
+    "offset": -7
+  },
+  {
+    "role": "Delegate",
+    "title": "Provide final delegate count and send participant reminder.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Final combined count to LC; site target is 50, not 50 per congregation.",
+    "source": "D Oct 17; P sections 2 and 8",
+    "offset": -7
+  },
+  {
+    "role": "Literature",
+    "title": "Select simple tract title and language; confirm supply.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Title and language, 40 per packet; 1,000 per site at 25 packets.",
+    "source": "User preference; H/D local selection; suggested date Oct 17",
+    "offset": -7
+  },
+  {
+    "role": "Territory",
+    "title": "Assemble and verify packets with map outside and working copy inside.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Number ready, DNC verification, notes and 40 selected tracts per packet.",
+    "source": "H Oct 18–21; P sections 5 and 8; user tract preference",
+    "offset": -3
+  },
+  {
+    "role": "Coordination",
+    "title": "Resolve early checkout versus 9:45 checkout and confirm local handoff plan.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "LC decision communicated to host and territory brothers.",
+    "source": "H day-of 8:00–8:40; P schedule 9:45–10:00",
+    "offset": -2
+  },
+  {
+    "role": "Host",
+    "title": "Prepare welcome and simple presentation in host congregation language.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Conductor, language helper, tract and brief demonstration ready.",
+    "source": "User request; H day-of; D day-of; suggested date Oct 22",
+    "offset": -2
+  },
+  {
+    "role": "Coordination",
+    "title": "Complete readiness check with all local contacts.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Open issues have an owner, next action and response date.",
+    "source": "P section 8",
+    "offset": -2
+  },
+  {
+    "role": "Delegate",
+    "title": "Send final address, 9 AM arrival, carpool and sack lunch reminder.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Reminder sent; group plans to arrive together as practical.",
+    "source": "D Oct 23; P sections 6 and 8",
+    "offset": -1
+  },
+  {
+    "role": "Host",
+    "title": "Confirm 8 AM arrival, vehicles, sack lunch and assigned duties with hosts.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Hosts receive local address, duties and timing.",
+    "source": "H day-of; P section 6; suggested reminder date Oct 23",
+    "offset": -1
+  },
+  {
+    "role": "Kingdom Hall",
+    "title": "Open hall at 8 AM; close after returns, lunch, feedback and agreed cleanup.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Actual opening and closing times; all packets and groups accounted for.",
+    "source": "User request; suggested closure check; P schedule through 1 PM",
+    "offset": 0
+  },
+  {
+    "role": "Host",
+    "title": "Receive delegates at 9 AM and organize approximately 25 car groups.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Two hosts and two delegates per car; extra children do not replace delegates.",
+    "source": "H/D day-of; P sections 2 and 4",
+    "offset": 0
+  },
+  {
+    "role": "Territory",
+    "title": "Log checkout, actual departure, return, packet return and group feedback.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Completed Car groups entries and returned marked maps.",
+    "source": "H log; P sections 5 and 7",
+    "offset": 0
+  },
+  {
+    "role": "Coordination",
+    "title": "Record site timings, arrival flow, congestion and hospitality observations.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Day summary completed with actuals and limiting factors.",
+    "source": "P section 7",
+    "offset": 0
+  },
+  {
+    "role": "Feedback",
+    "title": "Collect standardized logs and host and delegate feedback.",
+    "owner": "",
+    "status": "To confirm",
+    "notes": "",
+    "evidence": "Logs received; English and Spanish observations to relevant LC.",
+    "source": "P sections 6 and 8",
+    "offset": 1
+  }
+]
