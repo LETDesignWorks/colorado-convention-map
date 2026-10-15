@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Load Tests | Denver 2027</title>
+  <meta name="description" content="Private field service load-test checklists for Denver 2027 convention planning.">
+  <link rel="icon" href="../assets/denver-2027-logo.png">
+  <link rel="stylesheet" href="styles.css?v=1">
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js" defer></script>
+  <script type="module" src="main.mjs?v=1"></script>
+</head>
+<body>
+  <header class="site-header"><a href="../" class="brand"><img src="../assets/denver-2027-logo.png" alt="Denver 2027"><span>DENVER 2027<small>Convention planning</small></span></a><nav aria-label="Convention planning"><a href="../">Planning map</a><a href="../assignments/">Assignments</a><a href="../territories/">Territories</a><a href="./" aria-current="page">Load tests</a></nav><button id="signout" hidden>Sign out</button></header>
+  <main id="app"><div class="loading">Connecting to your shared planning workspace…</div></main>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <div id="print-report"></div>
+  <dialog id="create-dialog"><form id="create-form"><div class="eyebrow">PLAN THE NEXT TEST</div><h2 id="create-title">New load test</h2><label>Test name<input id="create-name" required maxlength="300"></label><label>Test date<input id="create-date" type="date" required></label><label class="check" id="keep-wrap"><input id="keep-contacts" type="checkbox" checked>Copy current contacts and task owners</label><p class="muted" id="copy-help">Completed items and follow-up notes reset. Due dates move with the new test date.</p><div class="button-row"><button type="button" id="cancel-create">Cancel</button><button class="primary" type="submit">Create checklist</button></div></form></dialog>
+  <dialog id="paste-dialog"><form id="paste-form"><h2>Import a checklist backup</h2><p class="muted">Paste the contents of an editable checklist backup. You can review it before saving to the shared workspace.</p><label>Checklist backup text<textarea id="paste-text" rows="9" required maxlength="750000"></textarea></label><div class="button-row"><button type="button" id="cancel-paste">Cancel</button><button type="submit" class="primary">Import text</button></div></form></dialog>
+  <noscript>This checklist needs JavaScript to sign in and save shared records.</noscript>
+</body></html>
