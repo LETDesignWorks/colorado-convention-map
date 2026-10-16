@@ -9,8 +9,8 @@ export async function makePdfArchive(id, blob, snapshot, metadata = {}) {
   };
   const pdf = new Uint8Array(await blob.arrayBuffer());
   const pdfPartIds = [];
-  for (let offset = 0; offset < pdf.length; offset += 300000) {
-    const bytes = pdf.subarray(offset, offset + 300000);
+  for (let offset = 0; offset < pdf.length; offset += 150000) {
+    const bytes = pdf.subarray(offset, offset + 150000);
     let binary = '';
     for (let start = 0; start < bytes.length; start += 8192) binary += String.fromCharCode(...bytes.subarray(start, start + 8192));
     pdfPartIds.push(addPart('pdf', btoa(binary), pdfPartIds.length));

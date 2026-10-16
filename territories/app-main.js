@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261015-28';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261015-29';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2551,6 +2551,13 @@ function serializeHouse(house) {
     bulkOriginalAddress: house.bulkOriginalAddress || '', bulkSourceRow: house.bulkSourceRow ?? null
   };
 }
+function decodeHouseChunk(chunk) {
+  if (Array.isArray(chunk?.houses)) return chunk.houses;
+  try {
+    const houses = JSON.parse(chunk?.housesJson || 'null');
+    return Array.isArray(houses) ? houses : null;
+  } catch { return null; }
+}
 function setPlanSaveMessage(message, state = 'waiting') {
   const element = document.getElementById('planSaveMessage');
   if (element) { element.textContent = message; element.dataset.state = state; }
@@ -2588,8 +2595,15 @@ async function persistPlan(options = {}) {
     const planId = planRef.id;
     const chunks = [];
     for (let index = 0; index < houses.length; index += FIRESTORE_HOUSE_CHUNK_SIZE) chunks.push(houses.slice(index, index + FIRESTORE_HOUSE_CHUNK_SIZE).map(serializeHouse));
-    const chunkIds = chunks.map((_, index) => `${planId}__houses_${String(index).padStart(3, '0')}`);
-    const oldChunkIds = [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === planId).map(item => item.id);
+    const previous = reviewRecords.get(planId), revision = uniqueId('save');
+    const chunkJson = chunks.map(chunk => JSON.stringify(chunk));
+    const changed = [];
+    const chunkIds = chunks.map((chunk, index) => {
+      const oldId = previous?.chunkIds?.[index], oldHouses = decodeHouseChunk(reviewRecords.get(oldId));
+      if (oldHouses && JSON.stringify(oldHouses.map(serializeHouse)) === chunkJson[index]) return oldId;
+      changed.push(index);
+      return `${planId}__${revision}_houses_${String(index).padStart(3, '0')}`;
+    });
     const batch = writeBatch(db);
     const planRecord = {
       recordType: 'territory-plan',
@@ -2622,13 +2636,20 @@ async function persistPlan(options = {}) {
       ...(currentPlanId ? {} : { createdAt: serverTimestamp() })
     };
     batch.set(planRef, planRecord, { merge: true });
-    chunks.forEach((chunk, index) => {
-      batch.set(doc(db, 'reviews', chunkIds[index]), {
-        recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk,
+    // Stage only changed address parts, one small request at a time. JSON avoids
+    // thousands of unnecessary field indexes inside each address-array document.
+    // New revision IDs keep the old saved plan intact until its pointer commits.
+    for (const [part, index] of changed.entries()) {
+      setPlanSaveMessage(`Saving address changes ${part + 1} of ${changed.length}… Keep this page open.`, 'working');
+      const partBatch = writeBatch(db);
+      partBatch.set(doc(db, 'reviews', chunkIds[index]), {
+        recordType: 'territory-plan-chunk', planId, chunkIndex: index, housesJson: chunkJson[index], houseCount: chunks[index].length,
         updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
       });
-    });
-    oldChunkIds.filter(id => !chunkIds.includes(id)).forEach(id => batch.delete(doc(db, 'reviews', id)));
+      await partBatch.commit();
+    }
+    // Publish only after every referenced part is confirmed. Previous parts are
+    // retained until plan deletion, so an interrupted save cannot destroy them.
     await batch.commit();
     // Do not attach an old save to a different workspace opened while waiting.
     if (generation === workspaceGeneration) {
@@ -2641,7 +2662,6 @@ async function persistPlan(options = {}) {
     chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], {
       id: chunkIds[index], recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk
     }));
-    oldChunkIds.filter(id => !chunkIds.includes(id)).forEach(id => reviewRecords.delete(id));
     renderSavedRecords();
     updateSummary();
     emitPlannerDataChange();
@@ -2716,11 +2736,11 @@ function loadPlanRecord(id) {
   const plan = reviewRecords.get(id);
   if (!plan) return;
   const chunkIds = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === id).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex)).map(item => item.id);
-  if (chunkIds.some(chunkId => !Array.isArray(reviewRecords.get(chunkId)?.houses))) {
+  if (chunkIds.some(chunkId => !decodeHouseChunk(reviewRecords.get(chunkId)))) {
     toast('This saved plan has missing address data. Your current work has been kept. Wait for saved records to finish loading and try again.', true);
     return;
   }
-  const loadedHouses = chunkIds.flatMap(chunkId => reviewRecords.get(chunkId)?.houses || []);
+  const loadedHouses = chunkIds.flatMap(chunkId => decodeHouseChunk(reviewRecords.get(chunkId)) || []);
   if (Number.isFinite(plan.houseCount) && loadedHouses.length !== plan.houseCount) {
     toast('The saved address count does not match this plan. Your current work has been kept; reload saved records before trying again.', true);
     return;
@@ -2803,8 +2823,8 @@ async function saveTerritoryPdf(blob, filename, snapshot, planId) {
   try {
     // Small staged batches keep large PDFs below the request limit. Incomplete
     // payloads never appear in the library, and older exports are never replaced.
-    for (let start = 0; start < archive.parts.length; start += 4) {
-      const parts = archive.parts.slice(start, start + 4), batch = writeBatch(db);
+    for (let start = 0; start < archive.parts.length; start += 1) {
+      const parts = archive.parts.slice(start, start + 1), batch = writeBatch(db);
       parts.forEach(part => batch.set(doc(db, 'reviews', part.id), part));
       await batch.commit();
       written.push(...parts.map(part => part.id));

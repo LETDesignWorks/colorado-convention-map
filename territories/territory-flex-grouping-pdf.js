@@ -1,6 +1,6 @@
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 
-const FLEX_VERSION = 'territories-20261015-28';
+const FLEX_VERSION = 'territories-20261015-29';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;

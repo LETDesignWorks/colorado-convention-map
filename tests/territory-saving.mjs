@@ -8,7 +8,8 @@ import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from '../territor
 const source = (await readFile(new URL('../territories/app-main.js', import.meta.url), 'utf8'))
   .replace(/^import[\s\S]*?from '[^']+';\r?\n/gm, '').replaceAll('import.meta.url', "'http://localhost/territories/app-main.js'").replace(/^initialize\(\);\s*$/m, '');
 const store = new Map();
-let nextId = 1, failCommit = false, failManifest = false, gate = null, commits = 0;
+let nextId = 1, failCommit = false, failManifest = false, gate = null, commits = 0, failAtCommit = null;
+const committedWrites = [];
 const clone = value => structuredClone(value);
 const doc = (...args) => ({ id: args.length === 1 ? `test-${nextId++}` : args.at(-1) });
 const writeBatch = () => {
@@ -19,7 +20,8 @@ const writeBatch = () => {
     async commit() {
       commits++;
       if (gate) await gate;
-      if (failCommit) throw Object.assign(new Error('Simulated permission failure'), { code: 'permission-denied' });
+      if (failCommit || commits === failAtCommit) throw Object.assign(new Error('Simulated permission failure'), { code: 'permission-denied' });
+      committedWrites.push(...operations);
       operations.forEach(operation => {
         if (operation.type === 'delete') store.delete(operation.ref.id);
         else store.set(operation.ref.id, operation.options?.merge
@@ -82,6 +84,25 @@ assert.equal(first.test.state().currentPlanId, planId);
 assert.equal(first.element('planSaveMessage').dataset.state, 'success');
 assert.equal(store.get(planId).chunkIds.length, 2);
 assert.equal(first.test.record(planId).houseCount, 361, 'Confirmed plan is immediately available before subscription notification');
+let writesBefore = committedWrites.length;
+await first.test.savePlan();
+assert.equal(committedWrites.length - writesBefore, 1, 'An unchanged plan must not rewrite any addresses');
+
+// A large Hall plan must use small requests, not resend thousands of indexed
+// address maps together. This reproduces the shape of the live 5,658-home plan.
+const large = realm();
+const largeFixture = clone(fixture);
+largeFixture.houses = Array.from({length:5658},(_,i)=>({...fixture.houses[0],id:`large-${i}`,address:`${10000+i} Synthetic Street`}));
+large.test.seed(largeFixture);
+writesBefore = committedWrites.length;
+await large.test.savePlan();
+const addressWrites = committedWrites.slice(writesBefore).filter(op=>op.data?.recordType==='territory-plan-chunk');
+assert.equal(addressWrites.length,17);
+assert.ok(addressWrites.every(op=>typeof op.data.housesJson==='string' && !op.data.houses));
+assert.ok(addressWrites.every(op=>Buffer.byteLength(JSON.stringify(op.data))<500000));
+writesBefore = committedWrites.length;
+await large.test.savePlan();
+assert.equal(committedWrites.length-writesBefore,1,'Repeated large-plan exports write only the plan record');
 
 const second = realm();
 second.test.reload([...store].map(([id, data]) => [id, { id, ...clone(data) }]));
@@ -108,6 +129,16 @@ assert.equal(second.element('planSaveMessage').dataset.state, 'error');
 failCommit = false;
 assert.equal(await second.test.savePlan(), planId);
 assert.equal(second.element('planSaveMessage').dataset.state, 'success');
+
+// A failure after staging changed addresses must leave the old plan loadable.
+const confirmedPlan = clone(store.get(planId));
+second.test.state().houses[1].address = '3333 Staged Change St';
+failAtCommit = commits + 2;
+assert.equal(await second.test.savePlan(), null);
+failAtCommit = null;
+assert.deepEqual(store.get(planId),confirmedPlan);
+assert.ok(confirmedPlan.chunkIds.every(id=>store.has(id)));
+assert.equal(await second.test.savePlan(),planId);
 
 // Missing chunks must not silently load zero homes and overwrite the workspace.
 const completeRecords = [...store].map(([id, data]) => [id, { id, ...clone(data) }]);

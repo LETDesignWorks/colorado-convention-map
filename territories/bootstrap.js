@@ -1,4 +1,4 @@
-const version = 'territories-20261015-28';
+const version = 'territories-20261015-29';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -17,13 +17,13 @@ try {
   document.head.appendChild(style);
   document.body.innerHTML = template;
   await import('../assets/branding.js?v=bus-status-sync-20260927-1');
-  await import('./app-main.js?v=territories-20261015-28');
+  await import('./app-main.js?v=territories-20261015-29');
   await import('./directions.js?v=territories-20261012-22');
   await import('./bulk-addresses.js?v=territories-20261012-22');
   await import('./avoid-address-upload.js?v=territories-20261012-22');
-  await import('./hall-address-sets.js?v=territories-20261015-28');
+  await import('./hall-address-sets.js?v=territories-20261015-29');
   await import('./territory-workflow-ui.js?v=territories-20261012-22');
-  await import('./territory-flex-grouping-pdf.js?v=territories-20261015-28');
+  await import('./territory-flex-grouping-pdf.js?v=territories-20261015-29');
   await import('./address-source-merge.js?v=territories-20261012-22');
   await import('./assessor-scan-direct.js?v=territories-20261012-22');
   await import('./assessor-full-boundary.js?v=territories-20261012-22');
