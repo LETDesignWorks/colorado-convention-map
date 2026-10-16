@@ -6,7 +6,8 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261015-29';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261016-30';
+import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2810,14 +2811,15 @@ async function deletePlanRecord(id) {
   } catch (error) { toast(`Could not delete the plan: ${friendlyError(error)}`, true); }
 }
 
-async function saveTerritoryPdf(blob, filename, snapshot, planId) {
+async function saveTerritoryPdf(blob, filename, snapshot, planId, recovery = null) {
   if (!isAdmin()) throw new Error('Sign in before saving a territory PDF.');
-  const id = doc(collection(db, 'reviews')).id;
+  const id = recovery?.archiveId || doc(collection(db, 'reviews')).id;
   const archive = await makePdfArchive(id, blob, snapshot, {
     filename, planId, territoryId: snapshot.territory.id, territoryName: snapshot.territory.name,
     hallId: snapshot.hall.id, hallName: snapshot.hall.name, congregation: snapshot.congregation,
     houseCount: snapshot.houses.filter(house => !house.avoid).length,
-    updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
+    updatedByEmail: currentUser.email, updatedAt: serverTimestamp(),
+    ...(recovery ? { recoveryId: recovery.recoveryId, sourcePdfSha256: recovery.sha256, recoveredOriginal: true } : {})
   });
   const written = [];
   try {
@@ -2842,6 +2844,54 @@ async function saveTerritoryPdf(blob, filename, snapshot, planId) {
     }
     throw error;
   }
+}
+async function restoreRecoveryPackage(data, progress = () => {}) {
+  if (!isAdmin()) throw new Error('Sign in before restoring territories.');
+  const plan = data.plan, planId = `recovered-${data.recoveryId.slice(0, 40)}`;
+  const planRef = doc(db, 'reviews', planId), previous = await getDoc(planRef);
+  // Deterministic recovery IDs make retrying safe. Never replace an existing
+  // user plan, or overwrite later edits to a previously recovered plan.
+  if (previous.exists() && previous.data().recoveryId !== data.recoveryId) throw new Error('This recovery conflicts with an existing saved plan.');
+  if (!previous.exists()) {
+    const chunks = [];
+    for (let index = 0; index < plan.houses.length; index += 150) chunks.push(plan.houses.slice(index, index + 150).map(serializeHouse));
+    const chunkIds = chunks.map((_, index) => `${planId}__houses_${index}`);
+    for (const [index, chunk] of chunks.entries()) {
+      progress(`Saving recovered addresses ${index + 1} of ${chunks.length}…`);
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'reviews', chunkIds[index]), { recordType: 'territory-plan-chunk', planId, chunkIndex: index,
+        housesJson: JSON.stringify(chunk), houseCount: chunk.length, updatedByEmail: currentUser.email, updatedAt: serverTimestamp() });
+      await batch.commit();
+    }
+    const record = { recordType: 'territory-plan', planName: plan.name,
+      hallId: plan.hall.id, hallLabel: String(plan.hall.number || plan.hall.id), hallName: plan.hall.name, hallAddress: plan.hall.address || '',
+      congregation: plan.congregation, territoryPrefix: plan.territoryPrefix || '', addressOnlyMode: !plan.geometry,
+      addressSetMode: true, boundaryPreservesAddresses: true, boundaryJson: encodeGeometry(plan.geometry), boundaryName: 'Recovered territory areas',
+      sourceKey: 'manual', targetSize: 40, groupingMethod: 'street', residentialOnly: true, separateUnits: false,
+      houseCount: plan.houses.length, includedHouseCount: plan.houses.filter(h => !h.avoid).length, avoidHouseCount: plan.houses.filter(h => h.avoid).length,
+      territoriesJson: JSON.stringify(plan.territories.map(t => ({ id: t.id, name: t.name, colorIndex: t.colorIndex || 0,
+        houseIds: t.houseIds, geometryJson: encodeGeometry(t.geometry), manualBoundary: Boolean(t.geometry) }))),
+      territoryCount: plan.territories.length, chunkIds, chunkCount: chunks.length,
+      recoveryId: data.recoveryId, recoveryNotes: plan.recoveryNotes || '', sourcePdfNames: data.originals.map(item => item.filename),
+      updatedByEmail: currentUser.email, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    await setDoc(planRef, record);
+    reviewRecords.set(planId, { ...record, id: planId, updatedAt: new Date() });
+    chunks.forEach((houses, index) => reviewRecords.set(chunkIds[index], { id: chunkIds[index], recordType: 'territory-plan-chunk', planId, houses }));
+    renderSavedRecords();
+  }
+  for (const [index, original] of data.originals.entries()) {
+    progress(`Saved recovery plan. Saving original PDF ${index + 1} of ${data.originals.length}: ${original.snapshot.territory.name}…`);
+    const archiveId = `recovered-pdf-${data.recoveryId.slice(0, 16)}-${original.sha256.slice(0, 32)}`;
+    const existing = await getDoc(doc(db, 'reviews', archiveId));
+    if (existing.exists()) {
+      if (existing.data().sourcePdfSha256 !== original.sha256 || existing.data().recoveryId !== data.recoveryId) throw new Error('A saved PDF conflicts with this recovery.');
+      continue;
+    }
+    const bytes = Uint8Array.from(atob(original.pdfBase64), character => character.charCodeAt(0));
+    await saveTerritoryPdf(new Blob([bytes], { type: 'application/pdf' }), original.filename, original.snapshot, planId,
+      { archiveId, recoveryId: data.recoveryId, sha256: original.sha256 });
+  }
+  return planId;
 }
 function renderSavedPdfs() {
   const element = document.getElementById('savedTerritoryPdfs');
@@ -3419,6 +3469,7 @@ function wireEvents() {
 async function initialize() {
   initMap();
   wireEvents();
+  setupRecoveryImport({ requireAdmin, restore: restoreRecoveryPackage });
   rebuildHallLocations();
   renderAllPlanningData();
   updateBoundaryUi();

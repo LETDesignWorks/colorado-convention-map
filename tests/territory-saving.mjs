@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from '../territories/pdf-archive.js';
+import { validateRecoveryPackage, sha256 } from '../territories/territory-recovery.js';
 
 const source = (await readFile(new URL('../territories/app-main.js', import.meta.url), 'utf8'))
   .replace(/^import[\s\S]*?from '[^']+';\r?\n/gm, '').replaceAll('import.meta.url', "'http://localhost/territories/app-main.js'").replace(/^initialize\(\);\s*$/m, '');
@@ -59,7 +60,7 @@ function realm() {
     currentSourceKey = () => 'manual';
     boundaryGroup = { clearLayers() {} };
     globalThis.test = {
-      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, subscribeReviews, clearPlanWorkspace,
+      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, subscribeReviews, clearPlanWorkspace, restoreRecoveryPackage,
       seed(data) { houses = data.houses; territories = data.territories; boundaryGeometry = data.geometry;
         selectedHall = data.hall; selectedCongregation = data.congregation; els.planName.value = data.name || 'Test Plan'; },
       reload(records) { reviewRecords = new Map(records); renderSavedRecords(); },
@@ -198,3 +199,45 @@ const unicode = await makePdfArchive('unicode', pdf, {...snapshot, notes: 'Cañ�
 const transported = unicode.parts.map(part => ({...part,data:Buffer.from(part.data,'utf8').toString('utf8')}));
 assert.deepEqual(readArchiveSnapshot(unicode.record, transported), {...snapshot, notes: 'Cañón 🏠 '.repeat(40000)});
 console.log('Saving verified: fresh-session plan restore, concurrent saves, failed-save retry, missing chunks, pending writes, workspace changes, PDF byte equality, archive restore, and failed-export cleanup.');
+
+// A recovery creates a separate saved plan and byte-exact PDF archives. Retrying
+// must not overwrite the original workspace or edits to the recovered plan.
+const recoveredFixture = clone(fixture);
+recoveredFixture.territories.forEach(t => { t.geometry ||= null; });
+recoveredFixture.geometry = geometry;
+const recoveryBytes = new TextEncoder().encode('%PDF-1.7\nSynthetic recovery test only\n%%EOF');
+const recoveryHash = await sha256(recoveryBytes);
+const recoverySource = JSON.stringify({format:'denver-territory-recovery',version:1,plan:recoveredFixture,
+  originals:recoveredFixture.territories.map((territory,index)=>({filename:`synthetic-${index}.pdf`,
+    pdfBase64:btoa(String.fromCharCode(...recoveryBytes)),sha256:recoveryHash,
+    snapshot:{territory,houses:recoveredFixture.houses.filter(h=>h.avoid||h.territoryId===territory.id),hall:recoveredFixture.hall,congregation:recoveredFixture.congregation}}))});
+// Each original must be distinct; these fixtures intentionally use two different
+// PDF contents to verify per-file identities.
+const recoveryObject = JSON.parse(recoverySource);
+const secondBytes = new TextEncoder().encode('%PDF-1.7\nSecond synthetic recovery test\n%%EOF');
+recoveryObject.originals[1].pdfBase64 = btoa(String.fromCharCode(...secondBytes));
+recoveryObject.originals[1].sha256 = await sha256(secondBytes);
+recoveryObject.plan.houses.forEach(h=>{h.avoid=Boolean(h.avoid);h.included=!h.avoid;});
+recoveryObject.originals.forEach(o=>o.snapshot.houses.forEach(h=>{h.avoid=Boolean(h.avoid);h.included=!h.avoid;}));
+const validated = await validateRecoveryPackage(JSON.stringify(recoveryObject));
+const recoveryRealm = realm(); recoveryRealm.test.seed(clone(fixture));
+const beforeRecoveryWorkspace = clone(recoveryRealm.test.state());
+failManifest = true;
+await assert.rejects(recoveryRealm.test.restoreRecoveryPackage(validated),/manifest failure/);
+failManifest = false;
+const recoveredId = await recoveryRealm.test.restoreRecoveryPackage(validated);
+assert.equal(store.get(recoveredId).territoryCount,2);
+assert.deepEqual(clone(recoveryRealm.test.state()),beforeRecoveryWorkspace);
+const recoveredPdfs = [...store.values()].filter(d=>d.recordType==='territory-pdf'&&d.planId===recoveredId);
+assert.equal(recoveredPdfs.length,2);
+assert.deepEqual(Buffer.from(await readArchivePdf(recoveredPdfs[0], [...store.values()]).arrayBuffer()),Buffer.from(recoveryBytes));
+store.set(recoveredId,{...store.get(recoveredId),planName:'Later user edit'});
+writesBefore = committedWrites.length;
+assert.equal(await recoveryRealm.test.restoreRecoveryPackage(validated),recoveredId);
+assert.equal(committedWrites.length,writesBefore,'Retry must not repeat confirmed writes');
+assert.equal(store.get(recoveredId).planName,'Later user edit');
+const invalidRecovery=clone(recoveryObject);invalidRecovery.originals[0].pdfBase64=btoa('%PDF-corrupted');
+await assert.rejects(validateRecoveryPackage(JSON.stringify(invalidRecovery)),/damaged or incomplete/);
+const unsafeAvoid=clone(recoveryObject);unsafeAvoid.plan.houses.at(-1).included=true;
+await assert.rejects(validateRecoveryPackage(JSON.stringify(unsafeAvoid)),/Do Not Visit/);
+console.log('Recovery tests passed: original PDFs, independent plan, failure recovery, safe retry, and input validation.');

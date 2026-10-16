@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const root = resolve(import.meta.dirname, '..'), output = resolve(root, 'tmp/saving-browser');
 await mkdir(output, {recursive:true});
@@ -94,11 +95,35 @@ try {
   await page.evaluate(()=>{window.failPlanSave=false;});
   await page.locator('#savePlanButton').click();
   await page.waitForFunction(()=>document.querySelector('#planSaveMessage').dataset.state==='success');
+  const recoveryHall = await page.evaluate(()=>__denverTerritoryPlannerAPI.getSelectedHall());
+  const recoveryCongregation = await page.evaluate(()=>__denverTerritoryPlannerAPI.getSelectedCongregation());
+  const recoveryHomes = homes.filter(h=>h.avoid || h.territoryId==='test-a').map(h=>({...h,avoid:Boolean(h.avoid),territoryId:h.avoid?null:h.territoryId}));
+  const recoveryTerritory = {id:'test-a',name:'Recovered Test A',colorIndex:0,geometry,houseIds:recoveryHomes.filter(h=>!h.avoid).map(h=>h.id)};
+  const originalBytes = await readFile(resolve(output,'original.pdf'));
+  const recovery = {format:'denver-territory-recovery',version:1,plan:{name:'Recovered browser plan',hall:recoveryHall,congregation:recoveryCongregation,
+    houses:recoveryHomes,territories:[recoveryTerritory],geometry},originals:[{filename:'original-test-a.pdf',pdfBase64:originalBytes.toString('base64'),
+    sha256:createHash('sha256').update(originalBytes).digest('hex'),snapshot:{territory:recoveryTerritory,houses:recoveryHomes,hall:recoveryHall,congregation:recoveryCongregation}}]};
+  const recoveryPath=resolve(output,'recovery-test.json'); await writeFile(recoveryPath,JSON.stringify(recovery));
+  await page.locator('.recovery-tools summary').click();
+  await page.locator('#territoryRecoveryFile').setInputFiles(recoveryPath);
+  await page.waitForFunction(()=>!document.querySelector('#restoreRecoveryButton').disabled);
+  await page.locator('#restoreRecoveryButton').click();
+  await page.waitForFunction(()=>document.querySelector('#territoryRecoveryStatus').dataset.state==='success');
+  assert.equal(await page.evaluate(()=>__denverTerritoryPlannerAPI.getCurrentPlanId()),originalPlanId);
+  assert.equal(await page.locator('#savedPlans [data-load-plan]').count(),2);
+  await page.reload(); await ready();
+  await page.locator('#savedPlans .saved-row').filter({hasText:'Recovered browser plan'}).getByRole('button',{name:'Load',exact:true}).click();
+  await page.waitForFunction(()=>__denverTerritoryPlannerAPI.getHouses().length===5);
+  assert.equal(await page.evaluate(()=>__denverTerritoryPlannerAPI.getTerritories()[0].name),'Recovered Test A');
+  const recoveredPdfDownload=page.waitForEvent('download');
+  await page.locator('#savedTerritoryPdfs .saved-row').filter({hasText:'Recovered Test A'}).getByRole('button',{name:'Download PDF',exact:true}).click();
+  await (await recoveredPdfDownload).saveAs(resolve(output,'recovery-original.pdf'));
+  assert.deepEqual(await readFile(resolve(output,'recovery-original.pdf')),originalBytes);
   await page.locator('#savedTerritoryPdfs').scrollIntoViewIfNeeded();
   await page.screenshot({path:resolve(output,'saved-library.png')});
   assert.deepEqual(pageErrors,[]);
   await writeFile(resolve(output,'result.txt'),'PASS: Export saved the plan and PDF; reloading restored the identical PDF; Load territory restored the printed homes and avoid marker; the full plan remained intact; failed saves showed errors and retried successfully.');
-  console.log('Browser saving passed: export → reload → download identical PDF → load territory copy → load full plan → failed save → successful retry.');
+  console.log('Browser saving passed: export, reload, byte-identical download, territory restore, failed save and retry; recovery-file upload, separate plan, fresh-page restore and byte-identical original PDF.');
 } catch (error) {
   console.error(JSON.stringify({pageErrors,consoleErrors,body:(await page.locator('body').innerText()).slice(-4000)},null,2));
   throw error;

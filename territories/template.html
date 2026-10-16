@@ -350,6 +350,14 @@
         <div id="savedBoundaries" class="saved-list"><div class="empty">Sign in to load saved boundaries.</div></div>
         <h3>Saved plans</h3>
         <div id="savedPlans" class="saved-list"><div class="empty">Sign in to load saved territory plans.</div></div>
+        <details class="recovery-tools">
+          <summary>Restore territories from a recovery file</summary>
+          <p class="section-copy">A prepared recovery file brings back editable territories and their original PDFs as a separate saved plan.</p>
+          <label for="territoryRecoveryFile">Choose recovery file</label>
+          <input id="territoryRecoveryFile" class="admin-control" type="file" accept=".json,application/json" />
+          <button id="restoreRecoveryButton" class="btn save" type="button" disabled>Save recovered territories and PDFs</button>
+          <p id="territoryRecoveryStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Choose the prepared recovery file to review its contents before saving.</p>
+        </details>
         <h3>Saved territory PDFs</h3>
         <p class="section-copy">Download an earlier PDF or load an editable copy of that territory. Each export keeps its own copy, even after you change the current plan.</p>
         <div id="savedTerritoryPdfs" class="saved-list"><div class="empty">Sign in to see saved territory PDFs.</div></div>
