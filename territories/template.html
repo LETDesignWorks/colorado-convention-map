@@ -323,12 +323,12 @@
 
       <section class="card save-card">
         <div class="card-heading">
-          <div><span class="eyebrow">6 — SAVE / EXPORT</span><h2>Store the plan in Firebase</h2></div>
+          <div><span class="eyebrow">6 — SAVE / EXPORT</span><h2>Save your plan and territory PDFs</h2></div>
         </div>
         <div class="field">
           <label for="pdfTerritorySelect">Territory to print</label>
           <select id="pdfTerritorySelect"><option value="">Create a territory first</option></select>
-          <small>The PDF includes two maps: an overview and a closer view of all homes in the territory. Small street numbers sit directly on the mapped homes, and a light shaded area with a thin edge marks the territory. The complete address list follows both maps, with a separate list for avoid addresses inside the territory and the Denver 2027 convention logo.</small>
+          <small>Exporting saves the current plan and keeps a copy in Saved territory PDFs below. Each PDF includes an overview, a closer view, readable house numbers, light territory shading, and the complete address and avoid lists.</small>
         </div>
         <div class="button-grid">
           <button class="btn save admin-control" id="savePlanButton" type="button">Save Territory Plan</button>
@@ -337,17 +337,22 @@
           <button class="btn outline" id="exportCsvButton" type="button">Export CSV</button>
           <button class="btn outline admin-control" id="newPlanButton" type="button">Start New Plan</button>
         </div>
+        <p id="planSaveMessage" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Exporting a territory PDF automatically saves the current plan. You can also use Save Territory Plan at any time.</p>
+        <a href="#savedTerritoryPdfs" class="row-action">View saved territory PDFs</a>
       </section>
 
       <section class="card saved-card">
         <div class="card-heading">
-          <div><span class="eyebrow">SAVED FIREBASE RECORDS</span><h2>Boundaries and territory plans</h2></div>
+          <div><span class="eyebrow">SAVED WORK</span><h2>Return to your territories</h2></div>
           <span class="private-chip">Administrator only</span>
         </div>
         <h3>Saved boundaries</h3>
         <div id="savedBoundaries" class="saved-list"><div class="empty">Sign in to load saved boundaries.</div></div>
         <h3>Saved plans</h3>
         <div id="savedPlans" class="saved-list"><div class="empty">Sign in to load saved territory plans.</div></div>
+        <h3>Saved territory PDFs</h3>
+        <p class="section-copy">Download an earlier PDF or load an editable copy of that territory. Each export keeps its own copy, even after you change the current plan.</p>
+        <div id="savedTerritoryPdfs" class="saved-list"><div class="empty">Sign in to see saved territory PDFs.</div></div>
       </section>
     </aside>
   </main>

@@ -14,7 +14,7 @@ const server = createServer(async (req, res) => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     if (pathname === '/test.html') {
       res.setHeader('Content-Type', 'text/html');
-      res.end('<button id="exportTerritoryPdfButton">Export PDF</button><select id="pdfTerritorySelect"><option value="sample">Sample</option></select>');
+      res.end('<button id="exportTerritoryPdfButton">Export PDF</button><select id="pdfTerritorySelect"><option value="sample">Sample</option></select><p id="planSaveMessage"></p>');
       return;
     }
     const path = resolve(root, '.' + pathname);
@@ -63,9 +63,19 @@ try {
   await page.evaluate(() => {
     window.fixture = { homes: [], territory: null };
     window.messages = [];
+    window.saveEvents = [];
+    window.failPlanSave = false;
+    window.failArchiveSave = false;
     window.__denverTerritoryPlannerAPI = {
       requireAdmin: () => true, getMap: () => ({}), getHouses: () => fixture.homes,
-      getTerritories: () => [fixture.territory], getSelectedHall: () => ({ name: 'Export Verification' }),
+      getTerritories: () => [fixture.territory], getSelectedHall: () => ({ id: 'test-hall', name: 'Export Verification' }),
+      savePlan: async () => { saveEvents.push('plan'); return failPlanSave ? null : 'saved-plan'; },
+      saveTerritoryPdf: async (blob, filename, snapshot, planId) => {
+        if (planId !== 'saved-plan' || !blob.size || !snapshot.houses.length || !filename.endsWith('.pdf')) throw Error('Invalid archive');
+        saveEvents.push('archive');
+        if (failArchiveSave) throw Error('Simulated archive failure');
+        return 'saved-pdf';
+      },
       getSelectedCongregation: () => 'PDF Label Test', toast: message => messages.push(message)
     };
   });
@@ -136,9 +146,26 @@ try {
     await page.locator('#exportTerritoryPdfButton').click();
     const download = await downloaded;
     await download.saveAs(resolve(output, sample.name + '.pdf'));
+    assert.deepEqual(await page.evaluate(() => saveEvents.splice(0)), ['plan', 'archive'], 'Plan and PDF must be saved before download');
     report.push({ sample: sample.name, homes: sample.homes.length, maps: result });
     console.log(`${sample.name}: both maps, all ${sample.homes.length} homes, no overlaps, export downloaded`);
   }
+  let unexpectedDownload = false;
+  const flagDownload = () => { unexpectedDownload = true; };
+  page.on('download', flagDownload);
+  await page.evaluate(() => { failPlanSave = true; messages.length = 0; });
+  await page.locator('#exportTerritoryPdfButton').click();
+  await page.waitForFunction(() => messages.some(message => message.includes('plan was not saved')));
+  assert.equal(unexpectedDownload, false, 'A failed plan save must stop PDF export');
+  assert.deepEqual(await page.evaluate(() => saveEvents.splice(0)), ['plan']);
+  page.off('download', flagDownload);
+  await page.evaluate(() => { failPlanSave = false; failArchiveSave = true; });
+  const fallbackDownload = page.waitForEvent('download');
+  await page.locator('#exportTerritoryPdfButton').click();
+  await fallbackDownload;
+  assert.match(await page.locator('#planSaveMessage').textContent(), /library copy could not be saved/);
+  assert.equal(await page.locator('#planSaveMessage').getAttribute('data-state'), 'error');
+  await page.evaluate(() => { failArchiveSave = false; });
   await page.evaluate(() => { fixture.homes[0].address = 'Missing Number Street'; });
   await page.locator('#exportTerritoryPdfButton').click();
   assert.match(await page.evaluate(() => messages.at(-1)), /missing a street house number/);

@@ -1,6 +1,6 @@
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 
-const FLEX_VERSION = 'territories-20261013-27';
+const FLEX_VERSION = 'territories-20261015-28';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -790,35 +790,41 @@ function triggerDownload(blob, filename) {
 }
 async function generateTerritoryPdf(territoryId, button) {
   if (pdfBusy || !planner?.requireAdmin?.()) return;
-  const territory = planner.getTerritories().find(item => String(item.id) === String(territoryId));
-  if (!territory) return toast('Choose a territory to print.', true);
+  if (planner.dedupeHouses?.()) planner.render?.();
+  const currentTerritory = planner.getTerritories().find(item => String(item.id) === String(territoryId));
+  if (!currentTerritory) return toast('Choose a territory to print.', true);
+  const territory = JSON.parse(JSON.stringify(currentTerritory));
   const assigned = planner.getHouses().filter(house => house.included !== false && !house.avoid && String(house.territoryId) === String(territory.id));
   const invalid = assigned.filter(house => !validCoordinates(house));
   if (invalid.length) return toast(`${invalid.length.toLocaleString()} address location${invalid.length === 1 ? ' needs' : 's need'} repair before this PDF can be created.`, true);
   const mappedAssigned = assigned.filter(validCoordinates);
   const insideBoundary = territory.geometry ? mappedAssigned.filter(house => pointInsideGeometry(house, territory.geometry)) : mappedAssigned;
-  const houses = sortedByAddress(insideBoundary);
+  const houses = JSON.parse(JSON.stringify(sortedByAddress(insideBoundary)));
   if (!houses.length) return toast('This territory does not have mapped assigned addresses inside its boundary.', true);
   const missingNumbers = houses.filter(house => !pdfHouseNumber(house));
   if (missingNumbers.length) return toast(`${missingNumbers.length} address${missingNumbers.length === 1 ? ' is' : 'es are'} missing a street house number. Correct the address before exporting: ${missingNumbers.slice(0, 3).map(house => house.address).join('; ')}`, true);
   const allAvoids = planner.getHouses().filter(house => house.avoid && validCoordinates(house));
   const geometry = territoryGeometry(territory, houses);
   if (!geometry) return toast('A usable territory outline could not be created from the mapped homes.', true);
-  const mapAvoids = relevantAvoids(allAvoids, geometry);
+  const mapAvoids = JSON.parse(JSON.stringify(relevantAvoids(allAvoids, geometry)));
+  const hall = JSON.parse(JSON.stringify(selectedHall())), congregation = selectedCongregation();
+  const snapshot = { hall, congregation, territory: { ...territory, geometry }, houses: [...houses, ...mapAvoids] };
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) return toast('The PDF library did not load. Refresh the page and try again.', true);
   pdfBusy = true;
   const original = button?.textContent;
   if (button) { button.disabled = true; button.textContent = 'Building PDF…'; }
-  const status = statusPill('Loading Denver 2027 logo…');
+  const status = statusPill('Saving territory plan before creating the PDF…');
   try {
+    const planId = await planner.savePlan({ silent: true });
+    if (!planId) throw new Error('The territory plan was not saved. Keep this page open, check the save message, and try again.');
+    status.textContent = 'Loading Denver 2027 logo…';
     const logo = await imageCanvasData(LOGO_URL);
     const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 775, padding: 90 });
     const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
     if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
     status.textContent = 'Creating printable territory pages…';
     await sleepFrame();
-    const hall = selectedHall(), congregation = selectedCongregation();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
     drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, overviewMap, hall, congregation, 'Overview');
     doc.addPage('letter', 'landscape');
@@ -830,9 +836,26 @@ async function generateTerritoryPdf(territoryId, button) {
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
+    const blob = doc.output('blob');
+    status.textContent = 'Saving a copy in Saved territory PDFs…';
+    try {
+      await planner.saveTerritoryPdf(blob, filename, snapshot, planId);
+    } catch (error) {
+      triggerDownload(blob, filename);
+      const message = 'Your plan was saved and the PDF was downloaded, but its library copy could not be saved. Keep the downloaded PDF and try exporting again.';
+      const feedback = document.getElementById('planSaveMessage');
+      if (feedback) { feedback.textContent = `${message} ${error?.message || ''}`; feedback.dataset.state = 'error'; }
+      toast(message, true);
+      return;
+    }
     status.textContent = 'Downloading territory PDF…';
-    triggerDownload(doc.output('blob'), filename);
-    toast(`${territory.name} PDF created with an overview map, a closer map of all ${houses.length} homes, and the complete address list${mapAvoids.length ? ', plus the Avoid / Do Not Visit appendix for this territory' : ''}.`);
+    triggerDownload(blob, filename);
+    const feedback = document.getElementById('planSaveMessage');
+    if (feedback) {
+      feedback.textContent = `${territory.name}: plan and PDF saved. Open Saved territory PDFs below to download this copy or load the territory later.`;
+      feedback.dataset.state = 'success';
+    }
+    toast(`${territory.name} PDF and territory saved. Return to Saved territory PDFs to download it again or load the territory.`);
   } catch (error) {
     console.error(error);
     toast(`The territory PDF could not be generated: ${error?.message || 'Unknown error'}`, true);

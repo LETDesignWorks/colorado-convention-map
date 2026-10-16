@@ -4,8 +4,9 @@ import {
   signOut, onAuthStateChanged, sendPasswordResetEmail
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import {
-  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch
+  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261015-28';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -72,6 +73,8 @@ let selectedHouseIds = new Set();
 let focusedTerritoryId = null;
 let currentBoundaryId = null;
 let currentPlanId = null;
+let planSaveQueue = Promise.resolve();
+let workspaceGeneration = 0;
 let reviewRecords = new Map();
 let reviewsUnsubscribe = null;
 let publicHallRecords = new Map();
@@ -2548,20 +2551,38 @@ function serializeHouse(house) {
     bulkOriginalAddress: house.bulkOriginalAddress || '', bulkSourceRow: house.bulkSourceRow ?? null
   };
 }
-async function savePlan(options = {}) {
-  if (!requireAdmin()) return null;
-  if (!selectedHall || !selectedCongregation) { toast('Select a Kingdom Hall and congregation before saving the territory plan.', true); return null; }
+function setPlanSaveMessage(message, state = 'waiting') {
+  const element = document.getElementById('planSaveMessage');
+  if (element) { element.textContent = message; element.dataset.state = state; }
+}
+function savePlan(options = {}) {
+  const generation = workspaceGeneration;
+  // Serialize saves from PDF export, boundary edits, and the save buttons.
+  // Each request saves the latest workspace after the preceding save finishes.
+  const request = planSaveQueue.then(() => {
+    if (generation !== workspaceGeneration) return null;
+    return persistPlan(options);
+  });
+  planSaveQueue = request.catch(() => null);
+  return request;
+}
+async function persistPlan(options = {}) {
+  const unavailable = message => { setPlanSaveMessage(message, 'error'); toast(message, true); return null; };
+  if (!requireAdmin()) return unavailable('Sign in to save this territory plan.');
+  if (!selectedHall || !selectedCongregation) return unavailable('Select a Kingdom Hall and congregation before saving the territory plan.');
   const addressOnlyMode = !boundaryGeometry && houses.length > 0;
   const addressSetMode = Boolean(options.addressSetMode || addressOnlyMode || boundaryPreservesAddresses);
-  if (!boundaryGeometry && !houses.length) { toast('Upload addresses or create a boundary before saving.', true); return null; }
-  if (!houses.length) { toast('Load or add addresses before saving the territory plan.', true); return null; }
+  if (!houses.length) return unavailable('Load or add addresses before saving the territory plan.');
   const duplicatesRemovedBeforeSave = dedupeHouseRecords();
   if (duplicatesRemovedBeforeSave) renderAllPlanningData();
   const defaultPlanName = addressSetMode
     ? `${selectedCongregation} — ${markerLabel(selectedHall)} Address Set`
     : `${selectedCongregation} — Convention Ministry Territories`;
   const button = els.savePlanButton;
+  const generation = workspaceGeneration;
   button.disabled = true; button.textContent = 'Saving…';
+  setPlanSaveMessage('Saving your territory plan. Please keep this page open until saving finishes.', 'working');
+  const pendingNotice = setTimeout(() => setPlanSaveMessage('Still waiting for the save to finish. Check your connection and keep this page open; your plan is not confirmed saved yet.', 'working'), 12000);
   try {
     const planRef = currentPlanId ? doc(db, 'reviews', currentPlanId) : doc(collection(db, 'reviews'));
     const planId = planRef.id;
@@ -2570,7 +2591,7 @@ async function savePlan(options = {}) {
     const chunkIds = chunks.map((_, index) => `${planId}__houses_${String(index).padStart(3, '0')}`);
     const oldChunkIds = [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === planId).map(item => item.id);
     const batch = writeBatch(db);
-    batch.set(planRef, {
+    const planRecord = {
       recordType: 'territory-plan',
       planName: clean(els.planName.value) || defaultPlanName,
       hallId: selectedHall.id,
@@ -2592,14 +2613,15 @@ async function savePlan(options = {}) {
       houseCount: houses.length,
       includedHouseCount: houses.filter(house => house.included && !house.avoid).length,
       avoidHouseCount: houses.filter(house => house.avoid).length,
-      territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...item.houseIds], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
+      territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...(item.houseIds || [])], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
       territoryCount: territories.length,
       chunkIds,
       chunkCount: chunkIds.length,
       updatedByEmail: currentUser.email,
       updatedAt: serverTimestamp(),
       ...(currentPlanId ? {} : { createdAt: serverTimestamp() })
-    }, { merge: true });
+    };
+    batch.set(planRef, planRecord, { merge: true });
     chunks.forEach((chunk, index) => {
       batch.set(doc(db, 'reviews', chunkIds[index]), {
         recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk,
@@ -2608,21 +2630,40 @@ async function savePlan(options = {}) {
     });
     oldChunkIds.filter(id => !chunkIds.includes(id)).forEach(id => batch.delete(doc(db, 'reviews', id)));
     await batch.commit();
-    currentPlanId = planId;
-    els.planName.value = clean(els.planName.value) || defaultPlanName;
+    // Do not attach an old save to a different workspace opened while waiting.
+    if (generation === workspaceGeneration) {
+      currentPlanId = planId;
+      els.planName.value = clean(els.planName.value) || defaultPlanName;
+    }
+    // Make the confirmed save immediately loadable, even if the listener has
+    // not delivered its acknowledgement yet. Never publish pending writes here.
+    reviewRecords.set(planId, { ...planRecord, id: planId, updatedAt: new Date() });
+    chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], {
+      id: chunkIds[index], recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk
+    }));
+    oldChunkIds.filter(id => !chunkIds.includes(id)).forEach(id => reviewRecords.delete(id));
+    renderSavedRecords();
     updateSummary();
     emitPlannerDataChange();
-    toast(options.successMessage || `${addressSetMode ? 'Kingdom Hall address set' : 'Territory plan'} saved in ${chunks.length} private Firebase data part${chunks.length === 1 ? '' : 's'}.`);
-    return currentPlanId;
+    setPlanSaveMessage(`Saved “${planRecord.planName}” at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Open Saved plans below and choose Load to return to these territories.`, 'success');
+    if (!options.silent) toast(options.successMessage || 'Territory plan saved. You can return to it under Saved plans.');
+    return planId;
   } catch (error) {
-    toast(`Could not save the territory plan: ${friendlyError(error)}`, true);
+    console.error('Territory plan save failed.', error);
+    const message = `Territory plan was not saved: ${friendlyError(error)} Keep this page open and try Save Territory Plan again.`;
+    setPlanSaveMessage(message, 'error');
+    toast(message, true);
     return null;
-  } finally { button.disabled = false; button.textContent = 'Save Territory Plan'; }
+  } finally { clearTimeout(pendingNotice); button.disabled = !isAdmin(); button.textContent = 'Save Territory Plan'; }
 }
 function subscribeReviews() {
   if (!db || !isAdmin()) return;
   if (reviewsUnsubscribe) reviewsUnsubscribe();
-  reviewsUnsubscribe = onSnapshot(collection(db, 'reviews'), snapshot => {
+  const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf']));
+  reviewsUnsubscribe = onSnapshot(records, { includeMetadataChanges: true }, snapshot => {
+    // Firestore emits local writes before the server accepts them. The saved
+    // list must not claim an unacknowledged plan can be reopened later.
+    if (snapshot.metadata?.hasPendingWrites) return;
     reviewRecords.clear();
     snapshot.forEach(item => reviewRecords.set(item.id, { id: item.id, ...item.data() }));
     renderSavedRecords();
@@ -2630,11 +2671,14 @@ function subscribeReviews() {
   }, error => {
     els.savedBoundaries.innerHTML = `<div class="empty">Saved records could not be loaded: ${escapeHtml(friendlyError(error))}</div>`;
     els.savedPlans.innerHTML = '';
+    const pdfs = document.getElementById('savedTerritoryPdfs');
+    if (pdfs) pdfs.innerHTML = '<div class="empty">Saved PDFs could not be loaded. Check your connection and administrator sign-in, then refresh.</div>';
   });
 }
 function savedBoundaries() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-boundary').sort((a, b) => clean(a.congregation).localeCompare(clean(b.congregation))); }
 function savedPlans() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan').sort((a, b) => clean(a.planName).localeCompare(clean(b.planName))); }
 function renderSavedRecords() {
+  renderSavedPdfs();
   if (!isAdmin()) {
     els.savedBoundaries.innerHTML = '<div class="empty">Sign in to load saved boundaries.</div>';
     els.savedPlans.innerHTML = '<div class="empty">Sign in to load saved territory plans.</div>';
@@ -2671,12 +2715,20 @@ function loadBoundaryRecord(id) {
 function loadPlanRecord(id) {
   const plan = reviewRecords.get(id);
   if (!plan) return;
-  if ((houses.length || boundaryGeometry) && !confirm('Replace the current unsaved workspace with this saved territory plan?')) return;
   const chunkIds = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === id).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex)).map(item => item.id);
+  if (chunkIds.some(chunkId => !Array.isArray(reviewRecords.get(chunkId)?.houses))) {
+    toast('This saved plan has missing address data. Your current work has been kept. Wait for saved records to finish loading and try again.', true);
+    return;
+  }
   const loadedHouses = chunkIds.flatMap(chunkId => reviewRecords.get(chunkId)?.houses || []);
+  if (Number.isFinite(plan.houseCount) && loadedHouses.length !== plan.houseCount) {
+    toast('The saved address count does not match this plan. Your current work has been kept; reload saved records before trying again.', true);
+    return;
+  }
+  if ((houses.length || boundaryGeometry) && !confirm('Replace the current unsaved workspace with this saved territory plan?')) return;
   clearPlanWorkspace(false);
   restoreHallAndCongregation(plan.hallId, plan.congregation);
-  currentPlanId = plan.id;
+  currentPlanId = plan.pdfArchive ? null : plan.id;
   currentBoundaryId = null;
   els.planName.value = plan.planName || '';
   els.territoryPrefix.value = plan.territoryPrefix || initialPrefix(plan.congregation || 'T');
@@ -2717,6 +2769,7 @@ function loadPlanRecord(id) {
     if (mappedPoints.length) map.fitBounds(L.latLngBounds(mappedPoints), { padding: [36, 36], maxZoom: 16 });
   }
   toast(`Saved ${plan.addressSetMode ? 'Kingdom Hall address-set ' : plan.addressOnlyMode ? 'CSV address-only ' : ''}plan loaded with ${houses.length.toLocaleString()} addresses.`);
+  setPlanSaveMessage(`Loaded “${plan.planName || 'Saved territory plan'}”. Exporting a PDF will save your latest changes automatically.`, 'success');
 }
 async function deleteBoundaryRecord(id) {
   const item = reviewRecords.get(id);
@@ -2735,6 +2788,90 @@ async function deletePlanRecord(id) {
     if (currentPlanId === id) currentPlanId = null;
     toast('Saved territory plan deleted.');
   } catch (error) { toast(`Could not delete the plan: ${friendlyError(error)}`, true); }
+}
+
+async function saveTerritoryPdf(blob, filename, snapshot, planId) {
+  if (!isAdmin()) throw new Error('Sign in before saving a territory PDF.');
+  const id = doc(collection(db, 'reviews')).id;
+  const archive = await makePdfArchive(id, blob, snapshot, {
+    filename, planId, territoryId: snapshot.territory.id, territoryName: snapshot.territory.name,
+    hallId: snapshot.hall.id, hallName: snapshot.hall.name, congregation: snapshot.congregation,
+    houseCount: snapshot.houses.filter(house => !house.avoid).length,
+    updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
+  });
+  const written = [];
+  try {
+    // Small staged batches keep large PDFs below the request limit. Incomplete
+    // payloads never appear in the library, and older exports are never replaced.
+    for (let start = 0; start < archive.parts.length; start += 4) {
+      const parts = archive.parts.slice(start, start + 4), batch = writeBatch(db);
+      parts.forEach(part => batch.set(doc(db, 'reviews', part.id), part));
+      await batch.commit();
+      written.push(...parts.map(part => part.id));
+    }
+    await setDoc(doc(db, 'reviews', id), archive.record);
+    reviewRecords.set(id, { ...archive.record, updatedAt: new Date() });
+    renderSavedPdfs();
+    return id;
+  } catch (error) {
+    // Clean up only this failed, unpublished export's own payloads.
+    for (let start = 0; start < written.length; start += 4) {
+      const batch = writeBatch(db);
+      written.slice(start, start + 4).forEach(partId => batch.delete(doc(db, 'reviews', partId)));
+      try { await batch.commit(); } catch { /* Unlisted parts can be removed later. */ }
+    }
+    throw error;
+  }
+}
+function renderSavedPdfs() {
+  const element = document.getElementById('savedTerritoryPdfs');
+  if (!element) return;
+  if (!isAdmin()) { element.innerHTML = '<div class="empty">Sign in to see saved territory PDFs.</div>'; return; }
+  const dateValue = value => value?.toDate ? value.toDate().getTime() : new Date(value || 0).getTime();
+  const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf')
+    .sort((a, b) => dateValue(b.updatedAt) - dateValue(a.updatedAt));
+  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}">Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Load territory</button></div></article>`).join('')
+    : '<div class="empty">New PDF exports will appear here automatically, with a copy of the territory as it was printed.</div>';
+  element.querySelectorAll('[data-download-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.downloadTerritoryPdf, button, false)));
+  element.querySelectorAll('[data-load-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.loadTerritoryPdf, button, true)));
+}
+async function openSavedPdf(id, button, restore) {
+  if (!requireAdmin()) return;
+  const record = reviewRecords.get(id);
+  if (!record) return;
+  const original = button.textContent;
+  button.disabled = true; button.textContent = 'Loading…';
+  try {
+    const ids = restore ? record.snapshotPartIds : record.pdfPartIds;
+    if (!Array.isArray(ids) || !ids.length) throw new Error('The saved file information is missing.');
+    const parts = [];
+    for (let start = 0; start < ids.length; start += 4) {
+      const results = await Promise.all(ids.slice(start, start + 4).map(partId => getDoc(doc(db, 'reviews', partId))));
+      results.forEach(result => { if (result.exists()) parts.push({ ...result.data(), id: result.id }); });
+    }
+    if (restore) {
+      const snapshot = readArchiveSnapshot(record, parts);
+      const chunkId = `${id}__restoring`;
+      // Reuse the existing plan loader, but start an editable copy so changes
+      // cannot overwrite either the original full plan or its archived PDF.
+      const plan = { ...record, pdfArchive: true, planName: `${record.territoryName} — saved PDF copy`,
+        boundaryJson: encodeGeometry(snapshot.territory.geometry), houseCount: snapshot.houses.length,
+        territoriesJson: JSON.stringify([{ ...snapshot.territory, geometryJson: encodeGeometry(snapshot.territory.geometry) }]),
+        chunkIds: [chunkId], targetSize: 40, sourceKey: 'manual' };
+      reviewRecords.set(id, plan);
+      reviewRecords.set(chunkId, { houses: snapshot.houses });
+      try { loadPlanRecord(id); }
+      finally { reviewRecords.set(id, record); reviewRecords.delete(chunkId); }
+    } else {
+      const blob = readArchivePdf(record, parts), url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = record.filename || 'territory.pdf';
+      document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      toast('Saved territory PDF downloaded.');
+    }
+  } catch (error) { toast(`Could not open the saved territory: ${friendlyError(error)}`, true); }
+  finally { button.disabled = false; button.textContent = original; }
 }
 
 function planGeoJson() {
@@ -3159,6 +3296,8 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
 }
 
 function clearPlanWorkspace(resetSelection = true) {
+  workspaceGeneration += 1;
+  setPlanSaveMessage('Exporting a territory PDF automatically saves the current plan. You can also use Save Territory Plan at any time.');
   cancelTerritoryBoundaryEdit(false);
   focusedTerritoryId = null;
   boundaryGeometry = null;
@@ -3309,6 +3448,7 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   recalculateTerritoryHouseIds,
   render: renderAllPlanningData,
   savePlan,
+  saveTerritoryPdf,
   selectTerritoryHouses,
   uniqueId,
   normalizeAddressKey,

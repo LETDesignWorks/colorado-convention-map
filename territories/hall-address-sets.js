@@ -224,14 +224,22 @@ async function saveAddressSet() {
   el.save.disabled = true;
   el.save.textContent = 'Saving Address Set…';
   try {
-    await api.savePlan?.({
+    const savedId = await api.savePlan?.({
       addressSetMode: true,
       successMessage: `${hallLabel(data.hall)} — ${data.congregation} address set saved with ${data.houses.length.toLocaleString()} mapped addresses, including ${data.houses.filter(house => house.avoid).length.toLocaleString()} avoid address${data.houses.filter(house => house.avoid).length === 1 ? '' : 'es'}.`
     });
-    setMessage('Address set saved. It is available below and in Saved Firebase Records for later loading.', 'success');
+    if (!savedId) {
+      setMessage('The address set was not saved. Keep this page open, check the save message below, and try again.', 'error');
+      return;
+    }
+    setMessage('Address set saved. It is available below and in Saved plans for later loading.', 'success');
+  } catch (error) {
+    setMessage(`The address set was not saved: ${error?.message || 'Please try again.'}`, 'error');
   } finally {
+    const message = el.message.textContent, state = el.message.dataset.state;
     el.save.textContent = 'Save Address Set to Selected Hall';
     refresh();
+    setMessage(message, state);
   }
 }
 function loadSavedSet() {

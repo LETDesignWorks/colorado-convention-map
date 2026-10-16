@@ -194,6 +194,12 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
 @media print{.territory-edit-actions{display:none!important}}
 
 
+.plan-save-message{padding:10px;border:1px solid #d4e0e9;border-radius:10px;background:#f8fbfd;font-size:11px;line-height:1.5;color:#43566a}
+.plan-save-message[data-state=working]{background:#fff8df;border-color:#e8c56c;color:#70520b}
+.plan-save-message[data-state=success]{background:#effaf5;border-color:#91cbb6;color:#205e49}
+.plan-save-message[data-state=error]{background:#fff4f3;border-color:#e0aaa5;color:#873a34}
+#savedTerritoryPdfs{scroll-margin-top:20px}
+
 /* Territory directions from a Hall or saved meeting point */
 .territory-directions-card{border-color:#bdd3e4;background:linear-gradient(150deg,#fff,#f7fbff)}
 .territory-route-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.territory-route-destination-field{grid-column:1/-1}.territory-route-departure{grid-column:1/-1}
