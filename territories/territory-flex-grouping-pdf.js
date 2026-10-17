@@ -1,9 +1,10 @@
+import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { layoutStreetCallouts, drawStreetCallouts } from './pdf-street-callouts.js?v=territories-20261017-31';
 import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=territories-20261017-32';
 
-const FLEX_VERSION = 'territories-20261017-32';
+const FLEX_VERSION = 'territories-20261017-33';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -774,6 +775,63 @@ function triggerDownload(blob, filename) {
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.appendChild(anchor); anchor.click(); anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1800);
 }
+// Render only the supplied snapshot. Rebuilding an archive must never load,
+// overwrite, or save the user's currently edited plan.
+export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
+  const snapshot = JSON.parse(JSON.stringify(sourceSnapshot));
+  const { territory, hall, congregation } = snapshot;
+  if (!territory?.id || !hall?.id || !congregation || !Array.isArray(snapshot.houses)) throw new Error('The saved territory information is incomplete.');
+  const houses = sortedByAddress(snapshot.houses.filter(house => !house.avoid));
+  if (!houses.length || houses.some(house => !validCoordinates(house) || house.included === false || String(house.territoryId) !== String(territory.id))) {
+    throw new Error('The saved territory has missing or inconsistent address locations. Load it to review its addresses.');
+  }
+  const missing = houses.filter(house => !pdfHouseNumber(house));
+  if (missing.length) throw new Error('A saved address is missing a street house number. Load the territory to correct it.');
+  const geometry = territoryGeometry(territory, houses);
+  if (!geometry || houses.some(house => !pointInsideGeometry(house, geometry))) throw new Error('Some saved homes are outside the saved boundary. Load the territory to review it.');
+  const mapAvoids = relevantAvoids(snapshot.houses.filter(house => house.avoid), geometry);
+  if (mapAvoids.length !== snapshot.houses.filter(house => house.avoid).length) throw new Error('A saved avoid address needs its location or boundary reviewed.');
+  snapshot.territory.geometry = geometry;
+  snapshot.houses = [...houses, ...mapAvoids];
+  const jsPDF = globalThis.jspdf?.jsPDF;
+  if (!jsPDF) throw new Error('The PDF library did not load. Refresh the page and try again.');
+  status.textContent = 'Loading Denver 2027 logo…';
+  const logo = await imageCanvasData(LOGO_URL);
+  const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 775, padding: 90 });
+  const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
+  if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
+  status.textContent = 'Finding nearby coffee shops…';
+  const coffee = await loadNearbyCoffee(houses, { onProgress: message => { status.textContent = message; } });
+  snapshot.nearbyCoffee = coffee;
+  let coffeeMap = null;
+  if (coffee.shops.length) {
+    try {
+      coffeeMap = await buildStreetMapImage(territory, [], [], geometry, status,
+        { width: 900, height: 660, padding: 70, contextPoints: coffee.shops, highlightTerritory: true });
+      coffeeMap.coffeePoints = coffee.shops.map(shop => pdfProjectedPoint(shop, coffeeMap.viewport));
+      coffeeMap.territoryPoint = pdfProjectedPoint(coffee.center, coffeeMap.viewport);
+    } catch { /* The address lists and shop links remain useful without map tiles. */ }
+  }
+  status.textContent = 'Creating printable territory pages…';
+  await sleepFrame();
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
+  drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, overviewMap, hall, congregation, 'Overview');
+  doc.addPage('letter', 'landscape');
+  drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, closerMap, hall, congregation, 'Closer View');
+
+  // The same complete set of homes appears on both map pages, followed by its address list.
+  addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
+  addAvoidPages(doc, logo, territory, mapAvoids, hall, congregation);
+  doc.addPage('letter', 'landscape');
+  pdfHeader(doc, logo, `${territory.name} — Nearby Coffee Shops`, `${congregation} • ${hall?.name || ''}`);
+  drawNearbyCoffeePage(doc, coffee, coffeeMap);
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
+  const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
+  snapshot.pdfLayoutVersion = PDF_LAYOUT_VERSION;
+  return { blob: doc.output('blob'), filename, snapshot };
+}
+
 async function generateTerritoryPdf(territoryId, button) {
   if (pdfBusy || !planner?.requireAdmin?.()) return;
   if (planner.dedupeHouses?.()) planner.render?.();
@@ -804,43 +862,11 @@ async function generateTerritoryPdf(territoryId, button) {
   try {
     const planId = await planner.savePlan({ silent: true });
     if (!planId) throw new Error('The territory plan was not saved. Keep this page open, check the save message, and try again.');
-    status.textContent = 'Loading Denver 2027 logo…';
-    const logo = await imageCanvasData(LOGO_URL);
-    const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 775, padding: 90 });
-    const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
-    if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
-    status.textContent = 'Finding nearby coffee shops…';
-    const coffee = await loadNearbyCoffee(houses, { onProgress: message => { status.textContent = message; } });
-    snapshot.nearbyCoffee = coffee;
-    let coffeeMap = null;
-    if (coffee.shops.length) {
-      try {
-        coffeeMap = await buildStreetMapImage(territory, [], [], geometry, status,
-          { width: 900, height: 660, padding: 70, contextPoints: coffee.shops, highlightTerritory: true });
-        coffeeMap.coffeePoints = coffee.shops.map(shop => pdfProjectedPoint(shop, coffeeMap.viewport));
-        coffeeMap.territoryPoint = pdfProjectedPoint(coffee.center, coffeeMap.viewport);
-      } catch { /* The address lists and shop links remain useful without map tiles. */ }
-    }
-    status.textContent = 'Creating printable territory pages…';
-    await sleepFrame();
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
-    drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, overviewMap, hall, congregation, 'Overview');
-    doc.addPage('letter', 'landscape');
-    drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, closerMap, hall, congregation, 'Closer View');
-
-    // The same complete set of homes appears on both map pages, followed by its address list.
-    addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
-    addAvoidPages(doc, logo, territory, mapAvoids, hall, congregation);
-    doc.addPage('letter', 'landscape');
-    pdfHeader(doc, logo, `${territory.name} — Nearby Coffee Shops`, `${congregation} • ${hall?.name || ''}`);
-    drawNearbyCoffeePage(doc, coffee, coffeeMap);
-    const pageCount = doc.getNumberOfPages();
-    for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
-    const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
-    const blob = doc.output('blob');
+    const built = await buildTerritoryPdf(snapshot, status);
+    const { blob, filename } = built;
     status.textContent = 'Saving a copy in Saved territory PDFs…';
     try {
-      await planner.saveTerritoryPdf(blob, filename, snapshot, planId);
+      await planner.saveTerritoryPdf(blob, filename, built.snapshot, planId);
     } catch (error) {
       triggerDownload(blob, filename);
       const message = 'Your plan was saved and the PDF was downloaded, but its library copy could not be saved. Keep the downloaded PDF and try exporting again.';

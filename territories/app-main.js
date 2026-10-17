@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261016-30';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { HALLS } from './halls.js';
@@ -2823,23 +2823,29 @@ async function saveTerritoryPdf(blob, filename, snapshot, planId, recovery = nul
     filename, planId, territoryId: snapshot.territory.id, territoryName: snapshot.territory.name,
     hallId: snapshot.hall.id, hallName: snapshot.hall.name, congregation: snapshot.congregation,
     houseCount: snapshot.houses.filter(house => !house.avoid).length,
+    pdfLayoutVersion: recovery ? 0 : Number(snapshot.pdfLayoutVersion || 0),
+    coffeeShopCount: recovery ? 0 : Number(snapshot.nearbyCoffee?.shops?.length || 0),
     updatedByEmail: currentUser.email, updatedAt: serverTimestamp(),
     ...(recovery ? { recoveryId: recovery.recoveryId, sourcePdfSha256: recovery.sha256, recoveredOriginal: true } : {})
   });
+  await publishPdfArchive(archive);
+  reviewRecords.set(id, { ...archive.record, updatedAt: new Date() });
+  renderSavedPdfs();
+  return id;
+}
+async function publishPdfArchive(archive) {
   const written = [];
   try {
     // Small staged batches keep large PDFs below the request limit. Incomplete
-    // payloads never appear in the library, and older exports are never replaced.
+    // payloads never appear in the library. Updated copies use unique part IDs,
+    // so the old PDF stays readable until the new manifest is confirmed.
     for (let start = 0; start < archive.parts.length; start += 1) {
       const parts = archive.parts.slice(start, start + 1), batch = writeBatch(db);
       parts.forEach(part => batch.set(doc(db, 'reviews', part.id), part));
       await batch.commit();
       written.push(...parts.map(part => part.id));
     }
-    await setDoc(doc(db, 'reviews', id), archive.record);
-    reviewRecords.set(id, { ...archive.record, updatedAt: new Date() });
-    renderSavedPdfs();
-    return id;
+    await setDoc(doc(db, 'reviews', archive.record.id), archive.record);
   } catch (error) {
     // Clean up only this failed, unpublished export's own payloads.
     for (let start = 0; start < written.length; start += 4) {
@@ -2849,6 +2855,76 @@ async function saveTerritoryPdf(blob, filename, snapshot, planId, recovery = nul
     }
     throw error;
   }
+}
+
+let savedPdfUpdateBusy = false;
+const savedPdfUpdates = new Map();
+function savedPdfStatus(message, state = 'saving') {
+  const element = document.getElementById('savedPdfUpdateStatus');
+  if (element) { element.textContent = message; element.dataset.state = state; }
+}
+async function archiveParts(record, kind) {
+  const ids = kind === 'snapshot' ? record.snapshotPartIds : record.pdfPartIds;
+  if (!Array.isArray(ids) || !ids.length) throw new Error('The saved file information is missing.');
+  const parts = [];
+  for (let start = 0; start < ids.length; start += 4) {
+    const results = await Promise.all(ids.slice(start, start + 4).map(partId => getDoc(doc(db, 'reviews', partId))));
+    results.forEach(result => { if (result.exists()) parts.push({ ...result.data(), id: result.id }); });
+  }
+  return parts;
+}
+async function renderSavedTerritoryPdf(snapshot, status) {
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261017-33');
+  return renderer.buildTerritoryPdf(snapshot, status);
+}
+function refreshSavedPdfRecord(id, progress = () => {}) {
+  if (savedPdfUpdates.has(id)) return savedPdfUpdates.get(id);
+  const work = (async () => {
+    if (!isAdmin()) throw new Error('Sign in before updating saved PDFs.');
+    const existing = await getDoc(doc(db, 'reviews', id));
+    if (!existing.exists() || existing.data().recordType !== 'territory-pdf') throw new Error('The saved PDF could not be found.');
+    const record = { ...existing.data(), id };
+    if (Number(record.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION) return record;
+    progress('Reading the saved territory…');
+    const snapshot = readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
+    const built = await renderSavedTerritoryPdf(snapshot, { set textContent(value) { progress(value); } });
+    if (built.snapshot.nearbyCoffee?.status === 'unavailable') throw new Error('Coffee shops could not be loaded. The previous PDF is safe; please try updating again.');
+    // Keep the first PDF and its snapshot downloadable. Publish new parts under
+    // this same library row only after every part has reached the server.
+    const originalPdf = record.originalPdf || Object.fromEntries(
+      ['id', 'filename', 'pdfPartIds', 'pdfBytes', 'snapshotPartIds', 'snapshotCharacters', 'pdfLayoutVersion']
+        .filter(key => record[key] !== undefined).map(key => [key, record[key]]));
+    const archive = await makePdfArchive(id, built.blob, built.snapshot, {
+      ...record, originalPdf, payloadRevision: uniqueId('revision'), recoveredOriginal: false,
+      pdfLayoutVersion: PDF_LAYOUT_VERSION, coffeeShopCount: built.snapshot.nearbyCoffee.shops.length,
+      updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
+    });
+    progress('Saving the updated PDF…');
+    await publishPdfArchive(archive);
+    const confirmed = { ...archive.record, updatedAt: new Date() };
+    reviewRecords.set(id, confirmed);
+    renderSavedPdfs();
+    return confirmed;
+  })();
+  savedPdfUpdates.set(id, work);
+  return work.finally(() => savedPdfUpdates.delete(id));
+}
+async function updateSavedPdfs() {
+  if (!requireAdmin() || savedPdfUpdateBusy) return;
+  const records = [...reviewRecords.values()].filter(record => record.recordType === 'territory-pdf' && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION);
+  if (!records.length) { savedPdfStatus('All saved PDFs already have street-grouped addresses and the coffee-shop page.', 'success'); return; }
+  savedPdfUpdateBusy = true; renderSavedPdfs();
+  const failures = []; let updated = 0;
+  try {
+    for (const [index, record] of records.entries()) {
+      try {
+        await refreshSavedPdfRecord(record.id, message => savedPdfStatus(`Updating ${index + 1} of ${records.length} — ${record.territoryName}: ${message}`));
+        updated++;
+      } catch (error) { failures.push(`${record.territoryName}: ${friendlyError(error)}`); }
+    }
+    savedPdfStatus(failures.length ? `${updated} PDFs updated. ${failures.length} still need an update; their previous copies are safe. ${failures.join(' ')} ` :
+      `All ${updated} saved PDFs updated with street-grouped addresses and coffee shops. Use Download PDF for the updated copy; Original PDF keeps the earlier file.`, failures.length ? 'error' : 'success');
+  } finally { savedPdfUpdateBusy = false; renderSavedPdfs(); }
 }
 async function restoreRecoveryPackage(data, progress = () => {}) {
   if (!isAdmin()) throw new Error('Sign in before restoring territories.');
@@ -2901,29 +2977,32 @@ async function restoreRecoveryPackage(data, progress = () => {}) {
 function renderSavedPdfs() {
   const element = document.getElementById('savedTerritoryPdfs');
   if (!element) return;
+  const updateButton = document.getElementById('updateSavedPdfsButton');
+  if (updateButton) { updateButton.disabled = !isAdmin() || savedPdfUpdateBusy; updateButton.onclick = updateSavedPdfs; }
   if (!isAdmin()) { element.innerHTML = '<div class="empty">Sign in to see saved territory PDFs.</div>'; return; }
   const dateValue = value => value?.toDate ? value.toDate().getTime() : new Date(value || 0).getTime();
   const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf')
     .sort((a, b) => dateValue(b.updatedAt) - dateValue(a.updatedAt));
-  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}">Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Load territory</button></div></article>`).join('')
+  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Load territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
     : '<div class="empty">New PDF exports will appear here automatically, with a copy of the territory as it was printed.</div>';
   element.querySelectorAll('[data-download-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.downloadTerritoryPdf, button, false)));
   element.querySelectorAll('[data-load-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.loadTerritoryPdf, button, true)));
+  element.querySelectorAll('[data-original-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.originalTerritoryPdf, button, false, true)));
 }
-async function openSavedPdf(id, button, restore) {
+async function openSavedPdf(id, button, restore, originalCopy = false) {
   if (!requireAdmin()) return;
-  const record = reviewRecords.get(id);
+  let record = reviewRecords.get(id);
   if (!record) return;
   const original = button.textContent;
   button.disabled = true; button.textContent = 'Loading…';
   try {
-    const ids = restore ? record.snapshotPartIds : record.pdfPartIds;
-    if (!Array.isArray(ids) || !ids.length) throw new Error('The saved file information is missing.');
-    const parts = [];
-    for (let start = 0; start < ids.length; start += 4) {
-      const results = await Promise.all(ids.slice(start, start + 4).map(partId => getDoc(doc(db, 'reviews', partId))));
-      results.forEach(result => { if (result.exists()) parts.push({ ...result.data(), id: result.id }); });
+    if (!restore && !originalCopy && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION) {
+      button.textContent = 'Updating PDF…';
+      record = await refreshSavedPdfRecord(id, message => savedPdfStatus(`${record.territoryName}: ${message}`));
+      savedPdfStatus(`${record.territoryName} updated with street-grouped addresses and coffee shops. The earlier file is available under Original PDF.`, 'success');
     }
+    if (originalCopy && record.originalPdf) record = { ...record, ...record.originalPdf };
+    const parts = await archiveParts(record, restore ? 'snapshot' : 'pdf');
     if (restore) {
       const snapshot = readArchiveSnapshot(record, parts);
       const chunkId = `${id}__restoring`;
@@ -2945,7 +3024,7 @@ async function openSavedPdf(id, button, restore) {
       setTimeout(() => URL.revokeObjectURL(url), 30000);
       toast('Saved territory PDF downloaded.');
     }
-  } catch (error) { toast(`Could not open the saved territory: ${friendlyError(error)}`, true); }
+  } catch (error) { savedPdfStatus(`Could not update or open this PDF: ${friendlyError(error)}`, 'error'); toast(`Could not open the saved territory: ${friendlyError(error)}`, true); }
   finally { button.disabled = false; button.textContent = original; }
 }
 

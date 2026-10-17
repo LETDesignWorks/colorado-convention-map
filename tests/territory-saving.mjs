@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from '../territories/pdf-archive.js';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from '../territories/pdf-archive.js';
 import { validateRecoveryPackage, sha256 } from '../territories/territory-recovery.js';
 
 const source = (await readFile(new URL('../territories/app-main.js', import.meta.url), 'utf8'))
@@ -40,7 +40,7 @@ function realm() {
     return elements.get(id);
   };
   const context = vm.createContext({ console: { error() {} }, Blob, Uint8Array, Date, Intl, Math, JSON,
-    URL, setTimeout, clearTimeout, btoa, atob, makePdfArchive, readArchivePdf, readArchiveSnapshot, normalizeAddressKey: value => value,
+    URL, setTimeout, clearTimeout, btoa, atob, makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION, normalizeAddressKey: value => value,
     document: { getElementById: element }, window: { dispatchEvent() {} },
     CustomEvent: class {}, confirm: () => true, ASSESSOR_SOURCES: { manual: {} },
     collection: () => ({}), doc, writeBatch, serverTimestamp: () => new Date(),
@@ -60,7 +60,7 @@ function realm() {
     currentSourceKey = () => 'manual';
     boundaryGroup = { clearLayers() {} };
     globalThis.test = {
-      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, subscribeReviews, clearPlanWorkspace, restoreRecoveryPackage,
+      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, subscribeReviews, clearPlanWorkspace, restoreRecoveryPackage, refreshSavedPdfRecord,
       seed(data) { houses = data.houses; territories = data.territories; boundaryGeometry = data.geometry;
         selectedHall = data.hall; selectedCongregation = data.congregation; els.planName.value = data.name || 'Test Plan'; },
       reload(records) { reviewRecords = new Map(records); renderSavedRecords(); },
@@ -241,3 +241,36 @@ await assert.rejects(validateRecoveryPackage(JSON.stringify(invalidRecovery)),/d
 const unsafeAvoid=clone(recoveryObject);unsafeAvoid.plan.houses.at(-1).included=true;
 await assert.rejects(validateRecoveryPackage(JSON.stringify(unsafeAvoid)),/Do Not Visit/);
 console.log('Recovery tests passed: original PDFs, independent plan, failure recovery, safe retry, and input validation.');
+
+// Rebuilding a saved PDF publishes new parts atomically in the same row, keeps
+// the original file, and never loads or saves over the active workspace.
+const updating = realm(); updating.test.seed(clone(fixture));
+updating.test.reload([...store].map(([id, data]) => [id, { id, ...clone(data) }]));
+updating.context.rebuildCalls = 0;
+vm.runInContext(`renderSavedTerritoryPdf = async snapshot => {
+  rebuildCalls++;
+  return {blob: new Blob(['%PDF-updated-territory']), snapshot: {...snapshot, pdfLayoutVersion: PDF_LAYOUT_VERSION,
+    nearbyCoffee: {status: 'ready', shops: [{name: 'Test Cafe'}]}}};
+};`, updating.context);
+const beforeUpdateState = JSON.stringify(updating.test.state()), beforeUpdateKeys = [...store.keys()];
+failManifest = true;
+await assert.rejects(updating.test.refreshSavedPdfRecord(archiveId), /manifest failure/);
+failManifest = false;
+assert.deepEqual(store.get(archiveId), record, 'Failed update retains the old manifest');
+assert.deepEqual([...store.keys()], beforeUpdateKeys, 'Failed revision only cleans up its own staged parts');
+assert.deepEqual(new Uint8Array(await readArchivePdf(record, [...store.values()]).arrayBuffer()), bytes);
+const [updated, concurrentUpdate] = await Promise.all([updating.test.refreshSavedPdfRecord(archiveId), updating.test.refreshSavedPdfRecord(archiveId)]);
+assert.equal(updated.id, concurrentUpdate.id); assert.equal(updating.context.rebuildCalls, 2, 'Concurrent updates share one render after the failed attempt');
+assert.equal(updated.id, archiveId); assert.equal(updated.pdfLayoutVersion, PDF_LAYOUT_VERSION);
+assert.ok(updated.pdfPartIds.every(id => !record.pdfPartIds.includes(id)), 'Revisions never overwrite readable payloads');
+assert.equal(await readArchivePdf(updated, [...store.values()]).text(), '%PDF-updated-territory');
+assert.deepEqual(new Uint8Array(await readArchivePdf(updated.originalPdf, [...store.values()]).arrayBuffer()), bytes);
+assert.deepEqual(readArchiveSnapshot(updated, [...store.values()]).houses, snapshot.houses);
+assert.equal(JSON.stringify(updating.test.state()), beforeUpdateState, 'Current workspace is untouched');
+const writesAfterUpdate = committedWrites.length;
+await updating.test.refreshSavedPdfRecord(archiveId);
+assert.equal(committedWrites.length, writesAfterUpdate, 'An updated file is reused without repeated writes');
+const newerRecord = {...updated, pdfLayoutVersion: PDF_LAYOUT_VERSION + 1}; store.set(archiveId, newerRecord);
+await updating.test.refreshSavedPdfRecord(archiveId);
+assert.deepEqual(store.get(archiveId), newerRecord, 'An older browser must never downgrade a newer PDF');
+console.log('Saved PDF upgrades passed: atomic failure/retry, preserved originals, unchanged homes/workspace, concurrency and version reuse.');

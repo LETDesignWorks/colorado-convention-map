@@ -43,6 +43,7 @@ const server = createServer(async (req,res) => {
     if (pathname === '/territories/app-main.js') content = content.toString()+`
       window.seedSavingTest = data => { houses=data.houses; territories=data.territories; boundaryGeometry=data.geometry;
         currentPlanId=null; els.planName.value='Browser Save Test'; recalculateTerritoryHouseIds(); renderAllPlanningData(); };
+      window.markPdfOldForTest = async id => {const record=reviewRecords.get(id); await setDoc(doc(db,'reviews',id), {...record,pdfLayoutVersion:0});};
     `;
     res.setHeader('Content-Type',({'.js':'text/javascript','.html':'text/html','.css':'text/css','.png':'image/png'})[extname(path)]||'text/plain');
     res.end(content);
@@ -99,7 +100,10 @@ try {
   const recoveryCongregation = await page.evaluate(()=>__denverTerritoryPlannerAPI.getSelectedCongregation());
   const recoveryHomes = homes.filter(h=>h.avoid || h.territoryId==='test-a').map(h=>({...h,avoid:Boolean(h.avoid),territoryId:h.avoid?null:h.territoryId}));
   const recoveryTerritory = {id:'test-a',name:'Recovered Test A',colorIndex:0,geometry,houseIds:recoveryHomes.filter(h=>!h.avoid).map(h=>h.id)};
-  const originalBytes = await readFile(resolve(output,'original.pdf'));
+  const originalBytes = Buffer.from(await page.evaluate(() => {
+    const old = new jspdf.jsPDF(); old.text('An earlier territory PDF without grouped addresses or coffee shops.', 12, 20);
+    return Array.from(new Uint8Array(old.output('arraybuffer')));
+  }));
   const recovery = {format:'denver-territory-recovery',version:1,plan:{name:'Recovered browser plan',hall:recoveryHall,congregation:recoveryCongregation,
     houses:recoveryHomes,territories:[recoveryTerritory],geometry},originals:[{filename:'original-test-a.pdf',pdfBase64:originalBytes.toString('base64'),
     sha256:createHash('sha256').update(originalBytes).digest('hex'),snapshot:{territory:recoveryTerritory,houses:recoveryHomes,hall:recoveryHall,congregation:recoveryCongregation}}]};
@@ -115,15 +119,44 @@ try {
   await page.locator('#savedPlans .saved-row').filter({hasText:'Recovered browser plan'}).getByRole('button',{name:'Load',exact:true}).click();
   await page.waitForFunction(()=>__denverTerritoryPlannerAPI.getHouses().length===5);
   assert.equal(await page.evaluate(()=>__denverTerritoryPlannerAPI.getTerritories()[0].name),'Recovered Test A');
+  const recoveredRow = page.locator('#savedTerritoryPdfs .saved-row').filter({hasText:'Recovered Test A'});
+  const workspaceBeforeUpdate = await page.evaluate(()=>JSON.stringify({houses:__denverTerritoryPlannerAPI.getHouses(),territories:__denverTerritoryPlannerAPI.getTerritories(),plan:__denverTerritoryPlannerAPI.getCurrentPlanId()}));
+  await page.evaluate(()=>{window.failArchiveSave=true;});
+  await page.locator('#updateSavedPdfsButton').click();
+  await page.waitForFunction(()=>document.querySelector('#savedPdfUpdateStatus').dataset.state==='error');
+  assert.equal(await recoveredRow.getByRole('button',{name:'Original PDF',exact:true}).count(),0);
+  assert.match(await recoveredRow.innerText(),/Earlier format/);
+  await page.evaluate(()=>{window.failArchiveSave=false;});
   const recoveredPdfDownload=page.waitForEvent('download');
-  await page.locator('#savedTerritoryPdfs .saved-row').filter({hasText:'Recovered Test A'}).getByRole('button',{name:'Download PDF',exact:true}).click();
-  await (await recoveredPdfDownload).saveAs(resolve(output,'recovery-original.pdf'));
+  await recoveredRow.getByRole('button',{name:'Download PDF',exact:true}).click();
+  await (await recoveredPdfDownload).saveAs(resolve(output,'recovery-updated.pdf'));
+  assert.notDeepEqual(await readFile(resolve(output,'recovery-updated.pdf')),originalBytes);
+  assert.match(await recoveredRow.innerText(),/Updated format.*Street-grouped addresses.*5 coffee stops/);
+  assert.equal(await page.evaluate(()=>JSON.stringify({houses:__denverTerritoryPlannerAPI.getHouses(),territories:__denverTerritoryPlannerAPI.getTerritories(),plan:__denverTerritoryPlannerAPI.getCurrentPlanId()})),workspaceBeforeUpdate);
+  const originalDownload=page.waitForEvent('download');
+  await recoveredRow.getByRole('button',{name:'Original PDF',exact:true}).click();
+  await (await originalDownload).saveAs(resolve(output,'recovery-original.pdf'));
   assert.deepEqual(await readFile(resolve(output,'recovery-original.pdf')),originalBytes);
+  // A later layout migration updates in place and retains the first original.
+  const recoveredArchiveId = await recoveredRow.locator('[data-download-territory-pdf]').getAttribute('data-download-territory-pdf');
+  await page.evaluate(id=>markPdfOldForTest(id),recoveredArchiveId);
+  await page.locator('#updateSavedPdfsButton').click();
+  await page.waitForFunction(()=>document.querySelector('#savedPdfUpdateStatus').textContent.startsWith('All 1 saved PDFs updated'));
+  assert.equal(await page.locator('#savedTerritoryPdfs .saved-row').count(),2,'Updating keeps the same rows, without duplicate exports');
+  await page.reload(); await ready();
+  await recoveredRow.getByRole('button',{name:'Original PDF',exact:true}).waitFor();
+  const freshUpdated=page.waitForEvent('download');
+  await recoveredRow.getByRole('button',{name:'Download PDF',exact:true}).click();
+  await (await freshUpdated).saveAs(resolve(output,'recovery-updated-reloaded.pdf'));
+  const freshOriginal=page.waitForEvent('download');
+  await recoveredRow.getByRole('button',{name:'Original PDF',exact:true}).click();
+  await (await freshOriginal).saveAs(resolve(output,'recovery-original-reloaded.pdf'));
+  assert.deepEqual(await readFile(resolve(output,'recovery-original-reloaded.pdf')),originalBytes);
   await page.locator('#savedTerritoryPdfs').scrollIntoViewIfNeeded();
   await page.screenshot({path:resolve(output,'saved-library.png')});
   assert.deepEqual(pageErrors,[]);
-  await writeFile(resolve(output,'result.txt'),'PASS: Export saved the plan and PDF; reloading restored the identical PDF; Load territory restored the printed homes and avoid marker; the full plan remained intact; failed saves showed errors and retried successfully.');
-  console.log('Browser saving passed: export, reload, byte-identical download, territory restore, failed save and retry; recovery-file upload, separate plan, fresh-page restore and byte-identical original PDF.');
+  await writeFile(resolve(output,'result.txt'),'PASS: Plan/PDF saving, recovery, automatic saved-PDF upgrades, batch upgrades, failed-upgrade retry, unchanged current workspace, no duplicate rows, updated files after reload, and byte-identical original PDF downloads.');
+  console.log('Browser saving passed: export and recovery; automatic and batch PDF upgrades; failed-upgrade retry; original PDF preserved; updated files after reload; unchanged workspace and no duplicate rows.');
 } catch (error) {
   console.error(JSON.stringify({pageErrors,consoleErrors,body:(await page.locator('body').innerText()).slice(-4000)},null,2));
   throw error;

@@ -359,7 +359,9 @@
           <p id="territoryRecoveryStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Choose the prepared recovery file to review its contents before saving.</p>
         </details>
         <h3>Saved territory PDFs</h3>
-        <p class="section-copy">Download an earlier PDF or load an editable copy of that territory. Each export keeps its own copy, even after you change the current plan.</p>
+        <p class="section-copy">Download PDF uses the latest layout, with addresses grouped by street and sorted by house number, plus nearby coffee shops. Earlier PDFs update automatically when downloaded. You can also update every saved PDF below; the original files remain available.</p>
+        <button id="updateSavedPdfsButton" class="btn save" type="button" disabled>Update all saved PDFs</button>
+        <p id="savedPdfUpdateStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Updating uses each saved territory's own addresses and boundary.</p>
         <div id="savedTerritoryPdfs" class="saved-list"><div class="empty">Sign in to see saved territory PDFs.</div></div>
       </section>
     </aside>
