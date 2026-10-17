@@ -18,12 +18,24 @@ for sample in report:
     note = 'ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.'
     assert all(note in text for text in texts), (path, 'missing footer note')
     assert 'Overview' in texts[0] and 'Closer View' in texts[1]
-    assert all('Address List' in text or 'Avoid / Do Not Visit' in text for text in texts[2:])
+    assert all('Address List' in text or 'Avoid / Do Not Visit' in text or 'Nearby Coffee Shops' in text for text in texts[2:])
+    assert 'Nearby Coffee Shops' in texts[-1]
     assert sum('Overview' in text or 'Closer View' in text for text in texts) == 2
     for forbidden in ['9999 Outside', '7777 Outside', '6666 Excluded', '5555 Other']:
         assert forbidden not in '\n'.join(texts), (path, forbidden)
-    assert '8888 Avoid Street' in texts[-1]
+    assert '8888 Avoid Street' in '\n'.join(texts[2:])
+    for shop in sample.get('coffee', {}).get('shops', []):
+        assert shop['name'] in texts[-1], (path, 'missing coffee shop')
+        links = [annotation.get_object().get('/A', {}).get('/URI') for annotation in PdfReader(path).pages[-1].get('/Annots', [])]
+        assert shop['url'] in links, (path, 'missing coffee map link')
     with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            for char in page.chars:
+                assert 0 <= char['x0'] <= char['x1'] <= page.width, (path, 'text outside page width')
+                assert 0 <= char['top'] <= char['bottom'] <= page.height, (path, 'text outside page height')
+        if sample.get('coffee', {}).get('shops'):
+            assert 'Territory center' in texts[-1]
+            assert len(pdf.pages[-1].images) >= 2, (path, 'missing coffee inset map')
         for page_index, map_data in enumerate(sample['maps']):
             expected_leaders = [label['leader'] for label in map_data['labels'] if label.get('leader')]
             actual_leaders = [line for line in pdf.pages[page_index].lines
@@ -60,8 +72,5 @@ for sample in report:
                     (actual_x, actual_y), (expected_x, expected_y))
             for street in map_data['streets']:
                 assert all(line in texts[page_index] for line in street['lines']), (path, 'missing street callout')
-            for char in pdf.pages[page_index].chars:
-                assert 0 <= char['x0'] <= char['x1'] <= pdf.pages[page_index].width
-                assert 0 <= char['top'] <= char['bottom'] <= pdf.pages[page_index].height
     assert 'Main St' in '\n'.join(texts[2:]) or 'Sample St' in '\n'.join(texts[2:]) or 'Sample Ave' in '\n'.join(texts[2:])
     print(f'{path.name}: two maps, all numbers and leaders positioned correctly, lists and filtering verified')

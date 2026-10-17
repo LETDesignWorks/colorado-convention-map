@@ -1,6 +1,7 @@
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { layoutStreetCallouts, drawStreetCallouts } from './pdf-street-callouts.js?v=territories-20261017-31';
+import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=territories-20261017-31';
 
 const FLEX_VERSION = 'territories-20261017-31';
 const FLEX_METHOD = 'nearby-flex';
@@ -563,7 +564,7 @@ function pdfMapLabelLayout(context, houses, avoids, viewport, options = {}) {
 async function buildStreetMapImage(territory, houses, avoids, geometry, status, options = {}) {
   const width = Number(options.width) || 1200, height = Number(options.height) || 775;
   const closer = options.view === 'closer';
-  const coordinates = mapCoordinates(houses, avoids, closer ? null : geometry);
+  const coordinates = mapCoordinates([...houses, ...(options.contextPoints || [])], avoids, closer ? null : geometry);
   if (!coordinates.length) return null;
   const padding = Number(options.padding) || (closer ? 55 : 90);
   let viewport = chooseViewport(coordinates, width, height, padding, closer ? 8 : 2, true);
@@ -616,15 +617,15 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
     const point = pdfProjectedPoint({ lng, lat }, viewport);
     return [point.x, point.y];
   };
-  const color = colorForTerritory(territory);
+  const color = options.highlightTerritory ? '#0b5b9f' : colorForTerritory(territory);
   context.lineJoin = 'round'; context.lineCap = 'round';
   context.beginPath();
   for (const ring of geometryRings(geometry)) {
     ring.forEach((pair, index) => { const [x, y] = project(Number(pair[0]), Number(pair[1])); if (index) context.lineTo(x, y); else context.moveTo(x, y); });
     context.closePath();
   }
-  context.fillStyle = `${color}14`; context.fill('evenodd');
-  context.strokeStyle = `${color}85`; context.lineWidth = 1.25; context.stroke();
+  context.fillStyle = `${color}${options.highlightTerritory ? '30' : '14'}`; context.fill('evenodd');
+  context.strokeStyle = `${color}${options.highlightTerritory ? 'dd' : '85'}`; context.lineWidth = options.highlightTerritory ? 3 : 1.25; context.stroke();
 
   labelLayout.avoidMarkers.forEach(({ x, y, radius }) => {
     context.beginPath(); context.arc(x, y, radius, 0, Math.PI * 2); context.fillStyle = '#c9362b'; context.fill(); context.strokeStyle = '#fff'; context.lineWidth = 3; context.stroke();
@@ -808,6 +809,18 @@ async function generateTerritoryPdf(territoryId, button) {
     const overviewMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'overview', width: 1200, height: 775, padding: 90 });
     const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
     if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
+    status.textContent = 'Finding nearby coffee shops…';
+    const coffee = await loadNearbyCoffee(houses);
+    snapshot.nearbyCoffee = coffee;
+    let coffeeMap = null;
+    if (coffee.shops.length) {
+      try {
+        coffeeMap = await buildStreetMapImage(territory, [], [], geometry, status,
+          { width: 900, height: 660, padding: 70, contextPoints: coffee.shops, highlightTerritory: true });
+        coffeeMap.coffeePoints = coffee.shops.map(shop => pdfProjectedPoint(shop, coffeeMap.viewport));
+        coffeeMap.territoryPoint = pdfProjectedPoint(coffee.center, coffeeMap.viewport);
+      } catch { /* The address lists and shop links remain useful without map tiles. */ }
+    }
     status.textContent = 'Creating printable territory pages…';
     await sleepFrame();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
@@ -818,6 +831,9 @@ async function generateTerritoryPdf(territoryId, button) {
     // The same complete set of homes appears on both map pages, followed by its address list.
     addAddressListPages(doc, logo, territory, houses, 0, hall, congregation);
     addAvoidPages(doc, logo, territory, mapAvoids, hall, congregation);
+    doc.addPage('letter', 'landscape');
+    pdfHeader(doc, logo, `${territory.name} — Nearby Coffee Shops`, `${congregation} • ${hall?.name || ''}`);
+    drawNearbyCoffeePage(doc, coffee, coffeeMap);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
