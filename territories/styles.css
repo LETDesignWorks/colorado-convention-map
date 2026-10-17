@@ -223,3 +223,4 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
   .map-legend{top:auto!important;right:auto!important;left:8px!important;bottom:56px!important}
   .map-note{left:auto!important;right:8px!important;bottom:8px!important}
 }
+.house-street-heading{margin:12px 0 4px;padding:7px 9px;background:#eef4f8;border-left:3px solid #0b5b9f;color:#0b447e;font-size:12px;line-height:1.35}.house-street-heading:first-child{margin-top:0}

@@ -1,6 +1,8 @@
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
+import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
+import { layoutStreetCallouts, drawStreetCallouts } from './pdf-street-callouts.js?v=territories-20261017-31';
 
-const FLEX_VERSION = 'territories-20261016-30';
+const FLEX_VERSION = 'territories-20261017-31';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -634,7 +636,10 @@ async function buildStreetMapImage(territory, houses, avoids, geometry, status, 
   context.fillStyle = 'rgba(255,255,255,.95)'; context.beginPath(); context.arc(northX, northY, 18, 0, Math.PI * 2); context.fill(); context.strokeStyle = '#91a3b4'; context.lineWidth = 1.25; context.stroke();
   context.fillStyle = '#20384f'; context.font = 'bold 11.5px Arial'; context.textAlign = 'center'; context.fillText('N', northX, northY - 2);
   context.beginPath(); context.moveTo(northX, northY + 13); context.lineTo(northX, northY + 1); context.lineTo(northX - 5, northY + 7); context.moveTo(northX, northY + 1); context.lineTo(northX + 5, northY + 7); context.strokeStyle = '#20384f'; context.lineWidth = 1.4; context.stroke();
-  return { dataUrl: canvas.toDataURL('image/jpeg', 0.95), streetTilesLoaded: loaded, basemap: 'Esri World Street Map', viewport, labelLayout };
+  // Raster tiles do not expose their street-label positions. Add an unobstructed
+  // label for each represented street so its name stays readable under addresses.
+  const streetLayout = layoutStreetCallouts(context, [...houses, ...avoids].map(house => pdfProjectedPoint(house, viewport)), labelLayout, viewport);
+  return { dataUrl: canvas.toDataURL('image/jpeg', 0.95), streetTilesLoaded: loaded, basemap: 'Esri World Street Map', viewport, labelLayout, streetLayout };
 }
 
 function pdfProjectedPoint(item, viewport) {
@@ -684,14 +689,17 @@ function pdfHeader(doc, logo, title, subtitle) {
   doc.setLineWidth(0.008); doc.setDrawColor(174, 193, 209); doc.line(0.35, 1.03, 10.65, 1.03);
 }
 function pdfFooter(doc, page, count) {
-  doc.setLineWidth(0.008); doc.setDrawColor(210, 219, 227); doc.line(0.35, 8.12, 10.65, 8.12);
+  doc.setLineWidth(0.008); doc.setDrawColor(210, 219, 227); doc.line(0.35, 8.06, 10.65, 8.06);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(40, 55, 72);
+  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, 8.19, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(93, 106, 120);
-  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
-  doc.text(`Page ${page} of ${count}`, 10.65, 8.32, { align: 'right' });
+  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.34);
+  doc.text(`Page ${page} of ${count}`, 10.65, 8.34, { align: 'right' });
 }
 function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, hall, congregation, viewLabel) {
   pdfHeader(doc, logo, `${territory.name} — ${viewLabel}`, `${congregation} • ${hall?.name || ''} • ${houses.length} homes${avoids.length ? ` • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'}` : ''}`);
   doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
+  drawStreetCallouts(doc, mapResult.streetLayout, mapResult.viewport);
   // Keep numbers as vector text so they remain crisp on paper and when zoomed.
   const scaleX = 10.14 / mapResult.viewport.width, scaleY = 6.55 / mapResult.viewport.height;
   const mapX = x => 0.43 + x * scaleX, mapY = y => 1.17 + y * scaleY;
@@ -739,23 +747,13 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.3); doc.setTextColor(43, 59, 75);
   doc.text(legend, 0.48, 7.93);
 }
-function sortedByAddress(items) { return [...items].sort((a, b) => clean(a.address).localeCompare(clean(b.address), undefined, { numeric: true })); }
+function sortedByAddress(items) { return [...items].sort(compareStreetAddresses); }
 function addAddressListPages(doc, logo, territory, houses, startIndex, hall, congregation) {
   let index = startIndex;
   while (index < houses.length) {
     doc.addPage('letter', 'landscape');
     pdfHeader(doc, logo, `${territory.name} — Address List`, `${congregation} • ${hall?.name || ''}`);
-    const columns = [0.48, 5.55];
-    for (let column = 0; column < 2 && index < houses.length; column += 1) {
-      let y = 1.26;
-      while (index < houses.length) {
-        const lines = doc.splitTextToSize(`${index + 1}. ${houses[index].address}`, 4.55);
-        const needed = Math.max(0.22, lines.length * 0.17 + 0.07);
-        if (y + needed > 7.91) break;
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(40, 55, 72); doc.text(lines, columns[column], y);
-        y += needed; index += 1;
-      }
-    }
+    index = drawStreetAddressColumns(doc, houses, index);
   }
 }
 function addAvoidPages(doc, logo, territory, territoryAvoids, hall, congregation) {
@@ -767,20 +765,7 @@ function addAvoidPages(doc, logo, territory, territoryAvoids, hall, congregation
     pdfHeader(doc, logo, `${territory.name} — Avoid / Do Not Visit`, `${congregation} • ${hall?.name || ''} • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'} in this territory`);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(82, 94, 108);
     doc.text('Only addresses inside this territory are listed below and shown as red X dots on its map.', 0.48, 1.22);
-    const columns = [0.55, 5.55];
-    for (let column = 0; column < 2 && index < avoids.length; column += 1) {
-      let y = 1.55;
-      while (index < avoids.length) {
-        const avoid = avoids[index];
-        const label = `${index + 1}. ${avoid.address}`;
-        const lines = doc.splitTextToSize(label, 4.48);
-        const needed = Math.max(0.30, lines.length * 0.17 + 0.09);
-        if (y + needed > 7.91) break;
-        doc.setFillColor(201, 54, 43); doc.circle(columns[column] + 0.07, y - 0.02, 0.065, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.1); doc.setTextColor(151, 45, 37); doc.text(lines, columns[column] + 0.20, y);
-        y += needed; index += 1;
-      }
-    }
+    index = drawStreetAddressColumns(doc, avoids, index, { startY: 1.57, avoid: true });
   } while (index < avoids.length);
 }
 function triggerDownload(blob, filename) {

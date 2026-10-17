@@ -105,6 +105,7 @@ try {
       for (const view of ['overview', 'closer']) {
         const map = await pdfTest.buildStreetMapImage(fixture.territory, sample.homes, avoids, geometry, {}, { view });
         maps.push({ view, tiles: map.streetTilesLoaded, scale: 2 ** map.viewport.zoom * map.viewport.scale,
+          streets: map.streetLayout.labels, unplacedStreets: map.streetLayout.unplaced,
           overlaps: map.labelLayout.overlapPairs.length,
           leaderCrossings: map.labelLayout.leaderCrossings.length,
           collisions: map.labelLayout.overlapPairs.map(pair => pair.map(label => ({ lines: label.lines, x: label.x, y: label.y, bounds: label.bounds, angle: label.angle, radius: label.radius }))),
@@ -116,6 +117,11 @@ try {
     await writeFile(resolve(output, sample.name + '-layout.json'), JSON.stringify(result, null, 2));
     for (const map of result) {
       assert.ok(map.tiles > 0, `${sample.name} ${map.view}: map tiles loaded`);
+      assert.deepEqual(map.unplacedStreets, [], `${sample.name} ${map.view}: all streets labeled`);
+      for (const street of map.streets) {
+        assert.ok(map.labels.every(house => !(street.bounds.left < house.bounds.right && street.bounds.right > house.bounds.left &&
+          street.bounds.top < house.bounds.bottom && street.bounds.bottom > house.bounds.top)), 'Street label must not cover a house number');
+      }
       assert.equal(map.overlaps, 0, `${sample.name} ${map.view}: label collisions ${JSON.stringify(map.collisions)}`);
       assert.deepEqual(map.labels.flatMap(l => l.homes).sort(), sample.homes.map(h => h.id).sort());
       for (const label of map.labels) {

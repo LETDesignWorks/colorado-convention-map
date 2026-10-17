@@ -15,6 +15,8 @@ report = json.loads((output / 'verification.json').read_text())
 for sample in report:
     path = output / (sample['sample'] + '.pdf')
     texts = [page.extract_text() for page in PdfReader(path).pages]
+    note = 'ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.'
+    assert all(note in text for text in texts), (path, 'missing footer note')
     assert 'Overview' in texts[0] and 'Closer View' in texts[1]
     assert all('Address List' in text or 'Avoid / Do Not Visit' in text for text in texts[2:])
     assert sum('Overview' in text or 'Closer View' in text for text in texts) == 2
@@ -56,5 +58,10 @@ for sample in report:
                 assert math.hypot(actual_x - expected_x, actual_y - expected_y) < 1.5, (
                     path, page_index, text, 'number moved off its intended label position',
                     (actual_x, actual_y), (expected_x, expected_y))
-            assert 'Sample Street' not in texts[page_index]
+            for street in map_data['streets']:
+                assert all(line in texts[page_index] for line in street['lines']), (path, 'missing street callout')
+            for char in pdf.pages[page_index].chars:
+                assert 0 <= char['x0'] <= char['x1'] <= pdf.pages[page_index].width
+                assert 0 <= char['top'] <= char['bottom'] <= pdf.pages[page_index].height
+    assert 'Main St' in '\n'.join(texts[2:]) or 'Sample St' in '\n'.join(texts[2:]) or 'Sample Ave' in '\n'.join(texts[2:])
     print(f'{path.name}: two maps, all numbers and leaders positioned correctly, lists and filtering verified')

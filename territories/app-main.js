@@ -8,6 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot } from './pdf-archive.js?v=territories-20261016-30';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
+import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2453,18 +2454,22 @@ function renderHouseList() {
   const filtered = houses.filter(house => {
     const territory = territoryById.get(house.avoid ? house.avoidTerritoryId : house.territoryId);
     return !query || `${house.address} ${territory?.name || ''} ${house.source || ''} ${house.avoid ? 'avoid do not visit' : ''}`.toLowerCase().includes(query);
-  }).sort((a, b) => Number(Boolean(b.avoid)) - Number(Boolean(a.avoid)) || a.address.localeCompare(b.address, undefined, { numeric: true }));
+  }).sort(compareStreetAddresses);
   const shown = filtered.slice(0, HOUSE_LIST_LIMIT);
   if (!shown.length) {
     els.houseList.innerHTML = `<div class="empty">${houses.length ? 'No addresses match this search.' : 'No addresses loaded.'}</div>`;
     return;
   }
+  let previousStreet = null;
   els.houseList.innerHTML = shown.map(house => {
+    const street = streetAddressInfo(house);
+    const heading = previousStreet !== street.key ? `<h3 class="house-street-heading">${escapeHtml(street.name)}</h3>` : '';
+    previousStreet = street.key;
     const territory = territoryById.get(house.avoid ? house.avoidTerritoryId : house.territoryId);
     const color = house.avoid ? '#c9362b' : territory ? TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length] : house.included ? (mapHouseIsUploaded(house) ? '#7952c7' : '#16A6A1') : '#b44b43';
     const rowClass = `${selectedHouseIds.has(house.id) ? ' selected' : ''}${house.avoid ? ' avoid' : house.included ? '' : ' excluded'}`;
     const status = house.avoid ? `Avoid${territory?.name ? ` — ${territory.name}` : ''}` : house.included ? territory?.name || 'Unassigned' : 'Excluded';
-    return `<article class="house-row${rowClass}" data-house-id="${escapeHtml(house.id)}"><span class="house-dot" style="background:${color}"></span><div><strong>${escapeHtml(house.address)}</strong><small>${escapeHtml(house.source || '')}${house.classification ? ` • ${escapeHtml(house.classification)}` : ''}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div><span class="territory-tag">${escapeHtml(status)}</span></article>`;
+    return heading + `<article class="house-row${rowClass}" data-house-id="${escapeHtml(house.id)}"><span class="house-dot" style="background:${color}"></span><div><strong>${escapeHtml(house.address)}</strong><small>${escapeHtml(house.source || '')}${house.classification ? ` • ${escapeHtml(house.classification)}` : ''}${house.unitCount > 1 ? ` • ${house.unitCount} assessor units` : ''}</small></div><span class="territory-tag">${escapeHtml(status)}</span></article>`;
   }).join('') + (filtered.length > HOUSE_LIST_LIMIT ? `<div class="list-limit">Showing the first ${HOUSE_LIST_LIMIT.toLocaleString()} of ${filtered.length.toLocaleString()} matching addresses. Use search or the map to narrow the list.</div>` : '');
   els.houseList.querySelectorAll('[data-house-id]').forEach(row => row.addEventListener('click', () => toggleHouseSelection(row.dataset.houseId)));
 }
@@ -2993,17 +2998,11 @@ function hexRgb(hex) {
 }
 function territoryHousesSorted(territory) {
   return houses.filter(house => house.included && !house.avoid && house.territoryId === territory.id && validMapCoordinates(house) &&
-    (!territory.geometry || houseInsideTerritoryGeometry(house, territory.geometry))).sort((a, b) => {
-    const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
-    return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
-  });
+    (!territory.geometry || houseInsideTerritoryGeometry(house, territory.geometry))).sort(compareStreetAddresses);
 }
 function avoidHousesInsideGeometry(geometry) {
   // Current geometry is authoritative, including holes and edited boundaries.
-  return houses.filter(house => house.avoid && houseInsideTerritoryGeometry(house, geometry)).sort((a, b) => {
-    const aa = splitStreetSort(a.address), bb = splitStreetSort(b.address);
-    return aa.street.localeCompare(bb.street) || aa.number - bb.number || a.address.localeCompare(b.address);
-  });
+  return houses.filter(house => house.avoid && houseInsideTerritoryGeometry(house, geometry)).sort(compareStreetAddresses);
 }
 function addressHouseNumber(address = '') {
   const match = clean(address).match(/^\s*(\d+[A-Za-z]?)/);
@@ -3148,12 +3147,14 @@ function drawPdfHeader(doc, logoData, title, subtitle = '') {
 function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.setDrawColor(211, 220, 228);
   doc.setLineWidth(.008);
-  doc.line(0.35, 8.12, 10.65, 8.12);
+  doc.line(0.35, 8.06, 10.65, 8.06);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(40, 55, 72);
+  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, 8.19, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(94, 106, 119);
-  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.32);
-  doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.32, { align: 'right' });
+  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.34);
+  doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.34, { align: 'right' });
 }
 function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null, avoidHouses = [], options = {}) {
   const mapX = .43, mapY = 1.17, mapW = 10.14, mapH = 6.55;
@@ -3260,58 +3261,13 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
 function addAddressListPage(doc, logoData, territory, territoryHouses, startIndex) {
   doc.addPage('letter', 'landscape');
   drawPdfHeader(doc, logoData, `${territory.name} — Address List`, `${selectedCongregation} • ${selectedHall?.name || ''}`);
-  const columnX = [0.45, 5.55];
-  const columnWidth = 4.78;
-  const startY = 1.18;
-  const bottomY = 7.92;
-  let index = startIndex;
-  for (let column = 0; column < 2 && index < territoryHouses.length; column += 1) {
-    let y = startY;
-    while (index < territoryHouses.length) {
-      const label = `${index + 1}.  ${territoryHouses[index].address}`;
-      const lines = doc.splitTextToSize(label, columnWidth - .12);
-      const needed = Math.max(.22, lines.length * .17 + .08);
-      if (y + needed > bottomY) break;
-      doc.setDrawColor(218, 225, 232);
-      doc.setFillColor(255, 255, 255);
-      doc.rect(columnX[column], y - .13, .14, .14);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.2);
-      doc.setTextColor(39, 55, 72);
-      doc.text(lines, columnX[column] + .22, y);
-      y += needed;
-      index += 1;
-    }
-  }
-  return index;
+  return drawStreetAddressColumns(doc, territoryHouses, startIndex);
 }
+
 function addAvoidAddressListPage(doc, logoData, territory, avoidHouses, startIndex) {
   doc.addPage('letter', 'landscape');
   drawPdfHeader(doc, logoData, `${territory.name} — Avoid / Do Not Visit`, `${selectedCongregation} • ${selectedHall?.name || ''}`);
-  const columnX = [0.55, 5.55];
-  const columnWidth = 4.72;
-  const startY = 1.28;
-  const bottomY = 7.92;
-  let index = startIndex;
-  for (let column = 0; column < 2 && index < avoidHouses.length; column += 1) {
-    let y = startY;
-    while (index < avoidHouses.length) {
-      const label = avoidHouses[index].address;
-      const lines = doc.splitTextToSize(label, columnWidth - .36);
-      const needed = Math.max(.28, lines.length * .17 + .08);
-      if (y + needed > bottomY) break;
-      doc.setFillColor(201, 54, 43);
-      doc.setDrawColor(255, 255, 255);
-      doc.circle(columnX[column] + .08, y - .015, .065, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.2);
-      doc.setTextColor(143, 45, 38);
-      doc.text(lines, columnX[column] + .22, y);
-      y += needed;
-      index += 1;
-    }
-  }
-  return index;
+  return drawStreetAddressColumns(doc, avoidHouses, startIndex, { avoid: true });
 }
 
 async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
