@@ -1,9 +1,9 @@
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { layoutStreetCallouts, drawStreetCallouts } from './pdf-street-callouts.js?v=territories-20261017-31';
-import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=territories-20261017-31';
+import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=territories-20261017-32';
 
-const FLEX_VERSION = 'territories-20261017-31';
+const FLEX_VERSION = 'territories-20261017-32';
 const FLEX_METHOD = 'nearby-flex';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const ROUND_LOGO_URL = LOGO_URL;
@@ -810,7 +810,7 @@ async function generateTerritoryPdf(territoryId, button) {
     const closerMap = await buildStreetMapImage(territory, houses, mapAvoids, geometry, status, { view: 'closer', width: 1200, height: 775, padding: 55 });
     if (!overviewMap?.dataUrl || !closerMap?.dataUrl) throw new Error('Both territory map views could not be created.');
     status.textContent = 'Finding nearby coffee shops…';
-    const coffee = await loadNearbyCoffee(houses);
+    const coffee = await loadNearbyCoffee(houses, { onProgress: message => { status.textContent = message; } });
     snapshot.nearbyCoffee = coffee;
     let coffeeMap = null;
     if (coffee.shops.length) {

@@ -39,6 +39,8 @@ const makeHomes = (rows, columns, dx, dy) => Array.from({ length: rows * columns
   territoryId: 'sample', included: true
 }));
 const samples = [
+  { name: 'rural-coffee', homes: makeHomes(1, 3, .0004, .0005).map(home => ({ ...home, lat: home.lat - .18, lng: home.lng + .64 })) },
+  { name: 'worldwide-coffee', homes: makeHomes(1, 3, .0004, .0005).map(home => ({ ...home, lat: home.lat - 9.313, lng: home.lng + 7.197 })) },
   { name: 'neighborhood', homes: makeHomes(5, 8, 0.00040, 0.00055) },
   { name: 'crowded', homes: makeHomes(10, 8, 0.00016, 0.00040) },
   { name: 'irregular', homes: makeHomes(5, 8, 0.00020, 0.00045).map((home, i) => ({ ...home,
@@ -57,6 +59,12 @@ const samples = [
 ];
 const report = [];
 try {
+  await page.route(/https:\/\/(maps\.mail\.ru\/osm\/tools\/overpass|overpass-api\.de)\/api\/interpreter/, async route => route.fulfill({
+    contentType: 'application/json', body: JSON.stringify({ elements: Array.from({ length: 5 }, (_, i) => ({
+      type: 'node', id: i + 1, lat: 30.267 + i * .001, lon: -97.743,
+      tags: { amenity: 'cafe', name: `Fixture Cafe ${i + 1}`, 'addr:housenumber': String(10 + i), 'addr:street': 'Coffee Street' }
+    })) })
+  }));
   await page.goto(`http://127.0.0.1:${server.address().port}/test.html`);
   await page.addScriptTag({ url: 'https://unpkg.com/@turf/turf@7.2.0/turf.min.js' });
   await page.addScriptTag({ url: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js' });
@@ -73,6 +81,7 @@ try {
       saveTerritoryPdf: async (blob, filename, snapshot, planId) => {
         if (planId !== 'saved-plan' || !blob.size || !snapshot.houses.length || !filename.endsWith('.pdf')) throw Error('Invalid archive');
         saveEvents.push('archive');
+        window.lastCoffee = snapshot.nearbyCoffee;
         if (failArchiveSave) throw Error('Simulated archive failure');
         return 'saved-pdf';
       },
@@ -85,7 +94,7 @@ try {
   });
   const parsing = await page.evaluate(() => ['123 Main St Apt 456', '123A Main St', '123-125 Main St', '123 1/2 Main St', '123½ Main St', 'Main St', 'PO Box 123'].map(address => labelTest.pdfHouseNumber({ address, _pdfNumber: 99 })));
   assert.deepEqual(parsing, ['123', '123A', '123-125', '123 1/2', '123 1/2', '', '']);
-  for (const sample of samples) {
+  for (const sample of samples.filter(sample => !process.env.PDF_SAMPLES || process.env.PDF_SAMPLES.split(',').includes(sample.name))) {
     const result = await page.evaluate(async sample => {
       const lngs = sample.homes.map(h => h.lng), lats = sample.homes.map(h => h.lat);
       const west = Math.min(...lngs) - 0.00020, east = Math.max(...lngs) + 0.00020;
@@ -153,7 +162,11 @@ try {
     const download = await downloaded;
     await download.saveAs(resolve(output, sample.name + '.pdf'));
     assert.deepEqual(await page.evaluate(() => saveEvents.splice(0)), ['plan', 'archive'], 'Plan and PDF must be saved before download');
-    report.push({ sample: sample.name, homes: sample.homes.length, maps: result });
+    const coffee = await page.evaluate(() => lastCoffee);
+    assert.equal(coffee.shops.length, 5, `${sample.name}: every export includes nearest coffee shops`);
+    if (sample.name === 'rural-coffee') assert.ok(coffee.shops.every(shop => shop.miles > 2));
+    if (sample.name === 'worldwide-coffee') assert.ok(coffee.shops.every(shop => shop.name.startsWith('Fixture Cafe')));
+    report.push({ sample: sample.name, homes: sample.homes.length, maps: result, coffee });
     console.log(`${sample.name}: both maps, all ${sample.homes.length} homes, no overlaps, export downloaded`);
   }
   let unexpectedDownload = false;
