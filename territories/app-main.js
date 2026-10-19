@@ -8,6 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261019-34';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { HALLS } from './halls.js';
 import {
@@ -78,6 +79,7 @@ let currentPlanId = null;
 let planSaveQueue = Promise.resolve();
 let workspaceGeneration = 0;
 let reviewRecords = new Map();
+let savedRecordsStatus = 'loading';
 let reviewsUnsubscribe = null;
 let publicHallRecords = new Map();
 const hallMarkers = new Map();
@@ -2685,16 +2687,20 @@ async function persistPlan(options = {}) {
 function subscribeReviews() {
   if (!db || !isAdmin()) return;
   if (reviewsUnsubscribe) reviewsUnsubscribe();
+  savedRecordsStatus = 'loading';
   const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf']));
   reviewsUnsubscribe = onSnapshot(records, { includeMetadataChanges: true }, snapshot => {
     // Firestore emits local writes before the server accepts them. The saved
     // list must not claim an unacknowledged plan can be reopened later.
     if (snapshot.metadata?.hasPendingWrites) return;
+    savedRecordsStatus = snapshot.metadata?.fromCache ? 'cached' : 'ready';
     reviewRecords.clear();
     snapshot.forEach(item => reviewRecords.set(item.id, { id: item.id, ...item.data() }));
     renderSavedRecords();
     emitPlannerDataChange();
   }, error => {
+    savedRecordsStatus = 'error';
+    window.dispatchEvent(new CustomEvent('territory-planner:saved-records'));
     els.savedBoundaries.innerHTML = `<div class="empty">Saved records could not be loaded: ${escapeHtml(friendlyError(error))}</div>`;
     els.savedPlans.innerHTML = '';
     const pdfs = document.getElementById('savedTerritoryPdfs');
@@ -2825,11 +2831,11 @@ async function saveTerritoryPdf(blob, filename, snapshot, planId, recovery = nul
     houseCount: snapshot.houses.filter(house => !house.avoid).length,
     pdfLayoutVersion: recovery ? 0 : Number(snapshot.pdfLayoutVersion || 0),
     coffeeShopCount: recovery ? 0 : Number(snapshot.nearbyCoffee?.shops?.length || 0),
-    updatedByEmail: currentUser.email, updatedAt: serverTimestamp(),
+    territorySavedAt: serverTimestamp(), updatedByEmail: currentUser.email, updatedAt: serverTimestamp(),
     ...(recovery ? { recoveryId: recovery.recoveryId, sourcePdfSha256: recovery.sha256, recoveredOriginal: true } : {})
   });
   await publishPdfArchive(archive);
-  reviewRecords.set(id, { ...archive.record, updatedAt: new Date() });
+  reviewRecords.set(id, { ...archive.record, territorySavedAt: new Date(), updatedAt: new Date() });
   renderSavedPdfs();
   return id;
 }
@@ -2892,10 +2898,11 @@ function refreshSavedPdfRecord(id, progress = () => {}) {
     // Keep the first PDF and its snapshot downloadable. Publish new parts under
     // this same library row only after every part has reached the server.
     const originalPdf = record.originalPdf || Object.fromEntries(
-      ['id', 'filename', 'pdfPartIds', 'pdfBytes', 'snapshotPartIds', 'snapshotCharacters', 'pdfLayoutVersion']
+      ['id', 'filename', 'pdfPartIds', 'pdfBytes', 'snapshotPartIds', 'snapshotCharacters', 'pdfLayoutVersion', 'territorySavedAt', 'updatedAt']
         .filter(key => record[key] !== undefined).map(key => [key, record[key]]));
     const archive = await makePdfArchive(id, built.blob, built.snapshot, {
       ...record, originalPdf, payloadRevision: uniqueId('revision'), recoveredOriginal: false,
+      territorySavedAt: record.territorySavedAt || record.createdAt || record.updatedAt,
       pdfLayoutVersion: PDF_LAYOUT_VERSION, coffeeShopCount: built.snapshot.nearbyCoffee.shops.length,
       updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
     });
@@ -2975,6 +2982,7 @@ async function restoreRecoveryPackage(data, progress = () => {}) {
   return planId;
 }
 function renderSavedPdfs() {
+  window.dispatchEvent(new CustomEvent('territory-planner:saved-records'));
   const element = document.getElementById('savedTerritoryPdfs');
   if (!element) return;
   const updateButton = document.getElementById('updateSavedPdfsButton');
@@ -3504,6 +3512,18 @@ function wireEvents() {
 async function initialize() {
   initMap();
   wireEvents();
+  mountSavedTerritories({
+    map, L, turf, isAdmin, getHall: () => selectedHall,
+    getRecords: () => new Map(reviewRecords), getStatus: () => savedRecordsStatus,
+    readSnapshot: async record => {
+      if (!isAdmin()) throw new Error('Sign in to view saved territories.');
+      return readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
+    },
+    readPdf: async record => {
+      if (!isAdmin()) throw new Error('Sign in to view saved PDFs.');
+      return readArchivePdf(record, await archiveParts(record, 'pdf'));
+    }
+  });
   setupRecoveryImport({ requireAdmin, restore: restoreRecoveryPackage });
   rebuildHallLocations();
   renderAllPlanningData();
@@ -3568,3 +3588,4 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
 });
 
 initialize();
+
