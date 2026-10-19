@@ -1,8 +1,8 @@
-import {STATUSES,ROLES,uid,copy,dateText,newTest,blankSite,blankContact,blankTask,duplicateTest,moveDate,progress,validateTest} from './model.mjs?v=20261019-2';
+import {STATUSES,ROLES,uid,copy,dateText,newTest,blankSite,blankContact,blankTask,duplicateTest,moveDate,progress,validateTest} from './model.mjs?v=20261019-3';
 import {escapeHtml as e,reportHtml} from './report.mjs';
-import {workbookFor} from './workbook.mjs?v=20261019-2';
-import {scheduleHtml,workbookHtml,sampleHtml} from './workbook-ui.mjs?v=20261019-2';
-import {makeChecklistPdf} from './checklist-pdf.mjs?v=20261019-2';
+import {workbookFor} from './workbook.mjs?v=20261019-3';
+import {scheduleHtml,workbookHtml,sampleHtml} from './workbook-ui.mjs?v=20261019-3';
+import {makeChecklistPdf} from './checklist-pdf.mjs?v=20261019-3';
 
 export async function mount(store){
   const app=document.getElementById('app'),notice=document.getElementById('notice');

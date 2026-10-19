@@ -1,4 +1,4 @@
-import {validateAttachment} from './workbook.mjs?v=20261019-2';
+import {validateAttachment} from './workbook.mjs?v=20261019-3';
 export async function packAttachment(bytes,name){
   if(!(bytes instanceof Uint8Array)||bytes.length>10000000||bytes.length<5||new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw new Error('Choose a PDF smaller than 10 MB.');
   const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));

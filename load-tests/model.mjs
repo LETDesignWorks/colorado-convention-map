@@ -1,4 +1,4 @@
-import {validateWorkbook,validateAttachment} from './workbook.mjs?v=20261019-2';
+import {validateWorkbook,validateAttachment} from './workbook.mjs?v=20261019-3';
 export const STATUSES = ['To confirm', 'In progress', 'Needs help', 'Complete', 'Not applicable'];
 export const ROLES = ['Host', 'Delegate', 'Kingdom Hall', 'Territory', 'Coordination', 'Literature', 'Feedback'];
 export const uid = () => crypto.randomUUID();

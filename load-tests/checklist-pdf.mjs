@@ -1,6 +1,6 @@
-import {dateText} from './model.mjs?v=20261019-2';
+import {dateText} from './model.mjs?v=20261019-3';
 import {timeText} from './report.mjs';
-import {workbookFor,CHECKS,LITERATURE} from './workbook.mjs?v=20261019-2';
+import {workbookFor,CHECKS,LITERATURE} from './workbook.mjs?v=20261019-3';
 
 const assetNames=['brand_sky.png','brand_mountains.png','packaging_photo.png',...LITERATURE.map(l=>l.image)];
 export async function fetchChecklistAssets(){
@@ -126,7 +126,7 @@ export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,PDFL
     ['welcome_ready','presentation_language_confirmed','literature_ready','two_day_of_coordinators_assigned'].forEach((key,i)=>tick(key,36,412+i*22));
     bound('day_of_coordinator_1',36,516,264,22,false,'Brother 1 - name / phone');bound('day_of_coordinator_2',312,516,264,22,false,'Brother 2 - name / phone');
     bound('auditorium_access_contact',36,559,340,22,false,'Auditorium access contact - confirm locally');bound('auditorium_access_phone',388,559,188,22,false,'Access phone');
-    tick('opening_closing_shared',36,596);bound('opening_closing_shared_date',450,590,126,21,false,'Shared on');
+    tick('opening_closing_shared',36,596);bound('opening_closing_shared_date',450,599,126,21,false,'Shared on');
     bound('auditorium_access_arrangements',36,632,540,31,true,'Entry, key / door, opening and closing arrangements');
     contacts(site);
     newPage('Territory readiness & handoff',`${dateText(test.date)} | ${site.name}`);
