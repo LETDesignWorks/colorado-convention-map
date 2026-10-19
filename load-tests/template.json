@@ -21,7 +21,7 @@
   },
   {
     "role": "Host",
-    "title": "Verify recruitment of 50 host publishers and 25 vehicles.",
+    "title": "Confirm host publisher and vehicle recruitment targets.",
     "owner": "",
     "status": "To confirm",
     "notes": "",
@@ -31,7 +31,7 @@
   },
   {
     "role": "Delegate",
-    "title": "Verify recruitment of 50 delegate-role publishers.",
+    "title": "Confirm delegate-role publisher recruitment target.",
     "owner": "",
     "status": "To confirm",
     "notes": "",
@@ -55,7 +55,7 @@
     "owner": "",
     "status": "To confirm",
     "notes": "",
-    "evidence": "Target 25 packets at about 40 doors each; languages confirmed.",
+    "evidence": "Record the agreed packet count, homes per territory and languages.",
     "source": "P section 8",
     "offset": -19
   },
@@ -66,7 +66,7 @@
     "status": "To confirm",
     "notes": "",
     "evidence": "Provider confirms current maps and notes.",
-    "source": "H Oct 5–9; P section 8",
+    "source": "H Oct 5\u00e2\u20ac\u201c9; P section 8",
     "offset": -15
   },
   {
@@ -76,7 +76,7 @@
     "status": "To confirm",
     "notes": "",
     "evidence": "Local KH contact and host contact agree on arrangements.",
-    "source": "H Oct 10–12; P sections 6 and 8",
+    "source": "H Oct 10\u00e2\u20ac\u201c12; P sections 6 and 8",
     "offset": -12
   },
   {
@@ -105,7 +105,7 @@
     "owner": "",
     "status": "To confirm",
     "notes": "",
-    "evidence": "Final counts to LC; 50 hosts and 25 cars are site totals.",
+    "evidence": "Final site totals confirmed with the language coordinator.",
     "source": "H Oct 17; P sections 2 and 8",
     "offset": -7
   },
@@ -115,7 +115,7 @@
     "owner": "",
     "status": "To confirm",
     "notes": "",
-    "evidence": "Final combined count to LC; site target is 50, not 50 per congregation.",
+    "evidence": "Confirm the combined site target with the language coordinator.",
     "source": "D Oct 17; P sections 2 and 8",
     "offset": -7
   },
@@ -125,7 +125,7 @@
     "owner": "",
     "status": "To confirm",
     "notes": "",
-    "evidence": "Title and language, 40 per packet; 1,000 per site at 25 packets.",
+    "evidence": "Record the selected title, language, per-packet amount and total quantity.",
     "source": "User preference; H/D local selection; suggested date Oct 17",
     "offset": -7
   },
@@ -135,8 +135,8 @@
     "owner": "",
     "status": "To confirm",
     "notes": "",
-    "evidence": "Number ready, DNC verification, notes and 40 selected tracts per packet.",
-    "source": "H Oct 18–21; P sections 5 and 8; user tract preference",
+    "evidence": "Number ready, avoid-list verification, notes and confirmed literature quantity.",
+    "source": "H Oct 18\u00e2\u20ac\u201c21; P sections 5 and 8; user tract preference",
     "offset": -3
   },
   {
@@ -146,7 +146,7 @@
     "status": "To confirm",
     "notes": "",
     "evidence": "LC decision communicated to host and territory brothers.",
-    "source": "H day-of 8:00–8:40; P schedule 9:45–10:00",
+    "source": "H day-of 8:00\u00e2\u20ac\u201c8:40; P schedule 9:45\u00e2\u20ac\u201c10:00",
     "offset": -2
   },
   {
@@ -201,7 +201,7 @@
   },
   {
     "role": "Host",
-    "title": "Receive delegates at 9 AM and organize approximately 25 car groups.",
+    "title": "Receive delegates at 9 AM and organize the agreed car groups.",
     "owner": "",
     "status": "To confirm",
     "notes": "",

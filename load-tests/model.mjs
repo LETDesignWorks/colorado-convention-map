@@ -1,3 +1,4 @@
+import {validateWorkbook,validateAttachment} from './workbook.mjs?v=20261019-2';
 export const STATUSES = ['To confirm', 'In progress', 'Needs help', 'Complete', 'Not applicable'];
 export const ROLES = ['Host', 'Delegate', 'Kingdom Hall', 'Territory', 'Coordination', 'Literature', 'Feedback'];
 export const uid = () => crypto.randomUUID();
@@ -21,7 +22,7 @@ export const blankTask = (date,role='Host') => ({id:uid(),role,title:'New checkl
 export function blankSite(date, templates=[]) {
   return {id:uid(),name:'New location',address:'',hosts:'',delegates:'',territory:'',language:'',
     openTime:'08:00',delegateTime:'09:00',meetingTime:'09:30',departTime:'10:00',lunchTime:'12:00',closeTime:'',
-    hostTarget:'50',delegateTarget:'50',vehicleTarget:'25',packetTarget:'25',doorsPerPacket:'40',tractsPerPacket:'40',notes:'',
+    hostTarget:'',delegateTarget:'',vehicleTarget:'',packetTarget:'',doorsPerPacket:'',tractsPerPacket:'',notes:'',closeLabel:'After lunch',
     contacts:['Host','Delegate','Kingdom Hall','Territory'].map(blankContact),
     tasks:templates.map(t=>({...copy(t),id:uid(),due:shiftDate(date,t.offset),status:'To confirm',owner:'',notes:''}))};
 }
@@ -33,6 +34,7 @@ export function duplicateTest(original, name, date, keepContacts) {
   for(const place of [test.overall,...test.sites]) {
     if(place.id!=='overall') place.id=uid();
     place.notes='';
+    if(place.workbook)delete place.workbook;
     place.contacts=keepContacts ? place.contacts.map(c=>({...c,id:uid(),notes:''})) : [];
     for(const task of place.tasks) {task.id=uid();task.status='To confirm';task.notes='';if(!keepContacts) task.owner='';}
   }
@@ -55,10 +57,12 @@ export function validateTest(value) {
   const group=g=>({id:id(g.id),contacts:list(g.contacts,60).map(contact),tasks:list(g.tasks,150).map(task)});
   const test={schemaVersion:1,id:id(value.id),name:str(value.name,300),date:value.date,archived:value.archived===true,notes:str(value.notes,8000),overall:group(value.overall),sites:list(value.sites,20).map(s=>{
     const result=group(s);
-    for(const k of ['name','address','hosts','delegates','territory','language','openTime','delegateTime','meetingTime','departTime','lunchTime','closeTime','hostTarget','delegateTarget','vehicleTarget','packetTarget','doorsPerPacket','tractsPerPacket','notes'])result[k]=optional(s[k],k==='notes'?8000:1000);
+    for(const k of ['name','address','hosts','delegates','territory','language','openTime','delegateTime','meetingTime','departTime','lunchTime','closeTime','closeLabel','hostTarget','delegateTarget','vehicleTarget','packetTarget','doorsPerPacket','tractsPerPacket','notes'])result[k]=optional(s[k],k==='notes'?8000:1000);
+    const workbook=validateWorkbook(s.workbook);if(workbook)result.workbook=workbook;
     return result;
   })};
   if(!test.id.startsWith('load-test-') || !test.name.trim() || !validDate(test.date)||!test.sites.length||test.overall.id!=='overall')throw new Error('Give the test a name, a date, and at least one location.');
+  const attachment=validateAttachment(value.sampleTerritory);if(attachment)test.sampleTerritory=attachment;
   const ids=[test.overall.id,...test.sites.map(s=>s.id)];
   for(const g of [test.overall,...test.sites])ids.push(...g.tasks.map(t=>t.id),...g.contacts.map(c=>c.id));
   if(new Set(ids).size!==ids.length)throw new Error('Checklist item IDs must be unique.');

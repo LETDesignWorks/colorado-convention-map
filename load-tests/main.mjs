@@ -1,9 +1,10 @@
-import { mount } from './ui.mjs';
-import { validateTest } from './model.mjs';
+import { mount } from './ui.mjs?v=20261019-2';
+import { validateTest } from './model.mjs?v=20261019-2';
+import {packAttachment,unpackAttachment} from './attachments.mjs?v=20261019-2';
 
 try {
   const [{initializeApp},{getAuth,setPersistence,browserLocalPersistence,signInWithEmailAndPassword,signOut,onAuthStateChanged},
-    {getFirestore,collection,doc,query,where,onSnapshot,runTransaction,serverTimestamp}] = await Promise.all([
+    {getFirestore,collection,doc,query,where,onSnapshot,runTransaction,serverTimestamp,writeBatch,getDoc}] = await Promise.all([
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')]);
@@ -31,6 +32,21 @@ try {
     },
     login:(email,password)=>signInWithEmailAndPassword(auth,email,password),
     logout:()=>signOut(auth),
+    async saveAttachment(bytes,name){
+      if(!isEditor(auth.currentUser))throw new Error('Sign in to attach a sample territory.');
+      const {meta,chunks}=await packAttachment(bytes,name),batch=writeBatch(db);
+      chunks.forEach((data,index)=>batch.set(doc(db,'reviews',`${meta.id}__${index}`),{recordType:'field-service-load-test-attachment',attachmentId:meta.id,index,data,updatedAt:serverTimestamp(),updatedBy:auth.currentUser.email}));
+      await batch.commit();return meta;
+    },
+    async readAttachment(meta){
+      if(!isEditor(auth.currentUser))throw new Error('Sign in to open the sample territory.');
+      const chunks=[];
+      for(let start=0;start<meta.parts;start+=4){
+        const result=await Promise.all(Array.from({length:Math.min(4,meta.parts-start)},(_,i)=>getDoc(doc(db,'reviews',`${meta.id}__${start+i}`))));
+        for(const item of result){if(!item.exists()||item.data().recordType!=='field-service-load-test-attachment')throw new Error('The sample territory is unavailable. Attach the PDF again.');chunks.push(item.data().data);}
+      }
+      return unpackAttachment(meta,chunks);
+    },
     async save(input,expectedRevision) {
       if(!isEditor(auth.currentUser))throw new Error('Sign in with the existing planning administrator account to save.');
       if(!navigator.onLine)throw new Error('You are offline. Keep this page open and save when the connection returns, or download a backup.');
