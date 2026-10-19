@@ -1,4 +1,4 @@
-const version = 'territories-20261019-34';
+const version = 'territories-20261019-35';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -17,7 +17,7 @@ try {
   document.head.appendChild(style);
   document.body.innerHTML = template;
   await import('../assets/branding.js?v=bus-status-sync-20260927-1');
-  await import('./app-main.js?v=territories-20261019-34');
+  await import('./app-main.js?v=territories-20261019-35');
   await import('./directions.js?v=territories-20261012-22');
   await import('./bulk-addresses.js?v=territories-20261012-22');
   await import('./avoid-address-upload.js?v=territories-20261012-22');

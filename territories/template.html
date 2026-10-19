@@ -91,6 +91,25 @@
           <select id="hallSelect"></select>
           <small id="hallDetail">Choose one of the current planning locations.</small>
         </div>
+
+      <section class="card saved-territories-card" id="savedTerritoriesCard" aria-label="Saved territories map layer">
+        <div class="card-heading"><div><span class="eyebrow">SAVED TERRITORIES • VIEW ONLY</span><h2>All saved territories for this meeting place</h2></div></div>
+        <p id="savedTerritoriesHall" class="section-copy">Selected meeting place</p>
+        <button type="button" class="btn primary full" id="showAllSavedTerritories" aria-expanded="false" aria-controls="savedTerritoriesPanel" disabled>Show All Saved Territories — This Meeting Place</button>
+        <button type="button" class="btn outline" id="hideSavedTerritories" hidden>Hide Saved Territories</button>
+        <label class="check-row"><input type="checkbox" id="autoShowSavedTerritories"/> Automatically show saved territories when I select a meeting place</label>
+        <p class="section-copy">Includes all saved plans and PDF snapshots, across all dates and congregations. This is a view-only layer; your current work stays in place.</p>
+        <p id="savedTerritoriesStatus" class="plan-save-message" role="status" aria-live="polite">Sign in to view saved territories.</p>
+        <div id="savedTerritoriesPanel" hidden>
+          <p class="section-copy"><span class="saved-layer-swatch" aria-hidden="true"></span>Purple dashed outlines are saved territories. Click an outline or a territory below to inspect it. Your workspace and unsaved work stay in place.</p>
+          <div class="button-row"><button class="btn outline" type="button" id="refreshSavedTerritories">Refresh saved territories</button><button class="btn outline" type="button" id="zoomSavedTerritories" disabled>Zoom to saved territories</button><button class="btn outline" type="button" id="latestSavedTerritories" disabled>Show latest versions</button></div>
+          <div id="savedTerritoriesList" class="saved-territories-list" aria-label="Saved territories"></div>
+          <details id="savedTerritoriesProblems" hidden></details>
+          <section id="savedTerritoryDetail" class="saved-territory-detail" aria-label="Saved territory details" tabindex="-1" hidden></section>
+          <p class="section-copy">Version history includes retained plans, PDF snapshots, and original PDFs. An overwritten plan version without a retained snapshot is not available.</p>
+        </div>
+      </section>
+
         <div class="field">
           <label for="congregationSelect">Congregation</label>
           <select id="congregationSelect"></select>
@@ -102,22 +121,6 @@
         <div class="field">
           <label for="territoryPrefix">Territory-number prefix</label>
           <input id="territoryPrefix" maxlength="12" placeholder="Example: HR"/>
-        </div>
-      </section>
-
-      <section class="card saved-territories-card" id="savedTerritoriesCard" aria-label="Saved territories map layer">
-        <div class="card-heading"><div><span class="eyebrow">SAVED TERRITORIES • VIEW ONLY</span><h2>See saved work on the map</h2></div></div>
-        <p id="savedTerritoriesHall" class="section-copy">Selected meeting place</p>
-        <button type="button" class="btn outline" id="showAllSavedTerritories" aria-expanded="false" aria-controls="savedTerritoriesPanel" disabled>Show All Saved Territories — This Meeting Place</button>
-        <button type="button" class="btn outline" id="hideSavedTerritories" hidden>Hide Saved Territories</button>
-        <p id="savedTerritoriesStatus" class="plan-save-message" role="status" aria-live="polite">Sign in to view saved territories.</p>
-        <div id="savedTerritoriesPanel" hidden>
-          <p class="section-copy"><span class="saved-layer-swatch" aria-hidden="true"></span>Purple dashed outlines are saved territories. Click an outline or a territory below to inspect it. Your workspace and unsaved work stay in place.</p>
-          <div class="button-row"><button class="btn outline" type="button" id="refreshSavedTerritories">Refresh saved territories</button><button class="btn outline" type="button" id="zoomSavedTerritories" disabled>Zoom to saved territories</button><button class="btn outline" type="button" id="latestSavedTerritories" disabled>Show latest versions</button></div>
-          <div id="savedTerritoriesList" class="saved-territories-list" aria-label="Saved territories"></div>
-          <details id="savedTerritoriesProblems" hidden></details>
-          <section id="savedTerritoryDetail" class="saved-territory-detail" aria-label="Saved territory details" tabindex="-1" hidden></section>
-          <p class="section-copy">Version history includes retained plans, PDF snapshots, and original PDFs. An overwritten plan version without a retained snapshot is not available.</p>
         </div>
       </section>
 

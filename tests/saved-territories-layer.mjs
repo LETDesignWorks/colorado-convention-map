@@ -34,6 +34,9 @@ class Element {
 }
 globalThis.document = { getElementById: id => elements.get(id), createElement: () => new Element(), createTextNode: value => Object.assign(new Element(), { textContent: value }) };
 globalThis.window = new EventTarget();
+const preferenceKey = 'territory-planner:auto-show-saved-territories', preferences = new Map();
+window.localStorage = { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) };
+new Element('autoShowSavedTerritories');
 for (const id of ['savedTerritoriesCard','showAllSavedTerritories','hideSavedTerritories','refreshSavedTerritories','savedTerritoriesStatus','savedTerritoriesList','savedTerritoryDetail','savedTerritoriesPanel','zoomSavedTerritories','latestSavedTerritories','savedTerritoriesHall','savedTerritoriesProblems']) new Element(id);
 const el = id => elements.get(id), tick = () => new Promise(resolve => setImmediate(resolve));
 const workspace = { houses: [{ id: 'unsaved', address: 'Unsaved address' }], territories: [{ id: 'current', name: 'Unsaved territory' }],
@@ -71,6 +74,7 @@ mountSavedTerritories({ map, getHall: () => hall, isAdmin: () => admin, getRecor
   readSnapshot: reader, readPdf: async () => { pdfReads++; if (holdPdf) await holdPdf; return new Blob(['exact PDF']); }, L, turf: {} });
 const invariant = () => { assert.equal(JSON.stringify(workspace), before); assert.deepEqual([...editable], editableBefore); assert.equal(JSON.stringify([...records]), recordsBefore); };
 assert.equal(el('showAllSavedTerritories').disabled, false);
+assert.equal(el('autoShowSavedTerritories').checked, false, 'automatic display starts as an opt-in');
 await el('showAllSavedTerritories').click(); await tick();
 assert.equal(group.children.length, 2); assert.equal(overlays.size, 1); assert.equal(fitCount, 0, 'show must not move current viewport');
 assert.match(el('savedTerritoriesStatus').textContent, /2 saved territories/);
@@ -107,7 +111,10 @@ assert.equal(overlays.size, 0); assert.equal(group.children.length, 0); assert.e
 assert.equal(el('savedTerritoryPdfLinks'), undefined, 'late PDF cannot re-expose private data after sign-out'); invariant();
 
 admin = true; window.dispatchEvent(new Event('territory-planner:data'));
-await el('showAllSavedTerritories').click(); await tick();
+el('autoShowSavedTerritories').checked = true;
+await el('autoShowSavedTerritories').fire('change'); await tick();
+assert.equal(preferences.get(preferenceKey), 'true');
+assert.equal(group.children.length, 2, 'enabling automatic display loads the current meeting place immediately');
 hall = { id: 'b', name: 'Meeting place B' }; window.dispatchEvent(new Event('territory-planner:data')); await tick();
 assert.equal(group.children.length, 0, 'old Hall outlines removed');
 assert.match(el('savedTerritoriesList').innerHTML, /No saved territories/);
@@ -115,5 +122,43 @@ hall = { id: 'a', name: 'Meeting place A' }; window.dispatchEvent(new Event('ter
 assert.equal(group.children.length, 2);
 recordStatus = 'cached'; window.dispatchEvent(new Event('territory-planner:saved-records')); await tick();
 assert.match(el('savedTerritoriesStatus').textContent, /cached records/);
+await el('hideSavedTerritories').click();
+window.dispatchEvent(new Event('territory-planner:data')); await tick();
+assert.equal(overlays.size, 0, 'ordinary workspace updates must not undo Hide');
+hall = { id: 'b', name: 'Meeting place B' }; window.dispatchEvent(new Event('territory-planner:data')); await tick();
+assert.equal(overlays.size, 1, 'automatic display resumes for the next meeting place');
+hall = { id: 'a', name: 'Meeting place A' }; window.dispatchEvent(new Event('territory-planner:data')); await tick();
+assert.equal(group.children.length, 2);
+el('autoShowSavedTerritories').checked = false;
+await el('autoShowSavedTerritories').fire('change');
+assert.equal(preferences.get(preferenceKey), 'false');
+assert.equal(group.children.length, 2, 'turning off automatic display leaves the current view in place');
+hall = { id: 'b', name: 'Meeting place B' }; window.dispatchEvent(new Event('territory-planner:data')); await tick();
+assert.equal(overlays.size, 0, 'turning off automatic display applies to future selections');
+// Blocked preference storage must not prevent a read-only layer from loading.
+hall = { id: 'a', name: 'Meeting place A' }; window.dispatchEvent(new Event('territory-planner:data'));
+window.localStorage.setItem = () => { throw new Error('Storage blocked'); };
+el('autoShowSavedTerritories').checked = true;
+await el('autoShowSavedTerritories').fire('change'); await tick();
+assert.equal(group.children.length, 2);
+// A slow old-meeting-place response cannot repopulate the new meeting place.
+holdSnapshot = new Promise(resolve => { release = resolve; });
+const pendingRefresh = el('refreshSavedTerritories').click();
+hall = { id: 'b', name: 'Meeting place B' }; window.dispatchEvent(new Event('territory-planner:data'));
+release(); holdSnapshot = null; await pendingRefresh; await tick();
+assert.equal(group.children.length, 0);
+assert.match(el('savedTerritoriesList').innerHTML, /No saved territories/);
+invariant();
+// A fresh controller restores the preference and waits for administrator sign-in.
+await el('hideSavedTerritories').click();
+globalThis.window = new EventTarget();
+window.localStorage = { getItem: () => 'true' };
+admin = false; hall = { id: 'a', name: 'Meeting place A' };
+mountSavedTerritories({ map, getHall: () => hall, isAdmin: () => admin, getRecords: () => new Map(records), getStatus: () => 'ready',
+  readSnapshot: reader, readPdf: async () => { throw new Error('Unexpected PDF read'); }, L, turf: {} });
+assert.equal(el('autoShowSavedTerritories').checked, true);
+assert.equal(overlays.size, 0, 'restored preference cannot expose signed-out data');
+admin = true; window.dispatchEvent(new Event('territory-planner:data')); await tick();
+assert.equal(group.children.length, 2, 'restored preference automatically loads after sign-in');
 invariant();
 console.log('Layer controls passed: show/hide, isolated outlines, click propagation, escaped names, earlier geometry, exact PDF link, latest reset, zoom, pending reads, Hall switching, sign-out, cached status; workspace unchanged throughout.');

@@ -11,6 +11,10 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   if (!card) return;
   const el = id => document.getElementById(id);
   const show = el('showAllSavedTerritories'), hide = el('hideSavedTerritories'), refresh = el('refreshSavedTerritories');
+  const autoShow = el('autoShowSavedTerritories');
+  const preferenceKey = 'territory-planner:auto-show-saved-territories';
+  // Only this display preference is persisted, never private saved records.
+  try { autoShow.checked = window.localStorage.getItem(preferenceKey) === 'true'; } catch { /* Storage may be blocked. */ }
   const status = el('savedTerritoriesStatus'), list = el('savedTerritoriesList'), detail = el('savedTerritoryDetail');
   const panel = el('savedTerritoriesPanel'), zoom = el('zoomSavedTerritories'), latest = el('latestSavedTerritories');
   const loader = createSavedLayerLoader(), layer = L.featureGroup(), layers = new Map(), selectedVersions = new Map();
@@ -25,9 +29,8 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   function contextChanged() {
     const nextId = String(getHall()?.id ?? ''), nextAdmin = isAdmin();
     if (nextId !== hallId || nextAdmin !== signedIn) {
-      const wasVisible = visible;
       hideLayer(); hallId = nextId; signedIn = nextAdmin;
-      if (wasVisible && nextAdmin && nextId) showLayer();
+      if (autoShow.checked && nextAdmin && nextId) showLayer();
     }
     show.disabled = !nextAdmin || !nextId;
     el('savedTerritoriesHall').textContent = getHall()?.name || 'Select a meeting place';
@@ -161,6 +164,10 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     queueMicrotask(() => { refreshQueued = false; if (active()) load(); });
   }
   show.addEventListener('click', showLayer); hide.addEventListener('click', hideLayer);
+  autoShow.addEventListener('change', () => {
+    try { window.localStorage.setItem(preferenceKey, String(autoShow.checked)); } catch { /* Still works for this page visit. */ }
+    if (autoShow.checked && !visible) showLayer();
+  });
   refresh.addEventListener('click', () => load()); zoom.addEventListener('click', () => fit(layer));
   latest.addEventListener('click', () => { epoch++; selectedVersions.clear(); renderMap(); renderList(); renderDetail(); summary(); });
   window.addEventListener('territory-planner:data', contextChanged);
