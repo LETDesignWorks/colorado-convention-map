@@ -834,6 +834,8 @@ export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
 
 async function generateTerritoryPdf(territoryId, button) {
   if (pdfBusy || !planner?.requireAdmin?.()) return;
+  // Include the boundary handles currently being edited in this PDF snapshot.
+  if (await planner.finishTerritoryBoundaryEdit?.(territoryId) === false || pdfBusy) return;
   if (planner.dedupeHouses?.()) planner.render?.();
   const currentTerritory = planner.getTerritories().find(item => String(item.id) === String(territoryId));
   if (!currentTerritory) return toast('Choose a territory to print.', true);
@@ -883,6 +885,7 @@ async function generateTerritoryPdf(territoryId, button) {
       feedback.dataset.state = 'success';
     }
     toast(`${territory.name} PDF and territory saved. Return to Saved territory PDFs to download it again or load the territory.`);
+    window.dispatchEvent(new CustomEvent('territory-planner:pdf-saved', { detail: { territoryId: territory.id } }));
   } catch (error) {
     console.error(error);
     toast(`The territory PDF could not be generated: ${error?.message || 'Unknown error'}`, true);

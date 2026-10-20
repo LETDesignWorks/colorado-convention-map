@@ -30,4 +30,10 @@ Run `node tests/activity-planning.mjs` for route timing, cost, capacity, persist
 
 ## Planning note
 
+### Edit a saved territory or PDF
+
+In Territories, choose a meeting place and show all saved territories. Select an outline or list entry, choose the saved version, and click **Edit this territory**. The saved PDF list also has an **Edit territory** button. Opening an edit asks before replacing an existing workspace and creates a separate editable plan with the same territory ID. Use **Edit Boundary** or the address tools, then **Save Updated Territory & PDF**. This applies any open boundary handles, saves the revised plan, and retains a new PDF snapshot; earlier PDFs and the original full plan remain available. Incomplete snapshots cannot replace current work.
+
+Verification: `node tests/saved-territories.mjs`, `node tests/saved-territories-layer.mjs`, `node tests/territory-saving.mjs`, and `node tests/saved-territory-export.mjs`. `tests/territory-saving-browser.mjs` also covers selecting an older PDF, canceling replacement, changing its boundary, saving and reopening the revision; it requires Playwright and access to the site's map/PDF library CDNs.
+
 Travel times, drive-time areas, rail proximity, and route estimates are planning aids. Verify current service, live travel conditions, roadway restrictions, and motorcoach access before final assignments.

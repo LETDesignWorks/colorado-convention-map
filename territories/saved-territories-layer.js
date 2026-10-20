@@ -1,12 +1,12 @@
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261019-34';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261020-36';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
 const sourceLabel = version => version.source === 'plan' ? 'Saved plan' : version.source === 'original' ? 'Original PDF' : 'PDF snapshot';
 
-// Deliberately accepts only readers. No workspace load, save, clear, assignment,
-// selection or edit function is passed into this component.
-export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getStatus, readSnapshot, readPdf, L, turf }) {
+// Viewing stays isolated from the workspace. Only the explicit Edit action may
+// request an editable copy; the host validates it and confirms workspace replacement.
+export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getStatus, readSnapshot, readPdf, editTerritory, L, turf }) {
   const card = document.getElementById('savedTerritoriesCard');
   if (!card) return;
   const el = id => document.getElementById(id);
@@ -130,6 +130,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
       ${version.error ? `<p role="alert">This saved version is incomplete: ${esc(version.error)}</p>` : ''}
       ${!layers.has(group.key) ? '<p>This version has no usable boundary to display. Other saved versions remain available above.</p>' : ''}
       <div class="button-row"><button type="button" class="btn outline" id="zoomSavedTerritory"${layers.has(group.key) ? '' : ' disabled'}>Zoom to this version</button>${version.pdfRecord ? '<button type="button" class="btn outline" id="openSavedTerritoryPdf">Open saved PDF</button>' : ''}</div>
+      ${editTerritory ? `<button type="button" class="btn primary full" id="editSavedTerritory"${version.error || !version.territory.id || !version.houses.some(h => !h.avoid) ? ' disabled' : ''}>Edit this territory</button><p class="section-copy">Open this version's boundary and addresses for editing. Saving creates an updated plan and PDF; the earlier PDF stays available. You will be asked before replacing work already on the map.</p><p id="savedTerritoryEditMessage" role="status"></p>` : ''}
       <p id="savedTerritoryPdfStatus" role="status"></p><div id="savedTerritoryPdfLinks"></div>
       ${!version.pdfRecord ? `<p>${group.versions.some(v => v.pdfRecord) ? 'Choose a PDF snapshot above to open its exact saved PDF.' : 'No saved PDF is associated with this territory ID.'}</p>` : ''}
       <details><summary>Saved addresses (${version.houses.length})</summary><ul class="saved-addresses">${version.houses.map(h => `<li>${esc(h.address || 'Address not recorded')}${h.avoid ? ' — AVOID / DO NOT VISIT' : ''}</li>`).join('')}</ul></details>`;
@@ -138,6 +139,18 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
       renderMap(); renderList(); renderDetail(); summary();
     });
     el('zoomSavedTerritory').addEventListener('click', () => fit(layers.get(group.key)));
+    el('editSavedTerritory')?.addEventListener('click', async event => {
+      const button = event.currentTarget, message = el('savedTerritoryEditMessage');
+      if (!active() || versionFor(group).id !== version.id) return;
+      button.disabled = true;
+      try {
+        const opened = await editTerritory(version);
+        if (opened) hideLayer();
+        else if (button.isConnected) message.textContent = 'No territory was opened for editing. Your current work is unchanged.';
+      } catch (error) {
+        if (button.isConnected && active()) message.textContent = `Could not open this territory for editing: ${error.message}`;
+      } finally { if (button.isConnected) button.disabled = false; }
+    });
     el('openSavedTerritoryPdf')?.addEventListener('click', async event => {
       const button = event.currentTarget, message = el('savedTerritoryPdfStatus'), requestEpoch = epoch;
       button.disabled = true; message.textContent = 'Reading the stored PDF…';
@@ -172,5 +185,6 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   latest.addEventListener('click', () => { epoch++; selectedVersions.clear(); renderMap(); renderList(); renderDetail(); summary(); });
   window.addEventListener('territory-planner:data', contextChanged);
   window.addEventListener('territory-planner:saved-records', savedRecordsChanged);
+  window.addEventListener('territory-planner:edit-saved', hideLayer);
   contextChanged();
 }

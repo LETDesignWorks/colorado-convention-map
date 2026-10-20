@@ -92,13 +92,22 @@
           <small id="hallDetail">Choose one of the current planning locations.</small>
         </div>
 
+      <section class="card saved-territory-edit-card" id="savedTerritoryEditCard" aria-label="Edit saved territory" tabindex="-1" hidden>
+        <span class="eyebrow">EDITING A SAVED TERRITORY</span>
+        <h2 id="savedTerritoryEditName"></h2>
+        <p class="section-copy">Edit the boundary, select homes, or adjust addresses with the planner tools. Save the updated territory and a new PDF when ready. The earlier saved PDF remains available.</p>
+        <div class="button-row"><button type="button" class="btn outline admin-control" id="editSavedTerritoryBoundaryButton">Edit Boundary</button><button type="button" class="btn outline admin-control" id="selectSavedTerritoryHomesButton">Select Homes</button></div>
+        <button type="button" class="btn save full admin-control" id="saveEditedTerritoryPdfButton">Save Updated Territory &amp; PDF</button>
+        <p id="savedTerritoryEditStatus" class="plan-save-message" role="status" aria-live="polite"></p>
+      </section>
+
       <section class="card saved-territories-card" id="savedTerritoriesCard" aria-label="Saved territories map layer">
         <div class="card-heading"><div><span class="eyebrow">SAVED TERRITORIES • VIEW ONLY</span><h2>All saved territories for this meeting place</h2></div></div>
         <p id="savedTerritoriesHall" class="section-copy">Selected meeting place</p>
         <button type="button" class="btn primary full" id="showAllSavedTerritories" aria-expanded="false" aria-controls="savedTerritoriesPanel" disabled>Show All Saved Territories — This Meeting Place</button>
         <button type="button" class="btn outline" id="hideSavedTerritories" hidden>Hide Saved Territories</button>
         <label class="check-row"><input type="checkbox" id="autoShowSavedTerritories"/> Automatically show saved territories when I select a meeting place</label>
-        <p class="section-copy">Includes all saved plans and PDF snapshots, across all dates and congregations. This is a view-only layer; your current work stays in place.</p>
+        <p class="section-copy">Includes all saved plans and PDF snapshots, across all dates and congregations. Viewing keeps your current work in place. Select a territory and choose Edit this territory to open an editable copy.</p>
         <p id="savedTerritoriesStatus" class="plan-save-message" role="status" aria-live="polite">Sign in to view saved territories.</p>
         <div id="savedTerritoriesPanel" hidden>
           <p class="section-copy"><span class="saved-layer-swatch" aria-hidden="true"></span>Purple dashed outlines are saved territories. Click an outline or a territory below to inspect it. Your workspace and unsaved work stay in place.</p>
@@ -378,6 +387,7 @@
           <p id="territoryRecoveryStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Choose the prepared recovery file to review its contents before saving.</p>
         </details>
         <h3>Saved territory PDFs</h3>
+        <p class="section-copy">Choose Edit territory beside a PDF to reopen its boundary and addresses, make changes, and save an updated territory and PDF. The earlier PDF stays available.</p>
         <p class="section-copy">Download PDF uses the latest layout, with addresses grouped by street and sorted by house number, plus nearby coffee shops. Earlier PDFs update automatically when downloaded. You can also update every saved PDF below; the original files remain available.</p>
         <button id="updateSavedPdfsButton" class="btn save" type="button" disabled>Update all saved PDFs</button>
         <p id="savedPdfUpdateStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Updating uses each saved territory's own addresses and boundary.</p>

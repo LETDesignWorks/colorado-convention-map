@@ -54,7 +54,8 @@ const browser = await chromium.launch({headless:true,channel:process.env.PDF_BRO
 const page = await browser.newPage({acceptDownloads:true,viewport:{width:1440,height:1000}});
 const pageErrors=[]; page.on('pageerror',error=>pageErrors.push(error.message));
 const consoleErrors=[]; page.on('console',entry=>{if(entry.type()==='error') consoleErrors.push(entry.text());});
-page.on('dialog',dialog=>dialog.accept());
+let allowReplace = true;
+page.on('dialog',dialog=>allowReplace ? dialog.accept() : dialog.dismiss());
 await page.route('https://www.gstatic.com/firebasejs/**',route=>route.fulfill({contentType:'text/javascript',body:storeModule}));
 const ready = async () => {
   await page.waitForFunction(()=>window.__denverTerritoryPlannerAPI?.isAdmin() && window.seedSavingTest && document.querySelector('#hallAddressSaveButton'));
@@ -152,6 +153,56 @@ try {
   await recoveredRow.getByRole('button',{name:'Original PDF',exact:true}).click();
   await (await freshOriginal).saveAs(resolve(output,'recovery-original-reloaded.pdf'));
   assert.deepEqual(await readFile(resolve(output,'recovery-original-reloaded.pdf')),originalBytes);
+  // Edit the exact earlier PDF selected from the all-saved-territories layer.
+  const retainedBeforeEdit = await page.evaluate(()=>localStorage.getItem('isolated-saving-test'));
+  const currentBeforeEdit = await page.evaluate(()=>JSON.stringify({houses:__denverTerritoryPlannerAPI.getHouses(),territories:__denverTerritoryPlannerAPI.getTerritories(),plan:__denverTerritoryPlannerAPI.getCurrentPlanId()}));
+  await page.locator('#showAllSavedTerritories').click();
+  await page.locator('#savedTerritoriesList [data-saved-index]').first().click();
+  const oldVersion = await page.locator('#savedTerritoryVersion option').evaluateAll(options=>options.find(option=>option.textContent.includes('Original PDF'))?.value);
+  assert.ok(oldVersion, 'The original PDF is offered in the retained history');
+  await page.locator('#savedTerritoryVersion').selectOption(oldVersion);
+  allowReplace = false;
+  await page.locator('#editSavedTerritory').click();
+  assert.equal(await page.evaluate(()=>JSON.stringify({houses:__denverTerritoryPlannerAPI.getHouses(),territories:__denverTerritoryPlannerAPI.getTerritories(),plan:__denverTerritoryPlannerAPI.getCurrentPlanId()})),currentBeforeEdit);
+  allowReplace = true;
+  await page.locator('#editSavedTerritory').click();
+  await page.locator('#savedTerritoryEditCard').waitFor({state:'visible'});
+  assert.equal(await page.locator('#savedTerritoriesPanel').isVisible(),false);
+  assert.equal(await page.locator('#savedTerritoryEditName').innerText(),'Recovered Test A');
+  assert.equal(await page.evaluate(()=>__denverTerritoryPlannerAPI.getCurrentPlanId()),null);
+  await page.locator('#editSavedTerritoryBoundaryButton').click();
+  await page.locator('#territoryEditActions').waitFor({state:'visible'});
+  assert.ok(await page.locator('.leaflet-editing-icon').count(), 'The saved polygon has editable handles');
+  // Move the selected polygon's right edge inward, excluding one column of homes.
+  await page.evaluate(()=>{
+    const api=__denverTerritoryPlannerAPI, editing=[];
+    api.getMap().eachLayer(layer=>{if(layer._denverTerritoryId==='test-a' && layer.setLatLngs) editing.push(layer);});
+    if(!editing.length)throw Error('Editable boundary was not found');
+    editing[0].setLatLngs([[39.579,-104.942],[39.579,-104.9388],[39.584,-104.9388],[39.584,-104.942]]);
+    api.getHouses().find(h=>h.id==='test-home-0').address='1200 Corrected Sample Street';
+  });
+  const revisedDownload = page.waitForEvent('download',{timeout:120000});
+  await page.locator('#saveEditedTerritoryPdfButton').click();
+  await (await revisedDownload).saveAs(resolve(output,'edited-saved-territory.pdf'));
+  await page.waitForFunction(()=>document.querySelector('#savedTerritoryEditStatus')?.dataset.state==='success');
+  assert.equal(await page.locator('#territoryEditActions').isVisible(),false,'Saving the PDF also applies open boundary handles');
+  const savedAfterEdit = await page.evaluate(()=>JSON.parse(localStorage.getItem('isolated-saving-test')));
+  const recordsAfterEdit = new Map(savedAfterEdit);
+  for(const [key,value] of JSON.parse(retainedBeforeEdit)) assert.deepEqual(recordsAfterEdit.get(key),value,'Earlier saved records stay unchanged');
+  const newRecords = savedAfterEdit.filter(([key])=>!new Map(JSON.parse(retainedBeforeEdit)).has(key)).map(([,value])=>value);
+  const newPdf = newRecords.find(record=>record.recordType==='territory-pdf');
+  assert.ok(newPdf); assert.equal(newPdf.territoryId,'test-a'); assert.equal(newPdf.houseCount,3);
+  assert.notEqual(newPdf.planId,originalPlanId);
+  const pdfSnapshot = JSON.parse(newPdf.snapshotPartIds.map(id=>recordsAfterEdit.get('reviews/'+id).data).join(''));
+  assert.ok(pdfSnapshot.houses.some(h=>h.address==='1200 Corrected Sample Street'));
+  assert.equal(Math.max(...pdfSnapshot.territory.geometry.coordinates[0].map(p=>p[0])),-104.9388);
+  await page.locator('#savedTerritoryEditCard').scrollIntoViewIfNeeded();
+  await page.screenshot({path:resolve(output,'edit-saved-territory.png')});
+  await page.reload(); await ready();
+  await page.locator('#savedTerritoryPdfs [data-load-territory-pdf]').first().click();
+  await page.locator('#savedTerritoryEditCard').waitFor({state:'visible'});
+  assert.equal(await page.evaluate(()=>__denverTerritoryPlannerAPI.getTerritories()[0].houseIds.length),3);
+  assert.ok(await page.evaluate(()=>__denverTerritoryPlannerAPI.getHouses().some(h=>h.address==='1200 Corrected Sample Street')));
   await page.locator('#savedTerritoryPdfs').scrollIntoViewIfNeeded();
   await page.screenshot({path:resolve(output,'saved-library.png')});
   assert.deepEqual(pageErrors,[]);

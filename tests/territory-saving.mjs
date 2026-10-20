@@ -52,6 +52,7 @@ function realm() {
   });
   vm.runInContext(source + `
     currentUser = { email: ADMIN_EMAIL }; db = {};
+    hallLocations = [{ id: 'test-hall', name: 'Test Hall' }];
     dedupeHouseRecords = () => 0;
     toast = (message, error) => testMessages.push({ message, error });
     updateSummary = () => {}; emitPlannerDataChange = () => {}; updateBoundaryUi = () => {};
@@ -60,7 +61,7 @@ function realm() {
     currentSourceKey = () => 'manual';
     boundaryGroup = { clearLayers() {} };
     globalThis.test = {
-      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, subscribeReviews, clearPlanWorkspace, restoreRecoveryPackage, refreshSavedPdfRecord,
+      savePlan, saveTerritoryPdf, loadPlanRecord, openSavedPdf, editSavedTerritory, subscribeReviews, clearPlanWorkspace, restoreRecoveryPackage, refreshSavedPdfRecord,
       seed(data) { houses = data.houses; territories = data.territories; boundaryGeometry = data.geometry;
         selectedHall = data.hall; selectedCongregation = data.congregation; els.planName.value = data.name || 'Test Plan'; },
       reload(records) { reviewRecords = new Map(records); renderSavedRecords(); },
@@ -186,6 +187,48 @@ assert.equal(archivedSession.test.state().currentPlanId, null);
 assert.equal(archivedSession.test.state().houses.at(-1).avoid, true);
 assert.deepEqual(store.get(archiveId), record);
 assert.ok(store.has(planId));
+
+// Explicit editing is cancellable and validates before touching the workspace.
+const editVersion = { ...clone(snapshot), hallId: fixture.hall.id };
+const editing = realm(); editing.test.seed(clone(fixture));
+const untouched = JSON.stringify(editing.test.state()), sourceBefore = JSON.stringify(editVersion);
+editing.context.confirm = () => false;
+assert.equal(editing.test.editSavedTerritory(editVersion), false);
+assert.equal(JSON.stringify(editing.test.state()), untouched);
+assert.throws(() => editing.test.editSavedTerritory({ ...editVersion, error: 'Missing part' }), /incomplete/);
+assert.throws(() => editing.test.editSavedTerritory({ ...editVersion, houses: [{ id: 'broken', address: '100 Test St', lat: null, lng: -105 }] }), /incomplete/);
+assert.throws(() => editing.test.editSavedTerritory({ ...editVersion, territory: { ...editVersion.territory, geometry: { type: 'Polygon', coordinates: [] } } }), /boundary is incomplete/);
+assert.equal(JSON.stringify(editing.test.state()), untouched);
+editing.context.confirm = () => true;
+assert.equal(editing.test.editSavedTerritory(editVersion), true);
+assert.equal(editing.test.state().currentPlanId, null);
+assert.equal(editing.test.state().territories[0].id, snapshot.territory.id);
+assert.equal(editing.test.state().houses.at(-1).avoidTerritoryId, snapshot.territory.id);
+assert.equal(JSON.stringify(editVersion), sourceBefore, 'Editing never mutates the inspected version');
+const fullPlanBefore = clone(store.get(planId));
+editing.test.state().territories[0].name = 'Revised Test A';
+editing.test.state().houses[0].address = '1234 Corrected Street';
+const revisedPlanId = await editing.test.savePlan();
+assert.notEqual(revisedPlanId, planId, 'A one-territory edit cannot overwrite the original full plan');
+const editedSnapshot = { ...snapshot, houses: clone(editing.test.state().houses), territory: clone(editing.test.state().territories[0]) };
+const revisedArchiveId = await editing.test.saveTerritoryPdf(pdf, 'revised.pdf', editedSnapshot, revisedPlanId);
+assert.notEqual(revisedArchiveId, archiveId);
+assert.equal(store.get(revisedArchiveId).territoryId, record.territoryId, 'Revisions retain territory identity for history');
+assert.deepEqual(store.get(planId), fullPlanBefore);
+assert.deepEqual(store.get(archiveId), record);
+const revisedSession = realm(); revisedSession.test.reload([...store].map(([id,data]) => [id,{id,...clone(data)}]));
+await revisedSession.test.openSavedPdf(revisedArchiveId, { textContent: 'Edit territory' }, true);
+assert.equal(revisedSession.test.state().territories[0].name, 'Revised Test A');
+assert.equal(revisedSession.test.state().houses[0].address, '1234 Corrected Street');
+const pendingRestore = realm(); pendingRestore.test.reload([...store].map(([id,data]) => [id,{id,...clone(data)}]));
+let releaseRead;
+const readGate = new Promise(resolve => { releaseRead = resolve; });
+const originalGet = pendingRestore.context.getDoc;
+pendingRestore.context.getDoc = async ref => { await readGate; return originalGet(ref); };
+const lateRestore = pendingRestore.test.openSavedPdf(archiveId, { textContent: 'Edit territory' }, true);
+pendingRestore.test.clearPlanWorkspace(); releaseRead(); await lateRestore;
+assert.equal(pendingRestore.test.state().houses.length, 0, 'A late PDF read must not replace a newer workspace');
+console.log('Saved-territory edits verified: cancellation, validation, immutable source, same territory ID, distinct revision plan/PDF, old records retained, reopen, stale-read protection.');
 
 // Failure before publication leaves no library entry and no partial payloads.
 const keysBefore = [...store.keys()];

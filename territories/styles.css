@@ -245,3 +245,9 @@ button,input,select,textarea{font:inherit}.app{min-height:100vh}
 .saved-addresses{max-height:220px;overflow:auto;padding-left:20px;line-height:1.7}
 #savedTerritoriesProblems{font-size:12px;color:#874521;margin:10px 0}
 @media print{.saved-territories-card{display:none!important}}
+.saved-territory-edit-card{border:2px solid #38856b;background:#f2faf6;margin:14px 0}
+.saved-territory-edit-card[hidden]{display:none!important}
+.saved-territory-edit-card .btn{white-space:normal;height:auto;min-height:38px}
+.saved-territory-edit-card:focus{outline:3px solid #a1cbb8;outline-offset:3px}
+.saved-territory-edit-card .button-row{margin-bottom:10px}
+@media print{.saved-territory-edit-card{display:none!important}}

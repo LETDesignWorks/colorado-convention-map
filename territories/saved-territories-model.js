@@ -46,7 +46,7 @@ function makeVersion(record, territory, houses, index, source, error = '') {
   const isPdf = source !== 'plan';
   return {
     key: identity(record.hallId, territory, record.id, index),
-    id: JSON.stringify([source, record.id, index]), source, recordId: record.id,
+    id: JSON.stringify([source, record.id, index]), source, recordId: record.id, hallId: text(record.hallId),
     territory: { ...copy(territory), geometry: error ? null : geometry(territory) },
     houses: copy(houses), error, congregation: text(record.congregation),
     planId: isPdf ? text(record.planId) : record.id,

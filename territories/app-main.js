@@ -8,7 +8,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261019-35';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261020-36';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { HALLS } from './halls.js';
 import {
@@ -78,6 +78,7 @@ let currentBoundaryId = null;
 let currentPlanId = null;
 let planSaveQueue = Promise.resolve();
 let workspaceGeneration = 0;
+let savedTerritoryEditId = null;
 let reviewRecords = new Map();
 let savedRecordsStatus = 'loading';
 let reviewsUnsubscribe = null;
@@ -2477,6 +2478,7 @@ function renderHouseList() {
 }
 
 function updateSummary() {
+  updateSavedTerritoryEditUi();
   const includedCount = houses.filter(house => house.included && !house.avoid).length;
   const avoidCount = houses.filter(house => house.avoid).length;
   els.summaryHall.textContent = selectedHall ? `${markerLabel(selectedHall)} — ${selectedHall.name}` : '—';
@@ -2498,6 +2500,7 @@ function requireAdmin() {
 }
 function updateAuthUi() {
   const signedIn = Boolean(currentUser);
+  updateSavedTerritoryEditUi();
   els.loginButton.hidden = signedIn;
   els.signOutButton.hidden = !signedIn;
   document.querySelectorAll('.admin-control').forEach(control => { control.disabled = !isAdmin(); });
@@ -2746,18 +2749,18 @@ function loadBoundaryRecord(id) {
 }
 function loadPlanRecord(id) {
   const plan = reviewRecords.get(id);
-  if (!plan) return;
+  if (!plan) return false;
   const chunkIds = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === id).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex)).map(item => item.id);
   if (chunkIds.some(chunkId => !decodeHouseChunk(reviewRecords.get(chunkId)))) {
     toast('This saved plan has missing address data. Your current work has been kept. Wait for saved records to finish loading and try again.', true);
-    return;
+    return false;
   }
   const loadedHouses = chunkIds.flatMap(chunkId => decodeHouseChunk(reviewRecords.get(chunkId)) || []);
   if (Number.isFinite(plan.houseCount) && loadedHouses.length !== plan.houseCount) {
     toast('The saved address count does not match this plan. Your current work has been kept; reload saved records before trying again.', true);
-    return;
+    return false;
   }
-  if ((houses.length || boundaryGeometry) && !confirm('Replace the current unsaved workspace with this saved territory plan?')) return;
+  if ((houses.length || territories.length || boundaryGeometry) && !confirm('Replace the current workspace with this saved territory? Unsaved changes will be lost. Choose Cancel to save your current work first.')) return false;
   clearPlanWorkspace(false);
   restoreHallAndCongregation(plan.hallId, plan.congregation);
   currentPlanId = plan.pdfArchive ? null : plan.id;
@@ -2802,6 +2805,79 @@ function loadPlanRecord(id) {
   }
   toast(`Saved ${plan.addressSetMode ? 'Kingdom Hall address-set ' : plan.addressOnlyMode ? 'CSV address-only ' : ''}plan loaded with ${houses.length.toLocaleString()} addresses.`);
   setPlanSaveMessage(`Loaded “${plan.planName || 'Saved territory plan'}”. Exporting a PDF will save your latest changes automatically.`, 'success');
+  return true;
+}
+
+function updateSavedTerritoryEditUi() {
+  const card = document.getElementById('savedTerritoryEditCard');
+  if (!card) return;
+  const territory = territories.find(item => item.id === savedTerritoryEditId);
+  card.hidden = !territory || !isAdmin();
+  if (!territory) return;
+  document.getElementById('savedTerritoryEditName').textContent = territory.name;
+  document.getElementById('saveEditedTerritoryPdfButton').dataset.territoryPdf = territory.id;
+}
+
+function editSavedTerritory(version) {
+  if (!requireAdmin()) return false;
+  if (version.error) throw new Error('This saved version is incomplete. Refresh saved records and try again.');
+  const territory = JSON.parse(JSON.stringify(version.territory || {}));
+  const restoredHouses = JSON.parse(JSON.stringify(version.houses || []));
+  const hallId = String(version.hallId || ''), congregation = clean(version.congregation);
+  if (!hallId || !congregation || !territory.id || !Array.isArray(restoredHouses) || !restoredHouses.some(h => !h.avoid)) {
+    throw new Error('The saved territory is missing its meeting place, congregation, or addresses.');
+  }
+  if (String(selectedHall?.id) !== hallId && !hallLocations.some(hall => String(hall.id) === hallId)) {
+    throw new Error('This saved meeting place is not available. Your current work has been kept.');
+  }
+  const ids = new Set();
+  if (territory.geometry) {
+    const polygons = territory.geometry.type === 'Polygon' ? [territory.geometry.coordinates]
+      : territory.geometry.type === 'MultiPolygon' ? territory.geometry.coordinates : [];
+    if (!Array.isArray(polygons) || !polygons.length || !polygons.every(polygon => Array.isArray(polygon) && polygon.length && polygon.every(ring =>
+      Array.isArray(ring) && ring.length >= 4 && ring.every(point => Array.isArray(point) && point.length >= 2 &&
+        Number.isFinite(point[0]) && Number.isFinite(point[1]) && Math.abs(point[0]) <= 180 && Math.abs(point[1]) <= 90) &&
+      ring[0][0] === ring.at(-1)[0] && ring[0][1] === ring.at(-1)[1]))) {
+      throw new Error('The saved territory boundary is incomplete. Your current work has been kept.');
+    }
+  }
+  territory.id = String(territory.id);
+  for (const house of restoredHouses) {
+    if (!house.id || ids.has(String(house.id)) || house.lat == null || house.lng == null || !validMapCoordinates(house)) {
+      throw new Error('This saved territory contains incomplete or repeated address locations. Your current work has been kept.');
+    }
+    house.id = String(house.id); ids.add(house.id);
+    house.avoid = Boolean(house.avoid);
+    house.included = !house.avoid && house.included !== false;
+    house.territoryId = house.avoid ? null : territory.id;
+    if (house.avoid) house.avoidTerritoryId = territory.id;
+  }
+  territory.houseIds = restoredHouses.filter(h => h.included).map(h => h.id);
+  // A temporary, separate record reuses the validated loader without ever
+  // replacing an archive or attaching a single-territory edit to a full plan.
+  const id = uniqueId('saved-territory-edit'), chunkId = `${id}__houses`;
+  const plan = { id, pdfArchive: true, hallId, congregation,
+    planName: `${territory.name || 'Territory'} - revised territory`,
+    boundaryJson: encodeGeometry(territory.geometry), boundaryPreservesAddresses: true,
+    houseCount: restoredHouses.length, chunkIds: [chunkId], sourceKey: 'manual',
+    territoriesJson: JSON.stringify([{ ...territory, geometryJson: encodeGeometry(territory.geometry) }]) };
+  reviewRecords.set(id, plan); reviewRecords.set(chunkId, { houses: restoredHouses });
+  let opened;
+  try { opened = loadPlanRecord(id); }
+  finally { reviewRecords.delete(id); reviewRecords.delete(chunkId); }
+  if (!opened) return false;
+  savedTerritoryEditId = territory.id;
+  window.dispatchEvent(new CustomEvent('territory-planner:edit-saved'));
+  els.pdfTerritorySelect.value = territory.id;
+  zoomTerritory(territory.id);
+  updateSavedTerritoryEditUi();
+  const message = 'Ready to edit. Use Edit Boundary or the address tools, then Save Updated Territory & PDF. The earlier PDF will be kept.';
+  document.getElementById('savedTerritoryEditStatus').textContent = message;
+  document.getElementById('savedTerritoryEditStatus').dataset.state = 'waiting';
+  setPlanSaveMessage(message);
+  document.getElementById('savedTerritoryEditCard')?.focus?.();
+  toast(`${territory.name || 'Saved territory'} opened for editing.`);
+  return true;
 }
 async function deleteBoundaryRecord(id) {
   const item = reviewRecords.get(id);
@@ -2991,7 +3067,7 @@ function renderSavedPdfs() {
   const dateValue = value => value?.toDate ? value.toDate().getTime() : new Date(value || 0).getTime();
   const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf')
     .sort((a, b) => dateValue(b.updatedAt) - dateValue(a.updatedAt));
-  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Load territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
+  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Edit territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
     : '<div class="empty">New PDF exports will appear here automatically, with a copy of the territory as it was printed.</div>';
   element.querySelectorAll('[data-download-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.downloadTerritoryPdf, button, false)));
   element.querySelectorAll('[data-load-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.loadTerritoryPdf, button, true)));
@@ -3001,6 +3077,7 @@ async function openSavedPdf(id, button, restore, originalCopy = false) {
   if (!requireAdmin()) return;
   let record = reviewRecords.get(id);
   if (!record) return;
+  const generation = workspaceGeneration;
   const original = button.textContent;
   button.disabled = true; button.textContent = 'Loading…';
   try {
@@ -3013,17 +3090,11 @@ async function openSavedPdf(id, button, restore, originalCopy = false) {
     const parts = await archiveParts(record, restore ? 'snapshot' : 'pdf');
     if (restore) {
       const snapshot = readArchiveSnapshot(record, parts);
-      const chunkId = `${id}__restoring`;
-      // Reuse the existing plan loader, but start an editable copy so changes
-      // cannot overwrite either the original full plan or its archived PDF.
-      const plan = { ...record, pdfArchive: true, planName: `${record.territoryName} — saved PDF copy`,
-        boundaryJson: encodeGeometry(snapshot.territory.geometry), houseCount: snapshot.houses.length,
-        territoriesJson: JSON.stringify([{ ...snapshot.territory, geometryJson: encodeGeometry(snapshot.territory.geometry) }]),
-        chunkIds: [chunkId], targetSize: 40, sourceKey: 'manual' };
-      reviewRecords.set(id, plan);
-      reviewRecords.set(chunkId, { houses: snapshot.houses });
-      try { loadPlanRecord(id); }
-      finally { reviewRecords.set(id, record); reviewRecords.delete(chunkId); }
+      if (generation !== workspaceGeneration || !isAdmin()) return;
+      if (String(snapshot.hall.id) !== String(record.hallId) || String(snapshot.territory.id) !== String(record.territoryId)) {
+        throw new Error('The saved PDF does not match its meeting place or territory.');
+      }
+      editSavedTerritory({ ...snapshot, hallId: snapshot.hall.id });
     } else {
       const blob = readArchivePdf(record, parts), url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -3410,6 +3481,8 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
 
 function clearPlanWorkspace(resetSelection = true) {
   workspaceGeneration += 1;
+  savedTerritoryEditId = null;
+  updateSavedTerritoryEditUi();
   setPlanSaveMessage('Exporting a territory PDF automatically saves the current plan. You can also use Save Territory Plan at any time.');
   cancelTerritoryBoundaryEdit(false);
   focusedTerritoryId = null;
@@ -3486,6 +3559,17 @@ function wireEvents() {
   els.cancelTerritoryBoundaryEditButton?.addEventListener('click', () => cancelTerritoryBoundaryEdit(true));
   els.houseSearch.addEventListener('input', renderHouseList);
   els.savePlanButton.addEventListener('click', savePlan);
+  document.getElementById('editSavedTerritoryBoundaryButton')?.addEventListener('click', () => editTerritoryBoundary(savedTerritoryEditId));
+  document.getElementById('selectSavedTerritoryHomesButton')?.addEventListener('click', () => selectTerritoryHouses(savedTerritoryEditId));
+  // The current PDF renderer intercepts this data-territory-pdf button and saves
+  // the plan plus a new archive. Keep the legacy renderer as a fallback.
+  document.getElementById('saveEditedTerritoryPdfButton')?.addEventListener('click', () => exportTerritoryPdf(savedTerritoryEditId));
+  window.addEventListener('territory-planner:pdf-saved', event => {
+    if (event.detail?.territoryId !== savedTerritoryEditId) return;
+    const status = document.getElementById('savedTerritoryEditStatus');
+    status.textContent = 'Updated territory and PDF saved. The earlier PDF is still available in saved territory history.';
+    status.dataset.state = 'success';
+  });
   els.exportTerritoryPdfButton.addEventListener('click', () => exportTerritoryPdf());
   els.exportGeoJsonButton.addEventListener('click', exportGeoJson);
   els.exportCsvButton.addEventListener('click', exportCsv);
@@ -3514,6 +3598,7 @@ async function initialize() {
   wireEvents();
   mountSavedTerritories({
     map, L, turf, isAdmin, getHall: () => selectedHall,
+    editTerritory: editSavedTerritory,
     getRecords: () => new Map(reviewRecords), getStatus: () => savedRecordsStatus,
     readSnapshot: async record => {
       if (!isAdmin()) throw new Error('Sign in to view saved territories.');
@@ -3575,6 +3660,11 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   render: renderAllPlanningData,
   savePlan,
   saveTerritoryPdf,
+  finishTerritoryBoundaryEdit: async id => {
+    if (activeTerritoryEditId !== id) return true;
+    await saveActiveTerritoryBoundaryEdit();
+    return activeTerritoryEditId === null;
+  },
   selectTerritoryHouses,
   uniqueId,
   normalizeAddressKey,
