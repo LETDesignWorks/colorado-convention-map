@@ -190,7 +190,7 @@ function addActivityPlanningLink() {
   if (!nav || nav.querySelector('a[href*="activity-planning/"]')) return;
   const link = document.createElement('a');
   link.className = linkClassForCurrentPage('activity-planning-link');
-  const destination = new URL('activity-planning/', siteHomeUrl);
+  const destination = new URL('activity-planning/index.html', siteHomeUrl);
   link.href = destination.href;
   link.textContent = 'Activity Planning';
   link.setAttribute('aria-label', 'Plan activity bus routes, multiple stops, timing and delegate costs');
