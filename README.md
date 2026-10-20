@@ -22,6 +22,11 @@ https://letdesignworks.github.io/colorado-convention-map/
 - Bus Access Review: `/bus-access/`
 - Team Assignment Maps: `/team/`
 - Bus Route Planner: `/routes/`
+- Activity Planning: `/activity-planning/` — ordered multi-stop bus routes, territory links, repeated runs, cost per unique delegate, and combined route review.
+
+Activity Planning preserves the existing activity scheduler and field-service routes. New shared routes use private `reviews` records with type `activity-multistop-route`; existing administrator authentication and Firestore permissions apply. Public visitors can calculate and save routes on their own device. JSON export/import provides a backup. Saved territory plans supply meeting-place stops and optional map outlines; custom pickup points are editable without changing territory records. All entered times are Denver wall time. Pricing uses the full occupied bus window and distinguishes repeat rides by the same delegates from new groups.
+
+Run `node tests/activity-planning.mjs` for route timing, cost, capacity, persistence, and conflict checks.
 
 ## Planning note
 

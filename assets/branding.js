@@ -180,8 +180,30 @@ function applyDenver2027Branding() {
   addSouthDtcRailLink();
   addSmpwLink();
   addDelegateActivitiesLink();
+  addActivityPlanningLink();
   addLoadTestsLink();
   addMapLogo();
+}
+
+function addActivityPlanningLink() {
+  const nav = navHost();
+  if (!nav || nav.querySelector('a[href*="activity-planning/"]')) return;
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('activity-planning-link');
+  const destination = new URL('activity-planning/', siteHomeUrl);
+  link.href = destination.href;
+  link.textContent = 'Activity Planning';
+  link.setAttribute('aria-label', 'Plan activity bus routes, multiple stops, timing and delegate costs');
+  insertBeforeRouteOrBus(nav, link);
+  if (location.pathname.includes('/territories/')) {
+    const update = hallId => {
+      const url = new URL(destination.href);
+      if (hallId) url.searchParams.set('hall', hallId);
+      link.href = url.href;
+    };
+    update(new URLSearchParams(location.search).get('hall'));
+    window.addEventListener('territory-planner:data', event => update(event.detail?.hallId || ''));
+  }
 }
 
 function addLoadTestsLink() {
