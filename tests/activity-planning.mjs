@@ -27,3 +27,22 @@ assert.equal(decodeRecord({...encoded,planJson:'invalid'}),null);
 const legacy=legacyRoute({id:'old',recordType:'bus-route',routeName:'Ministry',hotelName:'Hotel',origin:plan.stops[0],destination:plan.stops[1],destinationId:'21',reportLocal:'2027-07-20T08:00',meetingLocal:'2027-07-20T09:00'});
 assert.equal(legacy.stops.length,2);assert.equal(legacy.stops[1].hallId,'21');assert.equal(legacy.coachId,'');assert.equal(legacy.legacy,true);
 console.log('Activity planning: timing, return legs, repeat runs, unique delegates, pricing, capacity, midnight, conflicts, persistence and legacy route checks passed.');
+
+const boardingPlan={...plan,stops:plan.stops.map(p=>({...p,boarding:10}))};
+const boardingSchedule=calculate(boardingPlan,legs);
+assert.equal(boardingSchedule.timeline[0].ready,'2027-07-20T08:10');
+assert.equal(boardingSchedule.timeline[0].arrival,'2027-07-20T08:00');
+assert.equal(boardingSchedule.timeline[0].departure,'2027-07-20T08:20');
+assert.equal(boardingSchedule.timeline[1].ready,'2027-07-20T10:50');
+assert.equal(boardingSchedule.timeline[2].ready,null); // automatic return is drop-off only
+assert.equal(boardingSchedule.timeline[3].ready,'2027-07-20T12:05');
+assert.equal(boardingSchedule.totalMinutes,s.totalMinutes); // included, not added twice
+assert.equal(boardingSchedule.totalCost,s.totalCost);
+assert.equal(s.timeline[0].ready,null); // old plans keep existing times
+assert.equal(calculate({...boardingPlan,startLocal:'2027-07-20T23:55'},legs).timeline[0].ready,'2027-07-21T00:05');
+assert.throws(()=>calculate({...plan,stops:plan.stops.map(p=>({...p,boarding:30}))},legs),/cannot exceed stop minutes/);
+assert.throws(()=>calculate({...plan,stops:plan.stops.map(p=>({...p,boarding:-1}))},legs),/loading minutes/);
+const restored=decodeRecord({...encodeRecord(boardingPlan,legs),id:'boarding'});
+assert.deepEqual(restored.summary,boardingSchedule);
+assert.equal(restored.stops[0].boarding,10);
+console.log('Delegate loading: ready times, repeated runs, overnight, drop-off return, legacy defaults, duration/cost consistency and saved-route round-trip passed.');

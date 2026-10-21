@@ -16,7 +16,7 @@ export function numeric(value, label, min=0, max=1000000, integer=false) {
 export function validPoint(p) { return p && p.lat!=='' && p.lng!=='' && p.lat!=null && p.lng!=null && Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)) && Math.abs(Number(p.lat))<=90 && Math.abs(Number(p.lng))<=180; }
 export function routePoints(plan) {
   const points=plan.stops.map(p=>({...p}));
-  if(plan.roundTrip && points.length && (points[0].lat!==points.at(-1).lat || points[0].lng!==points.at(-1).lng)) points.push({...points[0],dwell:0,role:'Return to start',automaticReturn:true});
+  if(plan.roundTrip && points.length && (points[0].lat!==points.at(-1).lat || points[0].lng!==points.at(-1).lng)) points.push({...points[0],dwell:0,boarding:0,role:'Return to start',automaticReturn:true});
   return points;
 }
 export function calculate(plan, legs) {
@@ -37,8 +37,11 @@ export function calculate(plan, legs) {
   for(let run=1;run<=runs;run++) {
     for(let i=0;i<points.length;i++) {
       const point=points[i], arrival=clock;
+      // Loading is part of the entered stop duration, never an extra hidden delay.
+      const boarding=numeric(point.boarding??0,'loading minutes',0,240);
+      if(boarding>Number(point.dwell)) throw new Error(`Loading minutes at ${point.name||'this stop'} cannot exceed stop minutes. Increase the stop duration to allow loading.`);
       clock+=Number(point.dwell)*60000;
-      timeline.push({run,stop:i+1,name:point.name,role:point.role,arrival:wallString(arrival),departure:wallString(clock),dwell:Number(point.dwell)});
+      timeline.push({run,stop:i+1,name:point.name,role:point.role,arrival:wallString(arrival),departure:wallString(clock),dwell:Number(point.dwell),boarding,ready:boarding>0?wallString(clock-boarding*60000):null,finalStop:i===points.length-1});
       if(i<legs.length) {
         const leg=legs[i];
         const base=numeric(leg.minutes,'driving minutes',0,10000), miles=numeric(leg.miles,'distance',0,10000);
