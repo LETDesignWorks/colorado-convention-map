@@ -1,11 +1,11 @@
-import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-49';
-import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261023-49';
-import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261023-49';
-import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261023-49';
-import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261023-49';
-import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261023-49';
-import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261023-49';
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261023-49';
+import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-50';
+import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261023-50';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261023-50';
+import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261023-50';
+import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261023-50';
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261023-50';
+import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261023-50';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261023-50';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -16,11 +16,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261023-49';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261023-50';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-49';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-49';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261023-49';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-50';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-50';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261023-50';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2975,7 +2975,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-49');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-50');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3833,7 +3833,7 @@ async function libraryVersionPdf(version, progress, options = {}) {
     allowReviewCopy: Boolean(options.allowReviewCopy),
     readPdf: async record => readArchivePdf(record, await archiveParts(record, 'pdf')),
     buildPdf: async (snapshot, progress) => {
-      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-49');
+      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-50');
       return buildTerritoryPdf(snapshot, progress);
     }
   });

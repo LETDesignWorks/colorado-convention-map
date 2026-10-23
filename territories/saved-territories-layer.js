@@ -1,10 +1,10 @@
-import { createSavedPdfView } from './saved-pdf-view.js?v=territories-20261023-49';
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-49';
-import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261023-49';
-import { paintBeforeWork } from './planner-loading.js?v=territories-20261023-49';
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261023-49';
+import { createSavedPdfView } from './saved-pdf-view.js?v=territories-20261023-50';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-50';
+import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261023-50';
+import { paintBeforeWork } from './planner-loading.js?v=territories-20261023-50';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261023-50';
 
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261023-49';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261023-50';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
@@ -33,6 +33,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
   const versionFor = group => group.versions.find(v => v.id === selectedVersions.get(group.key)) || group.versions[0];
   const active = () => visible && isAdmin() && String(getHall()?.id ?? '') === hallId;
   const pdfView = createSavedPdfView({ isActive: active, readPdf,
+    reviewDuplicates: async version => { const checker=globalThis.__denverDuplicateReview;if(!checker?.reviewVersion)throw new Error('The address checker is still loading. Try again.');return checker.reviewVersion(version); },
     buildPdf: (version, progress, options) => versionPdf ? versionPdf(version, progress, options)
       : readPdf(version.pdfRecord).then(blob => ({ blob, filename: version.pdfRecord.filename })) });
   const revokeUrls = () => pdfView.clear();
@@ -217,7 +218,8 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
       ${libraryManager ? `<div class="button-row"><button class="btn save" id="keepExactVersion" type="button"${version.error ? ' disabled' : ''}>Save this version to keep</button><button class="btn outline" id="deleteOtherVersions" type="button"${group.keptVersionId && group.versions.length > 1 ? '' : ' disabled'}>Delete other versions</button><button class="btn outline" id="deletePreviewVersion" type="button"${group.keptVersionId && group.keptVersionId !== version.id ? '' : ' disabled'}>Delete this previewed version</button>${group.hiddenVersionCount ? '<button class="btn outline" id="restoreLibraryVersions" type="button">Restore removed versions</button>' : ''}</div><p id="libraryVersionStatus" role="status">${group.keptVersionId ? 'Your exact kept version is saved independently. Removing older versions does not delete other territories or the full location plan.' : 'Save the version you want to keep before removing alternatives.'}</p>` : ''}
       ${sessionManager ? '<div class="button-row"><button type="button" class="btn outline" id="checkTerritoryAddresses">Check boundary addresses</button><button type="button" class="btn outline" id="findTerritoryGisHomes">Find missing assessor / GIS homes</button></div><p id="territoryMembershipStatus" role="status"></p>' : ''}
       <p id="savedTerritoryPdfStatus" role="status"></p><div id="savedTerritoryPdfLinks"></div>
-      <button type="button" class="btn outline" id="createReviewTerritoryPdf" hidden>Create review PDF</button>
+      <button type="button" class="btn save" id="resolveTerritoryPdfDuplicates" hidden>Review and clean duplicates</button>
+      <button type="button" class="btn outline" id="createReviewTerritoryPdf" hidden>Create review PDF (duplicates may remain)</button>
       ${version.pdfRecord ? '<button type="button" class="btn outline" id="openOriginalTerritoryPdf">View original saved PDF (may be older)</button>' : ''}
       ${!version.pdfRecord ? '<p>View PDF creates a PDF from this exact saved version without changing the editable map.</p>' : ''}
       <details id="savedVersionAddresses"><summary>Saved addresses (${version.houses.length})</summary><ul class="saved-addresses"></ul></details>`;
@@ -290,7 +292,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
       } finally { if (button.isConnected) button.disabled = false; }
     });
     pdfView.bind(version, { button: el('openSavedTerritoryPdf'), originalButton: el('openOriginalTerritoryPdf'),
-      reviewButton: el('createReviewTerritoryPdf'), status: el('savedTerritoryPdfStatus'), links: el('savedTerritoryPdfLinks') });
+      reviewButton: el('createReviewTerritoryPdf'), resolveButton: el('resolveTerritoryPdfDuplicates'), status: el('savedTerritoryPdfStatus'), links: el('savedTerritoryPdfLinks') });
 
   }
   function fit(target) {

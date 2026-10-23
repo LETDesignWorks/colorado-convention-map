@@ -1,4 +1,4 @@
-import { mountBoundaryTrim } from './territory-trim-tools.js?v=territories-20261023-49';
+import { mountBoundaryTrim } from './territory-trim-tools.js?v=territories-20261023-50';
 // Explicit removal controls for the pinned Leaflet.draw editor. Work only on
 // editable copies; the stored territory changes when Save Boundary is selected.
 export function removeBoundaryVertex(geometry, ringIndex, pointIndex, turf) {

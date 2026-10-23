@@ -78,3 +78,16 @@ test('review remaining matches uses the cleaned session even without a saved-lib
  assert.equal(x.h.current.houses.length,3);document.getElementById('reviewRemainingDuplicates').click();await settle();
  assert.equal(document.querySelectorAll('[data-duplicate-group]').length,1);assert.match(document.getElementById('duplicateScanStatus').textContent,/1 repeated/);x.dom.window.close();
 });
+
+test('Bellmore spelling button combines only after explicit keeper confirmation',async()=>{
+ const x=uiHarness();x.h.current.houses[0].address='9439 BELLMORE LN HIGHLANDS RANCH CO 80126';x.h.current.houses[1].address='9439 S BELLMORE LN, HIGHLANDS RANCH, CO, 80126';x.h.current.houses[1].lat+=.001;
+ await x.ui.reviewVersion({id:'selected',hallId:'21',territory:x.h.current.territories[0],houses:x.h.current.houses});
+ assert.equal(x.h.current.houses.length,2);const button=document.getElementById('combineSpellingDuplicates');assert.equal(button.hidden,false);assert.match(button.textContent,/1 repeated/);
+ button.click();await settle();assert.equal(x.h.current.houses.length,1);assert.match(x.h.current.houses[0].address,/ S BELLMORE/);assert.equal(x.h.saved.length,0);
+ const confirmation=x.h.calls.find(c=>c[0]==='confirm')[1];assert.match(confirmation,/KEEP 9439 S BELLMORE/);assert.match(confirmation,/map positions.*differ/);
+ assert.equal((await x.h.manager.reviewDuplicates()).report.groups.length,0);await x.h.manager.save();assert.equal(x.h.saved[0].houses.length,1);x.dom.window.close();
+});
+test('canceling batch spelling cleanup keeps both original records and the review',async()=>{
+ const x=uiHarness();x.h.current.houses[0].address='9439 BELLMORE LN HIGHLANDS RANCH CO 80126';x.h.current.houses[1].address='9439 S BELLMORE LN, HIGHLANDS RANCH, CO, 80126';x.h.current.houses[1].lat+=.001;
+ document.getElementById('scanAllDuplicates').click();await settle();x.h.yes=false;document.getElementById('combineSpellingDuplicates').click();await settle();assert.equal(x.h.current.houses.length,2);assert.equal(x.h.saved.length,0);assert.equal(document.getElementById('combineSpellingDuplicates').disabled,false);x.dom.window.close();
+});
