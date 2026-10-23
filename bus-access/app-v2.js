@@ -1,6 +1,8 @@
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-46';
+import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-46';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
-import { getFirestore, collection, doc, getDoc, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from './data.js';
 
 const firebaseConfig={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',storageBucket:'convention-fs.firebasestorage.app',messagingSenderId:'29365992209',appId:'1:29365992209:web:0bd35e723688b37d776ab0',measurementId:'G-054BLBBE0F'};
@@ -16,6 +18,7 @@ const BUS_SIZE_LABELS={'passenger-van':'Passenger van',shuttle:'Shuttle bus','sc
 const TYPE_LABELS={'kingdom-hall':'Kingdom Hall','meeting-area':'Other meeting area'};
 const BASE_LOCATIONS=HALLS.map(h=>({...h,id:String(h.id),markerLabel:String(h.number),locationType:'kingdom-hall',planningArea:'dtc-45',customLocation:false}));
 
+let trafficPlanner=null;
 let app,auth,db,map,boundaryLayer,currentUser=null,selectedId=null,locations=[...BASE_LOCATIONS],pendingSelectId=null;
 const publicData=new Map();
 const markers=new Map();
@@ -112,6 +115,7 @@ function renderList(){
 
 async function selectLocation(id,pan=false){
   selectedId=String(id);const location=findLocation(selectedId);if(!location)return;
+  trafficPlanner?.contextChanged();
   if(pan&&map){map.setView([location.lat,location.lng],Math.max(map.getZoom(),13),{animate:true});markers.get(location.id)?.openTooltip();}
   history.replaceState(null,'',`#location-${encodeURIComponent(location.id)}`);updateMarkers();await renderDetail(location);
   if(window.innerWidth<851)document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'start'});
@@ -171,7 +175,7 @@ async function saveLocation(event){
 async function deleteLocation(){
   const id=clean(locationForm.elements.locationId.value),location=findLocation(id);if(!location?.customLocation||!isAdmin())return;
   if(!window.confirm(`Remove ${location.name} from the planning map? Its private review and contacts will also be deleted.`))return;
-  try{const batch=writeBatch(db);batch.delete(doc(db,'halls',id));batch.delete(doc(db,'reviews',id));await batch.commit();closeLocationModal();selectedId=null;history.replaceState(null,'','./');detail.innerHTML='<div class="card empty"><div><strong>Location removed</strong><br><small>Select another marker to continue.</small></div></div>';toast('Added location removed.');}catch(error){toast('Could not remove the location: '+friendlyError(error),true);}
+  try{const batch=writeBatch(db);batch.delete(doc(db,'halls',id));batch.delete(doc(db,'reviews',id));await batch.commit();closeLocationModal();selectedId=null;trafficPlanner?.contextChanged();history.replaceState(null,'','./');detail.innerHTML='<div class="card empty"><div><strong>Location removed</strong><br><small>Select another marker to continue.</small></div></div>';toast('Added location removed.');}catch(error){toast('Could not remove the location: '+friendlyError(error),true);}
 }
 
 function openLogin(){document.getElementById('loginModal').classList.add('open');setTimeout(()=>document.getElementById('loginPassword').focus(),50);}
@@ -195,10 +199,12 @@ document.addEventListener('click',event=>{if(event.target.id==='openStreetFromFo
 
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
+  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
   onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();renderList();});
 }catch(error){showFirebaseWarning('Firebase could not initialize. '+friendlyError(error));renderList();}
 
 initMap();renderList();
+if(map&&db)trafficPlanner=mountTrafficPlanner({L:window.L,getLocation:()=>findLocation(selectedId),isAdmin,
+  storage:createTrafficStorage({db,doc,getDocFromServer,runTransaction,isAdmin}),notify:toast});
 let requestedId=null;if(location.hash.startsWith('#location-'))requestedId=decodeURIComponent(location.hash.slice(10));else{const legacy=location.hash.match(/hall-(.+)/);if(legacy)requestedId=decodeURIComponent(legacy[1]);}
 selectLocation(findLocation(requestedId)?.id||locations[0].id,false);

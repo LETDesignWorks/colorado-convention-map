@@ -12,4 +12,4 @@ routeLink.setAttribute('aria-label','Open hotel-to-field-service bus route plann
 const headerActions=document.querySelector('.header-actions');
 const addButton=document.getElementById('addLocationButton');
 if(headerActions)headerActions.insertBefore(routeLink,addButton||document.getElementById('loginButton'));
-import('./app-v2.js');
+import('./app-v2.js?v=traffic-20261023-46');
