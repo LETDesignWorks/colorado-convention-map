@@ -3,15 +3,19 @@ on:
   push:
     branches: [work/bus-traffic-layouts-46]
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: work/bus-traffic-layouts-46
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Refine responsive map layout and visual test
+        run: python .github/updates46/visual-fixes.py
       - name: Install pinned test dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts jsdom@26.1.0 leaflet@1.9.4 playwright@1.51.1
       - name: Syntax and traffic drawing regression tests
@@ -29,3 +33,10 @@ jobs:
           name: traffic-layout-preview
           path: test-results/traffic
           retention-days: 3
+      - name: Commit verified refinements to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bus-access tests/bus-traffic*.mjs
+          git commit -m 'Verify traffic drawing in desktop and phone browsers and prevent mobile overlap'
+          git push origin HEAD:refs/heads/work/bus-traffic-layouts-46
