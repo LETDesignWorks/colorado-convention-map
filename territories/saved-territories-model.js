@@ -58,7 +58,7 @@ function makeVersion(record, territory, houses, index, source, error = '') {
 
 export async function collectSavedTerritories({ records, hallId, readSnapshot, isCurrent = () => true }) {
   const versions = [], issues = [];
-  const relevant = [...records.values()].filter(r => text(r.hallId) === text(hallId) && hallId != null && text(hallId));
+  const relevant = [...records.values()].filter(r => !r.deletedAt && text(r.hallId) === text(hallId) && hallId != null && text(hallId));
   for (const plan of relevant.filter(r => r.recordType === 'territory-plan')) {
     let saved;
     try { saved = array(plan.territoriesJson || plan.territories); }

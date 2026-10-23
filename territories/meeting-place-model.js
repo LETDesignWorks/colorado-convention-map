@@ -1,4 +1,4 @@
-import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-37';
+import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-39';
 const text = value => String(value ?? '').trim();
 const copy = value => JSON.parse(JSON.stringify(value));
 export const geometryValue = value => value?.type === 'Feature' ? value.geometry : value;
@@ -10,7 +10,7 @@ export function mappedHome(home) {
 }
 export function homeFingerprint(home) { return JSON.stringify([String(home.id), Number(home.lat), Number(home.lng)]); }
 export function chooseMeetingPlan(records, hallId, congregation) {
-  const plans = [...records.values()].filter(record => record.recordType === 'territory-plan'
+  const plans = [...records.values()].filter(record => !record.deletedAt && record.recordType === 'territory-plan'
     && workKey(record.hallId, record.congregation) === workKey(hallId, congregation));
   const current = currentWorkFor(plans, hallId, congregation);
   if (current) return { plan: current, legacy: false }; // Never silently fall back from a damaged current save.
@@ -23,7 +23,7 @@ export function chooseMeetingPlan(records, hallId, congregation) {
   return candidates.length ? { plan: candidates[0], legacy: true } : null;
 }
 export function latestMeetingBoundary(records, hallId, congregation) {
-  const candidates = [...records.values()].filter(record => record.recordType === 'territory-boundary'
+  const candidates = [...records.values()].filter(record => !record.deletedAt && record.recordType === 'territory-boundary'
     && record.meetingPlaceBoundary === true && workKey(record.hallId, record.congregation) === workKey(hallId, congregation));
   candidates.sort((a, b) => workTime(b) - workTime(a) || text(b.id).localeCompare(text(a.id)));
   if (!candidates.length) return null;

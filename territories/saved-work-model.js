@@ -13,7 +13,7 @@ export function workTime(record) {
 export function latestWork(plans) {
   const byKey = new Map();
   for (const plan of plans) {
-    if (plan.recordType !== 'territory-plan' || plan.saveKind !== 'work' || !plan.hallId || !plan.congregation) continue;
+    if (plan.deletedAt || plan.recordType !== 'territory-plan' || plan.saveKind !== 'work' || !plan.hallId || !plan.congregation) continue;
     const key = workKey(plan.hallId, plan.congregation), previous = byKey.get(key);
     if (!previous || workTime(plan) > workTime(previous)
       || (workTime(plan) === workTime(previous) && String(plan.id).localeCompare(String(previous.id)) > 0)) byKey.set(key, plan);

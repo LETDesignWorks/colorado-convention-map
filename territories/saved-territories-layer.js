@@ -1,4 +1,6 @@
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261020-36';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-39';
+
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-39';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
@@ -6,7 +8,7 @@ const sourceLabel = version => version.source === 'plan' ? 'Saved plan' : versio
 
 // Viewing stays isolated from the workspace. Only the explicit Edit action may
 // request an editable copy; the host validates it and confirms workspace replacement.
-export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getStatus, readSnapshot, readPdf, editTerritory, L, turf }) {
+export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getStatus, readSnapshot, readPdf, editTerritory, saveNameChoice, L, turf }) {
   const card = document.getElementById('savedTerritoriesCard');
   if (!card) return;
   const el = id => document.getElementById(id);
@@ -18,6 +20,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   const status = el('savedTerritoriesStatus'), list = el('savedTerritoriesList'), detail = el('savedTerritoryDetail');
   const panel = el('savedTerritoriesPanel'), zoom = el('zoomSavedTerritories'), latest = el('latestSavedTerritories');
   const loader = createSavedLayerLoader(), layer = L.featureGroup(), layers = new Map(), selectedVersions = new Map();
+  let allGroups = []; const nameOverrides = new Map();
   let visible = false, groups = [], selectedKey = '', hallId = '', signedIn = false, epoch = 0, loadSequence = 0, refreshQueued = false;
   let issues = [], counts = { planCount: 0, pdfCount: 0 };
   const urls = new Set();
@@ -40,7 +43,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   function hideLayer() {
     visible = false; epoch++; loadSequence++; loader.cancel(); revokeUrls();
     map.removeLayer(layer); layer.clearLayers(); layers.clear();
-    groups = []; selectedKey = ''; selectedVersions.clear();
+    groups = []; allGroups = []; nameOverrides.clear(); selectedKey = ''; selectedVersions.clear();
     list.replaceChildren(); detail.replaceChildren(); detail.hidden = true; panel.hidden = true;
     hide.hidden = true; show.hidden = false; show.setAttribute('aria-expanded', 'false');
     status.textContent = 'Saved-territory layer hidden. Your current work is unchanged.';
@@ -61,7 +64,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     try {
       const result = await loader.load({ records: getRecords(), hallId, readSnapshot });
       if (!result || !active() || sequence !== loadSequence) return;
-      groups = result.groups; issues = result.issues; counts = result;
+      allGroups = result.groups; regroupNames(); issues = result.issues; counts = result;
       for (const [key, id] of selectedVersions) if (!groups.some(g => g.key === key && g.versions.some(v => v.id === id))) selectedVersions.delete(key);
       if (!groups.some(g => g.key === selectedKey)) selectedKey = '';
       renderMap(); renderList(); renderDetail(); summary();
@@ -72,8 +75,8 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   function summary() {
     const recordStatus = getStatus();
     const historyCount = groups.reduce((n, g) => n + (versionFor(g) !== g.versions[0] ? 1 : 0), 0);
-    status.textContent = `${groups.length} saved territories • ${counts.planCount} plans • ${counts.pdfCount} PDF snapshots. ` +
-      (historyCount ? `${historyCount} earlier version(s) displayed; the others show their latest version. ` : 'Latest version of each territory displayed. ') +
+    status.textContent = `${groups.length} territory names shown once • ${allGroups.length - groups.length} same-name alternatives available for review • ${counts.planCount} plans • ${counts.pdfCount} PDF snapshots. ` +
+      (historyCount ? `${historyCount} earlier version(s) displayed; the others show their latest version. ` : 'One territory per name is displayed; review alternatives to save your keep choice. ') +
       (issues.length ? `${issues.length} saved item(s) could not be fully read. See loading details below. ` : '') +
       (recordStatus === 'loading' ? 'Saved records are still loading. ' : recordStatus === 'cached' ? 'Showing cached records; reconnect and Refresh to check for newer saves. ' : recordStatus === 'error' ? 'The saved-record connection failed; this view may be incomplete. Reconnect or refresh the page. ' : '') +
       'Your current work is unchanged.';
@@ -82,6 +85,47 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     problems.innerHTML = issues.length ? `<summary>Loading details (${issues.length})</summary><ul>${issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
     zoom.disabled = !layers.size; latest.disabled = !historyCount;
   }
+  function regroupNames() {
+    groups = groupTerritoriesByName(allGroups, getRecords(), hallId, nameOverrides);
+  }
+  function duplicateReviewHtml(group) {
+    if (!group.alternatives || group.alternatives.length < 2) return '';
+    return `<details class="same-name-review" open><summary>Review ${group.alternatives.length} territories with this name</summary>
+      <p>Only one is shown in the saved-territory list and map. Preview the alternatives, then choose which territory to keep visible. This does not delete backups or replace your editable workspace.</p>
+      ${group.alternatives.map((candidate, index) => {
+        const v = candidate.versions[0];
+        return `<article class="same-name-option"><strong>${esc(v.territory.name)}${candidate.key === group.key ? ' — shown now' : ''}</strong>
+          <small>${esc(v.congregation)} • ${v.houses.filter(h => !h.avoid).length} homes • ${v.houses.filter(h => h.avoid).length} avoid • ${esc(date(v.time))}</small>
+          <small>${esc(v.sourceName)} • ID ${esc(v.territory.id)}</small>
+          <button type="button" class="row-action" data-preview-name="${index}">Preview this territory</button>
+          <button type="button" class="row-action" data-keep-name="${index}"${v.error ? ' disabled' : ''}>Keep this territory visible</button>
+          <details><summary>Compare addresses (${v.houses.length})</summary><ul class="saved-addresses">${v.houses.map(h => `<li>${esc(h.address)}${h.avoid ? ' — AVOID' : ''}</li>`).join('')}</ul></details>
+        </article>`;
+      }).join('')}<p id="sameNameChoiceStatus" role="status">${group.nameChoiceSaved ? 'Your keep choice is saved for this meeting place.' : 'Showing a recent copy temporarily. Review these alternatives and save your keep choice.'}</p></details>`;
+  }
+  function wireDuplicateReview(group) {
+    detail.querySelectorAll('[data-preview-name]').forEach(button => button.addEventListener('click', () => {
+      const candidate = group.alternatives[Number(button.dataset.previewName)];
+      nameOverrides.set(group.nameBucket, candidate.key); selectedKey = candidate.key; epoch++;
+      regroupNames(); renderMap(); renderList(); renderDetail(); summary(); fit(layers.get(candidate.key));
+    }));
+    detail.querySelectorAll('[data-keep-name]').forEach(button => button.addEventListener('click', async () => {
+      const candidate = group.alternatives[Number(button.dataset.keepName)], startingHall = hallId;
+      if (!saveNameChoice || !active()) return;
+      button.disabled = true;
+      const message = detail.querySelector('#sameNameChoiceStatus');
+      if (message) message.textContent = 'Saving your keep choice…';
+      try {
+        await saveNameChoice(candidate.versions[0].territory.name, candidate.key);
+        if (!active() || hallId !== startingHall) return;
+        nameOverrides.set(group.nameBucket, candidate.key); selectedKey = candidate.key;
+        regroupNames(); renderMap(); renderList(); renderDetail(); summary();
+      } catch (error) {
+        if (message?.isConnected) message.textContent = `Keep choice was not saved: ${error.message}`;
+      } finally { if (button.isConnected) button.disabled = false; }
+    }));
+  }
+
   function renderMap() {
     layer.clearLayers(); layers.clear();
     for (const group of groups) {
@@ -108,7 +152,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
   function renderList() {
     list.innerHTML = groups.length ? groups.map((group, index) => {
       const version = versionFor(group), earlier = version !== group.versions[0];
-      return `<button type="button" class="saved-territory-item${selectedKey === group.key ? ' selected' : ''}" data-saved-index="${index}" aria-pressed="${selectedKey === group.key}"><strong>${esc(version.territory.name || 'Unnamed territory')}</strong><span>${esc(version.congregation)} • ${group.versions.length} saved version(s)</span><small>${earlier ? 'Earlier version' : 'Latest'} • ${esc(sourceLabel(version))} • ${esc(date(version.time))}</small><small>${esc(version.sourceName)}${!layers.has(group.key) ? ' • Boundary unavailable' : ''}</small></button>`;
+      return `<button type="button" class="saved-territory-item${selectedKey === group.key ? ' selected' : ''}" data-saved-index="${index}" aria-pressed="${selectedKey === group.key}"><strong>${esc(version.territory.name || 'Unnamed territory')}</strong><span>${esc(version.congregation)} • ${group.versions.length} saved version(s)${group.alternatives?.length > 1 ? ` • Review ${group.alternatives.length} same-name territories` : ''}</span><small>${earlier ? 'Earlier version' : 'Latest'} • ${esc(sourceLabel(version))} • ${esc(date(version.time))}</small><small>${esc(version.sourceName)}${!layers.has(group.key) ? ' • Boundary unavailable' : ''}</small></button>`;
     }).join('') : '<p class="empty">No saved territories were found for this meeting place.</p>';
     list.querySelectorAll('[data-saved-index]').forEach(button => button.addEventListener('click', () => inspect(groups[Number(button.dataset.savedIndex)].key)));
   }
@@ -124,6 +168,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     const version = versionFor(group), earlier = version !== group.versions[0];
     const homes = version.houses.filter(h => !h.avoid), avoids = version.houses.filter(h => h.avoid);
     detail.innerHTML = `<h3>${esc(version.territory.name || 'Unnamed territory')} <span class="saved-readonly-chip">View only</span></h3>
+      ${duplicateReviewHtml(group)}
       <label for="savedTerritoryVersion">Inspect a saved version</label><select id="savedTerritoryVersion">${group.versions.map((v, i) => `<option value="${i}"${v.id === version.id ? ' selected' : ''}>${i === 0 ? 'Latest — ' : ''}${esc(sourceLabel(v))} — ${v.originalDateUnknown ? 'earlier copy' : esc(date(v.time))} — ${esc(v.sourceName)}</option>`).join('')}</select>
       <p>${earlier ? 'An earlier saved version is shown on the map.' : 'The latest saved version is shown on the map.'}</p>
       <dl><dt>Congregation</dt><dd>${esc(version.congregation || 'Not recorded')}</dd><dt>Saved</dt><dd>${version.originalDateUnknown ? 'Original copy; exact save time unavailable' : esc(date(version.time))}</dd><dt>Source</dt><dd>${esc(version.sourceName)}</dd><dt>Territory ID</dt><dd>${esc(version.territory.id || 'Legacy entry without an ID')}</dd><dt>Addresses</dt><dd>${homes.length} homes • ${avoids.length} avoid addresses</dd></dl>
@@ -134,6 +179,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
       <p id="savedTerritoryPdfStatus" role="status"></p><div id="savedTerritoryPdfLinks"></div>
       ${!version.pdfRecord ? `<p>${group.versions.some(v => v.pdfRecord) ? 'Choose a PDF snapshot above to open its exact saved PDF.' : 'No saved PDF is associated with this territory ID.'}</p>` : ''}
       <details><summary>Saved addresses (${version.houses.length})</summary><ul class="saved-addresses">${version.houses.map(h => `<li>${esc(h.address || 'Address not recorded')}${h.avoid ? ' — AVOID / DO NOT VISIT' : ''}</li>`).join('')}</ul></details>`;
+    wireDuplicateReview(group);
     el('savedTerritoryVersion').addEventListener('change', event => {
       selectedVersions.set(group.key, group.versions[Number(event.target.value)].id); epoch++;
       renderMap(); renderList(); renderDetail(); summary();
