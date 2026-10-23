@@ -1,0 +1,40 @@
+name: Verify full-route traffic arrows
+on:
+  push:
+    branches: [work/bus-arrow-spacing-48]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Apply scoped full-route arrow update
+        run: python .github/updates48/patch48.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts jsdom@26.1.0 leaflet@1.9.4 playwright@1.51.1
+      - name: Syntax and bus planner regression tests
+        run: |
+          set -o pipefail
+          for f in bus-access/*.mjs bus-access/*.js; do node --check "$f"; done
+          node --test tests/bus-traffic.test.mjs tests/bus-traffic-ui.test.mjs tests/bus-traffic-pdf.test.mjs tests/bus-traffic-arrows.test.mjs | tee /tmp/bus-arrows-tests.log
+      - name: Desktop and phone drawing and PDF export checks
+        run: CHROME_PATH=$(which google-chrome || which chromium) node tests/bus-traffic-arrows-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: bus-arrows-review
+          path: test-results/traffic-arrows
+          retention-days: 3
+      - name: Commit tested source to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bus-access tests/bus-traffic*.mjs
+          git diff --cached --stat
+          git commit -m 'Space arrows over the complete traffic path and blend corner headings'
+          git push origin HEAD:refs/heads/work/bus-arrow-spacing-48
