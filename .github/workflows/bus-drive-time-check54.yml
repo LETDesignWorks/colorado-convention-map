@@ -20,9 +20,14 @@ jobs:
         run: |
           python - <<'PY'
           import urllib.request,os,hashlib,zipfile,io,pathlib
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  redirected=super().redirect_request(req,fp,code,msg,headers,newurl)
+                  if redirected: redirected.remove_header('Authorization')
+                  return redirected
           u='https://api.github.com/repos/LETDesignWorks/colorado-convention-map/actions/artifacts/12537591584/zip'
           req=urllib.request.Request(u,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
-          with urllib.request.urlopen(req,timeout=60) as response:data=response.read()
+          with urllib.request.build_opener(SafeRedirect()).open(req,timeout=60) as response:data=response.read()
           assert hashlib.sha256(data).hexdigest()=='e9e100b110016a629450d2c804857c218645d3c3fa9a8fd1bdf1399d5b82661c'
           root=pathlib.Path('drive-time-audit');root.mkdir(exist_ok=True)
           with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -30,6 +35,7 @@ jobs:
                   if name.endswith('.json') and '/' not in name:(root/name).write_bytes(z.read(name))
           PY
           python .github/updates54/update.py
+          python .github/updates54/followup.py
       - name: Install regression dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
       - name: Test map integration, provenance and existing features
