@@ -1,0 +1,42 @@
+name: Verify reversible territory tail trimming
+on:
+  push:
+    branches: [work/territory-tail-trim-44]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/territory-tail-trim-44
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare scoped source changes
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,base64,zlib,json
+          encoded=pathlib.Path('.github/updates44/source.b64').read_text().strip()
+          assert hashlib.sha256(encoded.encode()).hexdigest()=='014591c12ff12b3e1d6a09e295cf1fc65aea04c2a7ea37f53a257f8dbf440867', 'Source transfer checksum mismatch'
+          for name,text in json.loads(zlib.decompress(base64.b64decode(encoded))).items():
+              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          PY
+          python .github/updates44/patch44.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4
+      - name: Syntax and regression tests
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs tests/meeting-session.test.mjs tests/address-duplicates.test.mjs tests/address-duplicates-flow.test.mjs tests/directional-duplicates.test.mjs tests/territory-tail-trim.test.mjs > /tmp/results.log 2>&1 || { cat /tmp/results.log; exit 1; }
+          tail -12 /tmp/results.log
+      - name: Commit tested changes to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git diff --cached --stat
+          git commit -m 'Trim narrow territory tails without losing addresses or multipart boundaries'
+          git push origin HEAD:refs/heads/work/territory-tail-trim-44
