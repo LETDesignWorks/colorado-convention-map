@@ -1,0 +1,43 @@
+name: Verify rounded Bus Review boundary
+on:
+  push:
+    branches: [work/bus-rounded-boundary-55]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Apply display-only boundary changes
+        run: python .github/updates55/patch.py
+      - name: Install pinned regression dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2 playwright@1.51.1
+      - name: Syntax and full regression suite
+        run: |
+          node --check bus-access/app-v2.js
+          node --check bus-access/rounded-boundary.mjs
+          node --test tests/*.test.mjs > /tmp/rounded-boundary-tests.log 2>&1 || { grep -A 35 '^not ok' /tmp/rounded-boundary-tests.log; tail -12 /tmp/rounded-boundary-tests.log; exit 1; }
+          tail -12 /tmp/rounded-boundary-tests.log
+          git diff --exit-code -- bus-access/data.js bus-access/drive-time-area.mjs bus-access/drive-time/audit.json bus-access/drive-time/convention-center-45.geojson bus-access/traffic-model.mjs bus-access/traffic-planner.mjs bus-access/traffic-pdf.mjs territories routes route-planner
+      - name: Desktop and phone map-display checks
+        run: CHROME_PATH=$(which google-chrome || which chromium) node tests/bus-rounded-boundary-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: rounded-boundary-review
+          path: |
+            /tmp/rounded-boundary-tests.log
+            test-results/rounded-boundary
+          retention-days: 3
+      - name: Commit verified display changes to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bus-access tests
+          git commit -m 'Default Bus Review to a smoother rounded planning outline with a detailed-view toggle'
+          git push origin HEAD:refs/heads/work/bus-rounded-boundary-55
