@@ -1,0 +1,51 @@
+name: Verify territory checkout register
+on:
+  push:
+    branches: [work/territory-checkout-sheet-51]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Prepare scoped checkout register sources
+        run: |
+          python - <<'PY'
+          import pathlib,json,zlib,base64,hashlib
+          payload=pathlib.Path('.github/updates51/source.b64').read_text().strip()
+          assert hashlib.sha256(payload.encode()).hexdigest()=='754182b4da96d85cd1e3155bc20940babe8ebc7612d18c4eb2598b85aa06a8e8'
+          files=json.loads(zlib.decompress(base64.b64decode(payload)))
+          expected={'territories/territory-checkout-model.js','territories/territory-checkout-pdf.js','territories/territory-checkout-ui.js','tests/territory-checkout.test.mjs','tests/territory-checkout-browser.mjs','.github/updates51/patch.py'}
+          assert set(files)==expected
+          for name,content in files.items():
+              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
+          PY
+          python .github/updates51/patch.py
+      - name: Install pinned regression dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2 playwright@1.51.1
+      - name: Syntax and full regression suite
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/*.test.mjs > /tmp/checkout-tests.log 2>&1 || { grep -A 35 '^not ok' /tmp/checkout-tests.log; tail -12 /tmp/checkout-tests.log; exit 1; }
+          tail -12 /tmp/checkout-tests.log
+      - name: Desktop and phone PDF exports
+        run: CHROME_PATH=$(which google-chrome || which chromium) node tests/territory-checkout-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: checkout-register-review
+          path: |
+            /tmp/checkout-tests.log
+            test-results/checkout
+          retention-days: 3
+      - name: Commit verified sources to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git commit -m 'Add read-only meeting-place checkout and checkin PDF register'
+          git push origin HEAD:refs/heads/work/territory-checkout-sheet-51
