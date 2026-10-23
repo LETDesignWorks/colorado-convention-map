@@ -1,9 +1,10 @@
-import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-42';
-import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-42';
-import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-42';
-import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-42';
-import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-42';
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-42';
+import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261022-43';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-43';
+import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-43';
+import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-43';
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-43';
+import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-43';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-43';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -14,11 +15,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-42';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-43';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-42';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-42';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-42';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-43';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-43';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-43';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2943,7 +2944,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-42');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-43');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3795,14 +3796,16 @@ async function saveLibrarySnapshot(snapshot, options = {}) {
 }
 async function libraryVersionPdf(version, progress) {
   if (!isAdmin() || String(selectedHall?.id) !== String(version.hallId)) throw new Error('Select the saved territory\'s meeting place first.');
-  if (version.pdfRecord) return { blob: readArchivePdf(version.pdfRecord, await archiveParts(version.pdfRecord, 'pdf')), filename: version.pdfRecord.filename || 'territory.pdf' };
-  if (version.error || !version.houses.length) throw new Error('This saved version is incomplete. Review its address data first.');
-  const snapshot = { hall: { ...selectedHall }, congregation: version.congregation,
-    territory: JSON.parse(JSON.stringify(version.territory)), houses: JSON.parse(JSON.stringify(version.houses)) };
-  snapshot.houses.forEach(h => { if (!h.avoid && !h.territoryId) h.territoryId = snapshot.territory.id; });
-  const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-42');
-  return buildTerritoryPdf(snapshot, progress);
+  const hall = { ...selectedHall };
+  return buildReviewedVersionPdf(version, hall, progress, {
+    readPdf: async record => readArchivePdf(record, await archiveParts(record, 'pdf')),
+    buildPdf: async (snapshot, progress) => {
+      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-43');
+      return buildTerritoryPdf(snapshot, progress);
+    }
+  });
 }
+
 let hallSelectionSequence = 0;
 async function selectHallWithFeedback(id, pan = true) {
   const token = ++hallSelectionSequence;

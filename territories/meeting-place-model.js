@@ -1,4 +1,4 @@
-import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-42';
+import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-43';
 const text = value => String(value ?? '').trim();
 const copy = value => JSON.parse(JSON.stringify(value));
 export const geometryValue = value => value?.type === 'Feature' ? value.geometry : value;

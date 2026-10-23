@@ -1,3 +1,4 @@
+import { addDirectionIdentity, directionalDuplicateBuckets, directionMatchDetails, preferredDuplicateEntry } from './address-direction-matching.js?v=territories-20261022-43';
 // Read-only detection and pure draft cleanup. Never writes to saved records.
 const text = value => String(value ?? '').normalize('NFKC').trim().toUpperCase().replace(/\s+/g, ' ');
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -34,7 +35,7 @@ export function duplicateAddressIdentity(house) {
   }
   if (!tokens.length || tokens.every(t => /^\d+$/.test(t))) return null;
   const streetKey = [match[1], ...tokens.map(t => suffix[t] || directions[t] || t)].join(' ');
-  return { key: JSON.stringify([streetKey,unit,building]), street: streetKey, unit, building, zip, city: text(city || house.city), ambiguous };
+  return addDirectionIdentity({ key: JSON.stringify([streetKey,unit,building]), street: streetKey, unit, building, zip, city: text(city || house.city), ambiguous });
 }
 function memberships(houses, territories) {
   const fallback = new Map();
@@ -53,7 +54,7 @@ export function scanDuplicateAddresses(houses, territories = [], territoryId = n
     buckets.get(identity.key).push({ index, identity, house, assignments: assignments[index] });
   });
   const groups = [];
-  for (const [key,entries] of buckets) {
+  for (const [key,entries] of directionalDuplicateBuckets(buckets)) {
     if (entries.length < 2) continue;
     if (territoryId != null && !entries.some(e => e.assignments.includes(String(territoryId)) || String(e.house.avoidTerritoryId || '') === String(territoryId))) continue;
     const places = new Set(entries.flatMap(e => e.assignments));
@@ -63,9 +64,14 @@ export function scanDuplicateAddresses(houses, territories = [], territoryId = n
     const spread = valid ? Math.hypot((maxLat-minLat)*111320, (maxLng-minLng)*111320*Math.cos(minLat*Math.PI/180)) : Infinity;
     const ambiguous = entries.some(e => e.identity.ambiguous);
     const zips = new Set(entries.map(e => e.identity.zip).filter(Boolean));
-    const confirmed = valid && spread <= 35 && !ambiguous && zips.size <= 1;
+    const direction = directionMatchDetails(entries);
+    const confirmed = valid && spread <= 35 && !ambiguous && zips.size <= 1 && !direction.cityConflict && !direction.conflict && (!direction.missing || direction.corroborated);
     const safe = confirmed && places.size <= 1;
     const reasons = [];
+    if (direction.missing) reasons.push('One source omits a street direction (N/S/E/W)');
+    if (direction.conflict) reasons.push('Multiple different street directions: correct the incomplete address before merging');
+    if (direction.missing && !direction.corroborated) reasons.push('Matching city or ZIP is needed to confirm a missing direction');
+    if (direction.cityConflict) reasons.push('City names differ');
     if (!valid) reasons.push('A map location is missing');
     else if (spread > 35) reasons.push('Map locations differ');
     if (zips.size > 1) reasons.push('ZIP codes differ');
@@ -73,7 +79,7 @@ export function scanDuplicateAddresses(houses, territories = [], territoryId = n
     if (places.size > 1) reasons.push('Appears in more than one territory');
     const first = entries[0].identity;
     groups.push({ key, label: first.street + (first.unit ? ` — Unit ${first.unit}` : '') + (first.building ? ` — Building ${first.building}` : ''),
-      entries, territoryIds: [...places], confirmed, safe, reasons,
+      entries, territoryIds: [...places], confirmed, safe, reasons, missingDirection: direction.missing, directionConflict: direction.conflict, preferredIndex: preferredDuplicateEntry(entries).index,
       avoid: entries.some(e => e.house.avoid), excluded: entries.some(e => e.house.included === false), count: entries.length-1 });
   }
   return { groups, checked: houses.length-unchecked, unchecked,
@@ -105,7 +111,8 @@ export function cleanDuplicateAddresses(workspace, { territoryId = null, decisio
   for (const group of report.groups) {
     const decision = decisions[group.key];
     if (decision?.separate || (!group.safe && !decision)) continue;
-    const keepIndex = decision?.keepIndex ?? group.entries.find(e=>e.house.avoid)?.index ?? group.entries[0].index;
+    if (group.directionConflict) throw new Error('Different N/S/E/W streets cannot be combined. Correct the address missing its direction first.');
+    const keepIndex = decision?.keepIndex ?? group.preferredIndex;
     const keep = group.entries.find(e=>e.index === Number(keepIndex));
     if (!keep) throw new Error('The chosen address changed. Scan again.');
     if (group.entries.some(e=>e.identity.ambiguous)) throw new Error('Correct conflicting unit/building information before merging these records.');

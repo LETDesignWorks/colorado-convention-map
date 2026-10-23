@@ -1,9 +1,9 @@
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-42';
-import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-42';
-import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-42';
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-42';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-43';
+import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-43';
+import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-43';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-43';
 
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-42';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-43';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
@@ -297,7 +297,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
         const open = document.createElement('a'); open.href = url; open.target = '_blank'; open.rel = 'noopener'; open.className = 'btn outline'; open.textContent = 'View PDF in new tab';
         const download = document.createElement('a'); download.href = url; download.download = built.filename || version.pdfRecord?.filename || 'saved-territory.pdf'; download.className = 'btn outline'; download.textContent = 'Download this saved PDF';
         links.replaceChildren(open, document.createTextNode(' '), download);
-        message.textContent = version.pdfRecord ? 'Exact saved PDF ready. Your workspace is unchanged.' : 'PDF generated from this saved version. Your workspace is unchanged.';
+        message.textContent = built.regenerated ? `Fresh PDF ready${built.duplicatesRemoved ? ` — ${built.duplicatesRemoved} confirmed duplicate address row(s) removed` : ''}. ${built.originalArchiveRetained ? 'The original archived PDF is unchanged. ' : ''}Use Address duplicate check and SAVE YOUR WORK to retain address cleanup in the complete location set.` : version.pdfRecord ? 'Exact saved PDF ready. Your workspace is unchanged.' : 'PDF generated from this saved version. Your workspace is unchanged.';
       } catch (error) { if (button.isConnected && active()) message.textContent = `Could not open this saved PDF: ${error.message}. Try again.`; }
       finally { if (button.isConnected) button.disabled = false; }
     });
