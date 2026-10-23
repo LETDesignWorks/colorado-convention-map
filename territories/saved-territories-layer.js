@@ -1,10 +1,10 @@
-import { createSavedPdfView } from './saved-pdf-view.js?v=territories-20261022-45';
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-45';
-import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-45';
-import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-45';
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-45';
+import { createSavedPdfView } from './saved-pdf-view.js?v=territories-20261023-49';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-49';
+import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261023-49';
+import { paintBeforeWork } from './planner-loading.js?v=territories-20261023-49';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261023-49';
 
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-45';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261023-49';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';

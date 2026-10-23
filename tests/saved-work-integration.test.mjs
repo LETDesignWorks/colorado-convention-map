@@ -26,6 +26,7 @@ function harness(options = {}) {
     territories: [{ id: 't1', name: 'One', houseIds: ['1'] }, { id: 't2', name: 'Two', houseIds: ['2'] }],
     boundaryGeometry: null, boundaryPreservesAddresses: true, currentPlanId: options.existing ? base.id : 'legacy-plan',
     activeSavedWorkKey: options.existing ? model.workKey('21', 'Test Congregation') : '',
+    meetingSessionScope: '', sessionRemovedNames: [],
     savedTerritoryEditId: null, workspaceGeneration: 1, savedRecordsStatus: 'ready', currentUser: { email: 'test@example.invalid' },
     db: {}, reviewRecords: new Map([...stored].map(([k, v]) => [k, copy(v)])), FIRESTORE_HOUSE_CHUNK_SIZE: 2,
     els: Object.fromEntries(['planName', 'territoryPrefix', 'boundaryName', 'groupingMethod', 'residentialOnly', 'separateUnits', 'savePlanButton'].map(id => [id, { value: '', checked: true, disabled: false, textContent: '' }])),
@@ -152,8 +153,8 @@ test('save controls call complete-work saves and modified modules bypass old cac
   assert.match(main, /savePlanButton[\s\S]*saveNamedWork/);
   assert.match(read('territories/hall-address-sets.js'), /saveYourWork: true/);
   const bootstrap = read('territories/bootstrap.js');
-  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-45`));
-  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-45`));
+  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261023-49`));
+  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261023-49`));
 });
 
 
@@ -171,4 +172,22 @@ test('SAVE YOUR WORK keeps every loaded record without silently deduplicating un
 
 test('loading protected complete saved work preserves its exact address records', () => {
   assert.match(main, /const duplicatesRemovedOnLoad = 0;/);
+});
+
+
+test('complete-session scope and removed names survive ordinary saved-plan serialization',async()=>{
+ const h=harness();h.context.meetingSessionScope='meeting-place';h.context.sessionRemovedNames=['OLD TERRITORY'];
+ const id=await h.save({saveYourWork:true});assert.equal(h.stored.get(id).sessionScope,'meeting-place');assert.deepEqual(h.stored.get(id).sessionRemovedTerritoryNames,['OLD TERRITORY']);
+});
+test('a complete current session never rereads its older base when upload resets currentPlanId',()=>{
+ const code=section(main,'function readSessionBase(workspace) {','\nfunction applyMeetingSession');
+ const ctx={currentWorkFor(){throw Error('Unexpected older base read')},savedPlans(){return []},readPlanAddresses(){throw Error('Unexpected address reload')},reviewRecords:new Map()};
+ vm.createContext(ctx);vm.runInContext(code,ctx);
+ assert.equal(ctx.readSessionBase({sessionScope:'meeting-place',currentPlanId:null,hallId:'21',congregation:'Test'}),null);
+});
+test('load, capture and apply paths retain the complete-session marker; resets clear it',()=>{
+ assert.match(section(main,'function loadPlanRecord(id) {','\nfunction updateSavedTerritoryEditUi'),/meetingSessionScope = plan.sessionScope/);
+ assert.match(section(main,'function sessionWorkspace() {','\nfunction captureMeetingSession'),/sessionScope: meetingSessionScope/);
+ assert.match(section(main,'function applyMeetingSession(draft','\nconst meetingSessionManager'),/meetingSessionScope = draft.sessionScope/);
+ assert.match(section(main,'function clearPlanWorkspace(','\nfunction '),/meetingSessionScope = ''/);
 });
