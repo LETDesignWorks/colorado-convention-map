@@ -1,0 +1,41 @@
+name: Verify visible territory checkout sheet
+on:
+  push:
+    branches: [work/checkout-visibility-52]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Apply scoped visibility fix
+        run: python .github/updates52/patch.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2 playwright@1.51.1
+      - name: Syntax and regression checks
+        run: |
+          mkdir -p test-results/checkout52
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/*.test.mjs > test-results/checkout52/tests.log 2>&1 || { grep -A 35 '^not ok' test-results/checkout52/tests.log; tail -12 test-results/checkout52/tests.log; exit 1; }
+          tail -12 test-results/checkout52/tests.log
+      - name: Desktop and phone visibility and PDF downloads
+        run: |
+          CHROME_PATH=$(which google-chrome || which chromium) node tests/territory-checkout-visibility-browser.mjs
+          CHROME_PATH=$(which google-chrome || which chromium) node tests/territory-checkout-browser.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: checkout-visibility-review
+          path: test-results/checkout52
+          retention-days: 3
+      - name: Commit tested source to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git commit -m 'Make territory checkout visible before save panels load; add direct shortcuts'
+          git push origin HEAD:refs/heads/work/checkout-visibility-52
