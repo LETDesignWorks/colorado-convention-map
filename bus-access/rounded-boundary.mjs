@@ -54,6 +54,7 @@ export function mountPlanningBoundary(L, map, source, center, {selector, note} =
   try { rounded = roundedPlanningArea(source, center); } catch (error) { console.warn('Using the detailed planning boundary:', error.message); }
   let mode = rounded ? 'rounded' : 'detailed';
   const layer = L.geoJSON(mode === 'rounded' ? rounded : source, {style: styles[mode], interactive: false}).addTo(map);
+  layer.bringToBack?.();
   function label() {
     if (selector) selector.value = mode;
     if (note) note.textContent = mode === 'rounded' ? ROUNDED_BOUNDARY_NOTE : DETAILED_BOUNDARY_NOTE;
@@ -62,6 +63,7 @@ export function mountPlanningBoundary(L, map, source, center, {selector, note} =
     mode = selector?.value === 'detailed' || !rounded ? 'detailed' : 'rounded';
     // Update only this overlay; never rebuild markers, forms, or saved layouts.
     layer.clearLayers(); layer.addData(mode === 'rounded' ? rounded : source); layer.setStyle(styles[mode]);
+    layer.bringToBack?.();
     label(); map.fitBounds(layer.getBounds(), {padding: [18, 18]});
   }
   if (selector) {
