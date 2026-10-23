@@ -1,10 +1,11 @@
-import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-46';
+import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-47';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=traffic-20261023-47';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
-const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-46',import.meta.url).href;
-export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{},document:documentHost=globalThis.document,window:windowHost=globalThis.window}) {
+const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-47',import.meta.url).href;
+export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exportTrafficPdf,notify=()=>{},document:documentHost=globalThis.document,window:windowHost=globalThis.window}) {
   const d=documentHost,w=windowHost;
   if(d.getElementById('trafficPlannerLauncher'))return null;
   const style=d.createElement('link');style.rel='stylesheet';style.href=cssUrl;d.head.append(style);
@@ -24,6 +25,8 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     s.nodes.finish.disabled=s.busy||!s.draft||s.draft.points.length<2;
     s.nodes.cancelDraw.disabled=s.busy||!s.draft;
     s.nodes.save.disabled=s.busy||!permitted();
+    s.nodes.pdf.disabled=s.busy||!permitted();
+    for(const node of [s.nodes.name,s.nodes.notes,s.nodes.basemap])node.disabled=s.busy;
     s.nodes.load.disabled=s.busy||!s.records.length;
     s.nodes.removeSaved.disabled=s.busy||!s.records.length;
     s.nodes.saved.disabled=s.busy||!s.records.length;
@@ -36,11 +39,11 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     const s=state,before=clone(s.plan);
     try{fn(s.plan);s.plan=validatePlan(s.plan,s.plan.locationId);}
     catch(error){s.plan=before;say(error.message);return false;}
-    s.undo.push(before);if(s.undo.length>40)s.undo.shift();s.redo=[];s.dirty=true;render();return true;
+    clearPdfLinks();s.undo.push(before);if(s.undo.length>40)s.undo.shift();s.redo=[];s.dirty=true;render();return true;
   }
   function historyMove(from,to){
     if(!editable()||state.draft||!state[from].length)return;
-    state[to].push(clone(state.plan));state.plan=state[from].pop();state.selected=null;state.removeVertex=false;state.dirty=true;syncFields();render();
+    clearPdfLinks();state[to].push(clone(state.plan));state.plan=state[from].pop();state.selected=null;state.removeVertex=false;state.dirty=true;syncFields();render();
   }
   function view(){const s=state,c=s.map.getCenter();return {lat:c.lat,lng:c.lng,zoom:s.map.getZoom(),base:s.plan.view.base};}
   function syncFields(){if(!state)return;state.nodes.name.value=state.plan.name;state.nodes.notes.value=state.plan.notes;}
@@ -132,7 +135,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     const s=state;if(!permitted())return;
     say('Loading traffic layouts for this location…');
     try{const records=await storage.list(s.plan.locationId);if(state!==s||!permitted())return;s.records=records;savedOptions();
-      if(autoLoad&&records.length&&!s.dirty&&!s.draft?.points.length)loadPlan(records[0].plan);
+      if(autoLoad&&records.length&&!s.busy&&!s.dirty&&!s.draft?.points.length)loadPlan(records[0].plan);
       say(records.length?`${records.length} saved traffic layout(s) available. Save creates a new copy; earlier copies stay available.`:'No saved traffic layouts yet. Zoom to the parking lot and begin drawing.');
     }catch(error){if(state===s)say(`Saved layouts could not be loaded: ${error.message}. Your draft is unchanged; use Reload saved layouts to retry.`);}
   }
@@ -140,7 +143,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     const s=state;let checked;
     try{checked=validatePlan(plan,s.plan.locationId);}catch(error){say(error.message);return false;}
     if((s.dirty||s.draft?.points.length)&&!w.confirm('Replace this unsaved traffic draft with the selected layout? Download JSON first to keep a local copy.'))return false;
-    s.plan=checked;s.undo=[];s.redo=[];s.selected=null;s.removeVertex=false;s.draft=null;s.mode='select';s.dirty=false;syncFields();
+    clearPdfLinks();s.plan=checked;s.undo=[];s.redo=[];s.selected=null;s.removeVertex=false;s.draft=null;s.mode='select';s.dirty=false;syncFields();
     setBasemap(checked.view.base,false);s.suppressView=true;s.map.setView([checked.view.lat,checked.view.lng],checked.view.zoom,{animate:false});s.suppressView=false;render();return true;
   }
   async function save(){
@@ -152,6 +155,32 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     const fingerprint=JSON.stringify(snapshot);s.busy=true;render();say('Saving a new traffic layout copy to this meeting location…');
     try{const saved=await storage.save(snapshot);if(state!==s||!permitted())return;s.records.unshift(saved);s.dirty=JSON.stringify(s.plan)!==fingerprint;savedOptions();s.nodes.saved.value=saved.id;say(`Saved “${snapshot.name}” to ${snapshot.locationName}.${s.dirty?' Further changes are still unsaved.':''}`);}
     catch(error){if(state===s)say(`Layout was NOT saved: ${error.message}. Keep this window open or Download JSON to preserve the draft.`);}
+    finally{if(state===s){s.busy=false;render();}}
+  }
+  function clearPdfLinks(){
+    if(!state)return;const s=state;
+    if(s.pdfUrl){w.URL.revokeObjectURL(s.pdfUrl);s.pdfUrl=null;}
+    s.nodes.pdfLinks?.replaceChildren();
+  }
+  async function makePdf(){
+    if(!editable())return;const s=state;
+    if(s.draft?.points.length)return say('Finish or cancel the current line before exporting a PDF.');
+    let captured;try{captured=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);}
+    catch(error){say(error.message);return;}
+    const fingerprint=JSON.stringify(captured);
+    clearPdfLinks();s.busy=true;render();say('Preparing your convention-branded PDF...');
+    try{
+      const built=await exportPdf(captured,{document:d,window:w,unsaved:s.dirty,progress:message=>{if(state===s&&permitted())say(message);}});
+      if(state!==s||!permitted())return;
+      const current=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);
+      if(JSON.stringify(current)!==fingerprint){say('The layout changed while the PDF was being prepared. Export again to capture the current layout.');return;}
+      if(!built?.blob?.size)throw Error('The PDF was empty. Please retry.');
+      s.pdfUrl=w.URL.createObjectURL(built.blob);
+      const open=d.createElement('a');open.href=s.pdfUrl;open.target='_blank';open.rel='noopener';open.className='btn light';open.textContent='Open PDF / Print';
+      const download=d.createElement('a');download.href=s.pdfUrl;download.download=built.filename;download.className='btn blue';download.textContent='Download PDF';
+      s.nodes.pdfLinks.append(open,download);
+      say(`PDF ready (${built.pages||'multiple'} pages), including the convention logo, full layout, and notes. Exporting does not save your layout to the cloud.${built.textWarning?' Some text characters need review; see the PDF text notice.':''}`);
+    }catch(error){if(state===s&&permitted())say(`PDF was not created: ${error.message} Your layout and saved work are unchanged.`);}
     finally{if(state===s){s.busy=false;render();}}
   }
   function download(){
@@ -169,13 +198,13 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     const satellite=base==='satellite';
     s.tile=L.tileLayer(satellite?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxNativeZoom:19,maxZoom:22,attribution:satellite?'Tiles © Esri — Esri, Maxar, Earthstar Geographics and GIS User Community':'© OpenStreetMap contributors'}).addTo(s.map);
     let errors=0;s.tile.on('tileerror',()=>{if(state===s&&++errors===3)say('Some background tiles are unavailable. Try Street map or zoom out; the layout is unchanged.');});
-    s.plan.view.base=base;s.nodes.basemap.value=base;if(dirty)s.dirty=true;syncButtons();
+    s.plan.view.base=base;s.nodes.basemap.value=base;if(dirty){clearPdfLinks();s.dirty=true;}syncButtons();
   }
   function close(force=false){
     const s=state;if(!s)return true;
-    if(!force&&s.busy){say('A save or deletion is still running. Keep this window open until its result is shown.');return false;}
+    if(!force&&s.busy){say('A save, deletion, or PDF export is still running. Keep this window open until its result is shown.');return false;}
     if(!force&&(s.dirty||s.draft?.points.length)&&!w.confirm('Close without saving this traffic draft? Cancel to save or download it first.'))return false;
-    sequence++;state=null;s.map?.remove();s.nodes.dialog.close();s.nodes.dialog.remove();d.body.classList.remove('traffic-dialog-open');card.querySelector('[data-open]').focus();return true;
+    clearPdfLinks();sequence++;state=null;s.map?.remove();s.nodes.dialog.close();s.nodes.dialog.remove();d.body.classList.remove('traffic-dialog-open');card.querySelector('[data-open]').focus();return true;
   }
   function contextChanged(){
     const location=getLocation(),button=card.querySelector('[data-open]');
@@ -203,11 +232,14 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
       <div class="traffic-selection" data-selected></div>
       <label>Setup notes<textarea data-notes maxlength="2500" rows="3" placeholder="Arrival sequence, volunteer positions, areas to keep clear…"></textarea></label>
       <p data-dirty class="traffic-dirty"></p><button class="btn blue" data-save>Save layout — new copy</button>
+      <button type="button" class="btn blue" data-export-pdf>Export PDF with convention logo</button>
+      <small>Includes the full layout, cones, route arrows, labels, and notes. This does not save changes to the cloud.</small>
+      <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
       </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><strong data-count></strong></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
     d.body.append(dialog);const q=selector=>dialog.querySelector(selector);
-    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]')};
+    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]')};
     state={plan:newTrafficPlan(location),nodes,records:[],mode:'select',draft:null,selected:null,removeVertex:false,dirty:false,busy:false,undo:[],redo:[],suppressView:true,sequence:++sequence};
     const s=state;dialog.showModal();d.body.classList.add('traffic-dialog-open');
     s.map=L.map(q('[data-map]'),{maxZoom:22,minZoom:1,zoomControl:true,doubleClickZoom:false}).setView([location.lat,location.lng],19);
@@ -220,9 +252,9 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,notify=()=>{}
     dialog.querySelectorAll('[data-tool]').forEach(button=>{button.type='button';button.addEventListener('click',()=>setTool(button.dataset.tool));});
     nodes.finish.addEventListener('click',finishLine);nodes.cancelDraw.addEventListener('click',()=>{if(!editable())return;s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');});
     nodes.undo.addEventListener('click',()=>historyMove('undo','redo'));nodes.redo.addEventListener('click',()=>historyMove('redo','undo'));
-    nodes.name.addEventListener('input',()=>{s.plan.name=nodes.name.value;s.dirty=true;syncButtons();});nodes.notes.addEventListener('input',()=>{s.plan.notes=nodes.notes.value;s.dirty=true;syncButtons();});
+    nodes.name.addEventListener('input',()=>{clearPdfLinks();s.plan.name=nodes.name.value;s.dirty=true;syncButtons();});nodes.notes.addEventListener('input',()=>{clearPdfLinks();s.plan.notes=nodes.notes.value;s.dirty=true;syncButtons();});
     nodes.basemap.addEventListener('change',()=>setBasemap(nodes.basemap.value));q('[data-zoom]').addEventListener('click',()=>s.map.setView([location.lat,location.lng],20,{animate:false}));
-    nodes.save.addEventListener('click',save);q('[data-refresh]').addEventListener('click',()=>refreshSaved());
+    nodes.save.addEventListener('click',save);nodes.pdf.addEventListener('click',makePdf);q('[data-refresh]').addEventListener('click',()=>refreshSaved());
     nodes.load.addEventListener('click',()=>{if(!editable())return;const record=s.records.find(x=>x.id===nodes.saved.value);if(record&&loadPlan(record.plan))say('Saved layout loaded. Edits will be saved as a new copy.');});
     q('[data-new]').addEventListener('click',()=>{if(editable()&&loadPlan(newTrafficPlan(location)))say('Blank layout ready. Existing saved layouts are unchanged.');});
     nodes.removeSaved.addEventListener('click',async()=>{if(!editable())return;const record=s.records.find(x=>x.id===nodes.saved.value);if(!record||!w.confirm(`Delete the saved traffic copy “${record.plan.name}”? This cannot be undone. Download it first if needed. Your current draft and inspection notes will not change.`))return;s.busy=true;render();say('Deleting the selected saved traffic copy…');try{await storage.remove(s.plan.locationId,record.id);if(state===s&&permitted()){s.records=s.records.filter(x=>x.id!==record.id);savedOptions();say('Saved copy deleted. The current editable draft and review notes are unchanged.');}}catch(error){if(state===s)say(`Deletion failed: ${error.message}`);}finally{if(state===s){s.busy=false;render();}}});

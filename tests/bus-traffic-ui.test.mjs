@@ -12,9 +12,9 @@ async function harness(options={}){
  Object.defineProperty(w.HTMLElement.prototype,'clientWidth',{get(){return this.classList?.contains('traffic-map')?850:800;}});Object.defineProperty(w.HTMLElement.prototype,'clientHeight',{get(){return this.classList?.contains('traffic-map')?550:600;}});
  w.eval(fs.readFileSync(require.resolve('leaflet/dist/leaflet.js'),'utf8'));const L=w.L;let map;const createMap=L.map;L.map=(...args)=>map=createMap(...args);
  let admin=options.admin??true,location={id:'21',name:'Example Hall',address:'Sample parking lot',lat:39.56,lng:-105.01},records=options.records||[],saveFailure=options.saveFailure||false;
- const calls=[];w.confirm=()=>true;let n=0;
+ const calls=[];w.confirm=()=>true;let n=0;w.URL.createObjectURL=()=> 'blob:test-pdf';w.URL.revokeObjectURL=()=>{};
  const storage={list:options.list||(async id=>{calls.push(['list',id]);return clone(records);}),save:async p=>{calls.push(['save',clone(p)]);if(saveFailure)throw Error('offline');const r={id:`copy-${++n}`,savedAt:n,plan:clone(p)};records.unshift(r);return r;},remove:async(id,key)=>{calls.push(['delete',id,key]);records=records.filter(x=>x.id!==key);}};
- const api=mountTrafficPlanner({L,getLocation:()=>location,isAdmin:()=>admin,storage,document:d,window:w});
+ const api=mountTrafficPlanner({L,getLocation:()=>location,isAdmin:()=>admin,storage,exportPdf:options.exportPdf,document:d,window:w});
  const click=selector=>{const b=d.querySelector(selector);assert.ok(b,selector);b.click();};
  if(admin){click('[data-open]');await tick();}
  return {dom,w,d,L,api,calls,click,get map(){return map},set admin(v){admin=v},set location(v){location=v},set fail(v){saveFailure=v},point(lat=39.56,lng=-105.01){map.fire('click',{latlng:L.latLng(lat,lng)});},cleanup(){api.dispose();w.close();}};
@@ -33,4 +33,22 @@ test('late saved-layout load cannot replace a newly opened hall',async()=>{let r
 test('public visitors cannot open or read private layouts',async()=>{const h=await harness({admin:false});h.api.open();assert.equal(h.d.querySelector('dialog'),null);assert.equal(h.calls.length,0);h.cleanup();});
 test('cloud refresh retains an in-progress draft rather than overwriting it',async()=>{const h=await harness();h.click('[data-tool=cone]');h.point();h.click('[data-refresh]');await tick();assert.match(h.d.querySelector('[data-count]').textContent,/1 cones/);h.cleanup();});
 test('only a saved traffic copy is deleted; the draft remains editable',async()=>{const h=await harness();h.click('[data-tool=cone]');h.point();h.click('[data-save]');await tick();h.click('[data-remove-saved]');await tick();assert.equal(h.calls.find(x=>x[0]==='delete')[1],'21');assert.match(h.d.querySelector('[data-count]').textContent,/1 cones/);h.cleanup();});
-test('page integration mounts once and keeps traffic persistence away from halls and territory data',()=>{const main=fs.readFileSync('bus-access/app-v2.js','utf8'),loader=fs.readFileSync('bus-access/app.js','utf8'),html=fs.readFileSync('bus-access/index.html','utf8');assert.match(main,/trafficPlanner=mountTrafficPlanner/);assert.match(main,/trafficPlanner\?\.contextChanged/);assert.match(main,/getDocFromServer, runTransaction/);assert.match(loader,/app-v2\.js\?v=traffic-20261023-46/);assert.match(html,/app\.js\?v=traffic-20261023-46/);});
+test('page integration mounts once and keeps traffic persistence away from halls and territory data',()=>{const main=fs.readFileSync('bus-access/app-v2.js','utf8'),loader=fs.readFileSync('bus-access/app.js','utf8'),html=fs.readFileSync('bus-access/index.html','utf8');assert.match(main,/trafficPlanner=mountTrafficPlanner/);assert.match(main,/trafficPlanner\?\.contextChanged/);assert.match(main,/getDocFromServer, runTransaction/);assert.match(loader,/app-v2\.js\?v=traffic-20261023-47/);assert.match(html,/app\.js\?v=traffic-20261023-47/);});
+
+test('PDF export includes current unsaved items without a cloud write',async()=>{
+ let capture;const h=await harness({exportPdf:async(p,o)=>{capture={p,o};return{blob:new Blob(['pdf']),filename:'test.pdf',pages:2};}});
+ h.click('[data-tool=cone]');h.point();h.d.querySelector('[data-notes]').value='Review the entrance';h.click('[data-export-pdf]');await tick();
+ assert.equal(capture.p.items.length,1);assert.equal(capture.p.notes,'Review the entrance');assert.equal(capture.o.unsaved,true);
+ assert.equal(h.calls.filter(c=>c[0]==='save').length,0);assert.equal(h.d.querySelector('[data-pdf-links] a[download]').download,'test.pdf');
+ assert.match(h.d.querySelector('[data-dirty]').textContent,/Unsaved/);h.click('[data-tool=cone]');h.point(39.5602);assert.equal(h.d.querySelector('[data-pdf-links] a'),null);h.cleanup();
+});
+test('unfinished lines cannot be silently omitted from a PDF',async()=>{
+ let calls=0;const h=await harness({exportPdf:async()=>{calls++;}});h.click('[data-tool=route]');h.point();h.click('[data-export-pdf]');await tick();assert.equal(calls,0);assert.match(h.d.querySelector('[data-status]').textContent,/Finish or cancel/);h.cleanup();
+});
+test('failed PDF export restores controls and preserves current cones',async()=>{
+ const h=await harness({exportPdf:async()=>{throw Error('Map tiles unavailable');}});h.click('[data-tool=cone]');h.point();h.click('[data-export-pdf]');await tick();
+ assert.match(h.d.querySelector('[data-status]').textContent,/PDF was not created/);assert.match(h.d.querySelector('[data-count]').textContent,/1 cones/);assert.equal(h.d.querySelector('[data-export-pdf]').disabled,false);assert.equal(h.d.querySelector('[data-name]').disabled,false);assert.equal(h.d.querySelector('[data-pdf-links] a'),null);h.cleanup();
+});
+test('sign-out discards a late private PDF result',async()=>{
+ let resolve;const h=await harness({exportPdf:()=>new Promise(r=>resolve=r)});h.click('[data-export-pdf]');assert.equal(h.d.querySelector('[data-save]').disabled,true);h.admin=false;h.api.contextChanged();resolve({blob:new Blob(['pdf']),filename:'late.pdf',pages:2});await tick();assert.equal(h.d.querySelector('dialog'),null);assert.equal(h.d.querySelector('a[download]'),null);h.cleanup();
+});

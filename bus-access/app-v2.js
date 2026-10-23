@@ -1,5 +1,5 @@
-import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-46';
-import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-46';
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-47';
+import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-47';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
