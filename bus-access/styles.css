@@ -28,3 +28,8 @@ header{background:linear-gradient(135deg,#083a6b,#0b5b9f);color:#fff;padding:12p
 @media(max-width:850px){.app{height:auto;min-height:100%}.header-row{align-items:flex-start}.title h1{font-size:17px}.title p{font-size:11px}.header-actions .admin-add{display:inline-flex!important}.toolbar{position:sticky;top:0}.stats{width:100%;overflow:auto;flex-wrap:nowrap}.stat{white-space:nowrap}.workspace{display:block}.map-wrap{height:48vh;min-height:360px;border-right:0;border-bottom:1px solid var(--line)}.panel{overflow:visible;padding-bottom:calc(90px + env(safe-area-inset-bottom))}.legend{right:8px;top:8px;font-size:10px;padding:7px}.map-note{left:8px;bottom:8px;max-width:240px;font-size:9px;padding:6px 8px}.form-grid{grid-template-columns:1fr}.field.full,.contact-section{grid-column:auto}.contact-grid{grid-template-columns:1fr}.contact-label{grid-column:auto}.action-grid{grid-template-columns:1fr}.action-grid .btn{min-height:42px}}
 @media(max-width:460px){.header-actions{gap:5px}.btn{padding:8px 9px;font-size:12px}.toolbar select{width:100%}.map-wrap{height:46vh;min-height:330px}.list-item{grid-template-columns:38px 1fr}.list-item .mini-status{grid-column:2;justify-self:start}}
 @media print{header,.toolbar,.panel,.legend,.map-note{display:none!important}.workspace{display:block}.map-wrap{height:100vh;border:0}}
+
+/* Keep the planning-view selector usable beside status filters and on phones. */
+.boundary-display-label{display:flex;align-items:center;gap:7px;max-width:100%;font-size:12px;font-weight:700;color:#164b8b}
+.toolbar .boundary-display-label select{min-width:0;max-width:100%;font-weight:500}
+@media(max-width:460px){.boundary-display-label{width:100%;flex-wrap:wrap}.toolbar .boundary-display-label select{width:100%}}

@@ -42,7 +42,7 @@ test('live map initializes with the Convention Center, star popup and road-netwo
   const marker={addTo:()=>marker,bindPopup:text=>events.push(['popup',text])};
   const L={map:()=>map,tileLayer:()=>layer,geoJSON:(p)=>{events.push(['geoJSON',p]);return layer;},divIcon:x=>x,marker:(p,o)=>{events.push(['marker',p,o]);return marker;}};
   const boundary=recenterPlanningBoundary(oldBoundary,DTC);
-  const context=vm.createContext({L,window:{L},CONVENTION_CENTER,DRIVE_TIME_AREA,syncMarkers:()=>events.push(['sync']),map:null,boundaryLayer:null});
+  const context=vm.createContext({L,window:{L},CONVENTION_CENTER,DRIVE_TIME_AREA,document:{getElementById:()=>null},mountPlanningBoundary:(leaflet,map,area)=>leaflet.geoJSON(area).addTo(map),syncMarkers:()=>events.push(['sync']),map:null,boundaryLayer:null});
   vm.runInContext(source.slice(source.indexOf('function initMap()'),source.indexOf('function filteredLocations()'))+'\ninitMap();',context);
   assert.deepEqual(events.find(e=>e[0]==='view')[1],CONVENTION_CENTER.point);
   assert.deepEqual(events.find(e=>e[0]==='marker')[1],CONVENTION_CENTER.point);
@@ -68,13 +68,13 @@ test('legacy DTC classifications remain available and are not silently renamed',
 });
 test('labels distinguish a road-network estimate from live traffic or bus verification',()=>{
   assert.match(html,/45-minute planning center: Colorado Convention Center/);
-  assert.match(html,/calculated 45-minute driving estimate FROM the Colorado Convention Center/);
+  assert.match(html,/rounded, approximate 45-minute planning guide around the Colorado Convention Center/);
   assert.match(html,/No live traffic, loading time, or bus-clearance verification/);
   assert.doesNotMatch(html,/<title>DTC|<h1>DTC|estimated 45-minute DTC planning boundary/);
 });
 test('entry points fetch the updated map without changing parking-lot modules',()=>{
-  assert.match(html,/app\.js\?v=bus-drive-time-20261023-54/);
-  assert.match(read('bus-access/app.js'),/app-v2\.js\?v=bus-drive-time-20261023-54/);
+  assert.match(html,/app\.js\?v=bus-boundary-20261023-55/);
+  assert.match(read('bus-access/app.js'),/app-v2\.js\?v=bus-boundary-20261023-55/);
   assert.match(source,/planning-center\.mjs\?v=bus-center-20261023-53/);
   assert.match(source,/traffic-planner\.mjs\?v=traffic-20261023-48/);
   assert.match(source,/traffic-model\.mjs\?v=traffic-20261023-48/);

@@ -11,3 +11,6 @@ Service and fair use: https://valhalla.github.io/valhalla/start/introduction/
 Method: https://valhalla.github.io/valhalla/api/isochrone/api-reference/
 
 The sample checks are model estimates, not observed travel times. Custom/private meeting locations were not queried. No private review, contact or parking-lot records were read or changed.
+
+## Rounded planning display
+Bus Review now defaults to a solid blue, rounded **approximate guide**. It samples the outer envelope around the Convention Center every two degrees, softens narrow road spikes with a ten-degree Gaussian window, blends 20% toward the mean radius, and adds 3% display padding. This display may include places beyond 45 minutes or omit narrow reachable corridors; it must not determine route eligibility. Use **Map boundary → Detailed driving estimate** for the unchanged road-network snapshot. Neither view uses live traffic, and the original hall estimates, approvals, and saved reviews are unchanged.

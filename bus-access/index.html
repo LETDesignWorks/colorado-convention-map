@@ -10,7 +10,7 @@
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 <link href="../apple-touch-icon.png" rel="apple-touch-icon"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<link href="styles.css" rel="stylesheet"/>
+<link href="styles.css?v=bus-boundary-20261023-55" rel="stylesheet"/>
 <script type="module" src="../assets/branding.js?v=bus-status-sync-20260927-1"></script>
 </head>
 <body>
@@ -40,6 +40,12 @@
     <option value="conditional">Conditional</option>
     <option value="not-suitable">Not suitable</option>
   </select>
+  <label class="boundary-display-label" for="boundaryDisplay">Map boundary
+    <select id="boundaryDisplay" aria-describedby="boundaryDisplayNote">
+      <option value="rounded" selected>Rounded planning guide</option>
+      <option value="detailed">Detailed driving estimate</option>
+    </select>
+  </label>
   <div class="stats" id="stats"></div>
 </div>
 <div class="workspace">
@@ -55,7 +61,7 @@
       <div class="legend-row"><span class="shape hall-shape"></span>Kingdom Hall</div>
       <div class="legend-row"><span class="shape meeting-shape"></span>Other meeting area</div>
     </div>
-    <div class="map-note">The blue dashed area is a calculated 45-minute driving estimate FROM the Colorado Convention Center (Oct 23, 2026), using Valhalla / OpenStreetMap roads. No live traffic, loading time, or bus-clearance verification. Check each route and return time. Tap a marker for details.</div>
+    <div class="map-note" id="boundaryDisplayNote" aria-live="polite">The solid blue outline is a rounded, approximate 45-minute planning guide around the Colorado Convention Center. Some places inside may take longer; some outside may be quicker. Switch to Detailed driving estimate for the road-shaped boundary. No live traffic, loading time, or bus-clearance verification.</div>
   </div>
   <aside class="panel" id="panel">
     <div class="firebase-warning" id="firebaseWarning"></div>
@@ -143,6 +149,6 @@
 </div>
 
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
-<script src="app.js?v=bus-drive-time-20261023-54" type="module"></script>
+<script src="app.js?v=bus-boundary-20261023-55" type="module"></script>
 </body>
 </html>
