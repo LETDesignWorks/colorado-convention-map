@@ -71,37 +71,43 @@ function injectUi() {
   card.className = 'card hall-address-set-card';
   card.innerHTML = `
     <div class="card-heading">
-      <div><span class="eyebrow">3C — KINGDOM HALL ADDRESS SET</span><h2>Review, outline, save, and reload the uploaded addresses</h2></div>
+      <div><span class="eyebrow">3D — SAVE YOUR WORK</span><h2>SAVE YOUR WORK</h2></div>
       <span id="hallAddressSetChip" class="count-chip">No addresses</span>
     </div>
-    <p class="section-copy">Keep the uploaded ministry addresses and red avoid addresses together under the selected Kingdom Hall and congregation. You may save the set with or without an outside boundary.</p>
-    <div id="hallAddressContext" class="hall-address-context"><strong>Select a Kingdom Hall and congregation</strong><small>Use Area Setup above before saving this address set.</small></div>
+    <p class="section-copy">Save all loaded addresses, avoid information, boundaries, and created territories together for this meeting location and congregation. Load your latest saved work under Return to your territories. Earlier copies stay in Backup.</p>
+    <div id="hallAddressContext" class="hall-address-context"><strong>Select a meeting location and congregation</strong><small>Use Area Setup before saving.</small></div>
     <div class="hall-address-stats">
       <div><span>Ministry addresses</span><strong id="hallAddressIncludedCount">0</strong></div>
       <div><span>Avoid addresses</span><strong id="hallAddressAvoidCount">0</strong></div>
       <div><span>Total mapped</span><strong id="hallAddressTotalCount">0</strong></div>
       <div><span>Hall boundary</span><strong id="hallAddressBoundaryStatus">None</strong></div>
     </div>
-    <div class="hall-boundary-row">
-      <div class="field"><label for="hallAddressBoundaryPadding">Boundary padding in miles</label><input id="hallAddressBoundaryPadding" type="number" min="0.02" max="2" step="0.02" value="0.12"><small>The boundary is created around every mapped ministry and avoid address, then remains editable.</small></div>
-      <div class="button-grid">
-        <button id="hallAddressReviewButton" class="btn outline" type="button">Show Address List</button>
-        <button id="hallAddressZoomButton" class="btn outline" type="button">Zoom to Addresses</button>
-        <button id="hallAddressBoundaryButton" class="btn primary admin-control" type="button">Create Editable Hall Boundary</button>
-        <button id="hallAddressSaveButton" class="btn save admin-control" type="button">Save Address Set to Selected Hall</button>
-      </div>
+    <div class="hall-work-actions">
+      <button id="hallAddressReviewButton" class="btn outline" type="button">Show Address List</button>
+      <button id="hallAddressZoomButton" class="btn outline" type="button">Zoom to Addresses</button>
+      <button id="hallAddressSaveButton" class="btn save admin-control" type="button">SAVE YOUR WORK</button>
     </div>
-    <small id="hallAddressMessage" class="hall-address-message" data-state="waiting">Upload the ministry addresses and any avoid-address file, then review and save the complete set.</small>
+    <small id="hallAddressMessage" class="hall-address-message" data-state="waiting">Load or add your addresses, create or edit territories, then save the complete workspace here.</small>
+    <div class="work-add-address">
+      <label for="workAddressInput">Add another address to this set</label>
+      <input id="workAddressInput" type="text" autocomplete="street-address" placeholder="Street address, city, state and ZIP"/>
+      <button id="workAddAddressButton" class="btn outline admin-control" type="button">Locate &amp; Add Address</button>
+      <small id="workAddressMessage" role="status">New addresses start as Unassigned. Existing addresses and territory assignments stay in place. Use 3B to append another address file.</small>
+    </div>
+    <details class="hall-work-boundary-tools">
+      <summary>Optional boundary tools</summary>
+      <div class="field"><label for="hallAddressBoundaryPadding">Boundary padding in miles</label><input id="hallAddressBoundaryPadding" type="number" min="0.02" max="2" step="0.02" value="0.12"/></div>
+      <button id="hallAddressBoundaryButton" class="btn primary admin-control" type="button">Create Editable Hall Boundary</button>
+    </details>
     <div id="hallAddressPreview" class="hall-address-preview" hidden>
-      <div class="hall-address-preview-head"><input id="hallAddressSearch" type="search" placeholder="Search the uploaded addresses, territory, or avoid status"><span id="hallAddressPreviewCount" class="hall-address-preview-count"></span></div>
+      <div class="hall-address-preview-head"><input id="hallAddressSearch" type="search" placeholder="Search addresses, territory, or avoid status"/><span id="hallAddressPreviewCount" class="hall-address-preview-count"></span></div>
       <div id="hallAddressList" class="hall-address-list"></div>
     </div>
-    <div class="hall-saved-set">
-      <div class="hall-saved-set-grid">
-        <div class="field"><label for="hallAddressSavedSelect">Saved address sets and territory plans for this Hall</label><select id="hallAddressSavedSelect"><option value="">No saved sets available</option></select><small>Loading a saved set restores its Hall, congregation, addresses, avoid dots, outer boundary, and created territories.</small></div>
-        <button id="hallAddressLoadButton" class="btn outline admin-control" type="button">Load Selected Set</button>
-      </div>
-    </div>`;
+    <div class="hall-saved-set" hidden>
+      <label for="hallAddressSavedSelect">Legacy address sets</label><select id="hallAddressSavedSelect"><option value="">No saved sets available</option></select>
+      <button id="hallAddressLoadButton" class="btn outline admin-control" type="button">Load Selected Set</button>
+    </div>
+`;
   const bulkCard = document.getElementById('bulkAddressCard');
   if (bulkCard) bulkCard.after(card); else grouping.before(card);
 }
@@ -189,10 +195,10 @@ function refresh() {
   el.preview.hidden = !previewOpen;
   renderSavedSets(data);
   if (previewOpen) renderAddressList(data);
-  if (!mapped) setMessage('Upload the ministry addresses and any avoid-address file, then review and save the complete set.');
+  if (!mapped) setMessage('Load or add addresses, create territories, then select SAVE YOUR WORK.');
   else if (!ready) setMessage(`${mapped.toLocaleString()} addresses are mapped. Select their Kingdom Hall and congregation in Area Setup before saving.`, 'warning');
-  else if (!data.boundary) setMessage(`${mapped.toLocaleString()} addresses are ready under ${hallLabel(data.hall)}. You may save now or create an editable Hall boundary first.`, 'success');
-  else setMessage(`${mapped.toLocaleString()} addresses and the editable Hall territory boundary are ready to save.`, 'success');
+  else if (!data.boundary) setMessage(`${mapped.toLocaleString()} addresses are ready. SAVE YOUR WORK includes all loaded addresses and all created territories; no outer boundary is required.`, 'success');
+  else setMessage(`${mapped.toLocaleString()} mapped addresses and ${data.territories.length} territories are ready. Select SAVE YOUR WORK to keep the complete workspace.`, 'success');
 }
 function togglePreview() {
   previewOpen = !previewOpen;
@@ -226,18 +232,19 @@ async function saveAddressSet() {
   try {
     const savedId = await api.savePlan?.({
       addressSetMode: true,
+      saveYourWork: true,
       successMessage: `${hallLabel(data.hall)} — ${data.congregation} address set saved with ${data.houses.length.toLocaleString()} mapped addresses, including ${data.houses.filter(house => house.avoid).length.toLocaleString()} avoid address${data.houses.filter(house => house.avoid).length === 1 ? '' : 'es'}.`
     });
     if (!savedId) {
       setMessage('The address set was not saved. Keep this page open, check the save message below, and try again.', 'error');
       return;
     }
-    setMessage('Address set saved. It is available below and in Saved plans for later loading.', 'success');
+    setMessage('All addresses and territories saved. Load your current work under Return to your territories. Earlier saves are kept separately in Backup.', 'success');
   } catch (error) {
     setMessage(`The address set was not saved: ${error?.message || 'Please try again.'}`, 'error');
   } finally {
     const message = el.message.textContent, state = el.message.dataset.state;
-    el.save.textContent = 'Save Address Set to Selected Hall';
+    el.save.textContent = 'SAVE YOUR WORK';
     refresh();
     setMessage(message, state);
   }

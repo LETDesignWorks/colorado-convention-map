@@ -356,17 +356,17 @@
         <div class="field">
           <label for="pdfTerritorySelect">Territory to print</label>
           <select id="pdfTerritorySelect"><option value="">Create a territory first</option></select>
-          <small>Exporting saves the current plan and keeps a copy in Saved territory PDFs below. Each PDF includes an overview, a closer view, readable house numbers, light territory shading, and the complete address and avoid lists.</small>
+          <small>Exporting keeps a territory PDF and a plan snapshot. SAVE YOUR WORK keeps your complete meeting-location workspace in Return to your territories. Each PDF includes an overview, a closer view, readable house numbers, light territory shading, and the complete address and avoid lists.</small>
         </div>
         <div class="button-grid">
-          <button class="btn save admin-control" id="savePlanButton" type="button">Save Territory Plan</button>
+          <button class="btn save admin-control" id="savePlanButton" type="button">SAVE YOUR WORK</button>
           <button class="btn primary admin-control" id="exportTerritoryPdfButton" type="button">Export Branded Territory PDF</button>
           <button class="btn outline" id="exportGeoJsonButton" type="button">Export GeoJSON</button>
           <button class="btn outline" id="exportCsvButton" type="button">Export CSV</button>
           <button class="btn outline admin-control" id="newPlanButton" type="button">Start New Plan</button>
         </div>
-        <p id="planSaveMessage" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Exporting a territory PDF automatically saves the current plan. You can also use Save Territory Plan at any time.</p>
-        <a href="#savedTerritoryPdfs" class="row-action">View saved territory PDFs</a>
+        <p id="planSaveMessage" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">SAVE YOUR WORK keeps all loaded addresses and territories together. Return to your territories loads your latest saved work; earlier copies remain in Backup.</p>
+        <a href="#savedTerritoriesCard" class="row-action">View territories for this meeting location</a>
       </section>
 
       <section class="card saved-card">
@@ -374,9 +374,14 @@
           <div><span class="eyebrow">SAVED WORK</span><h2>Return to your territories</h2></div>
           <span class="private-chip">Administrator only</span>
         </div>
+        <p class="section-copy">Load the latest complete saved work for each meeting location and congregation. All addresses, avoid information, and created territories are restored together.</p>
+        <div id="savedWorkList" class="saved-list"><div class="empty">Sign in to load your saved work.</div></div>
+        <details id="savedWorkBackup" class="saved-work-backup">
+          <summary>Backup — older plans, boundaries, and PDFs</summary>
+          <p class="section-copy">Older records are retained, not deleted. Loading a backup opens an editable copy and does not change your main saved work. Use SAVE YOUR WORK explicitly to make a backup your current work.</p>
         <h3>Saved boundaries</h3>
         <div id="savedBoundaries" class="saved-list"><div class="empty">Sign in to load saved boundaries.</div></div>
-        <h3>Saved plans</h3>
+        <h3>Older plans and address sets</h3>
         <div id="savedPlans" class="saved-list"><div class="empty">Sign in to load saved territory plans.</div></div>
         <details class="recovery-tools">
           <summary>Restore territories from a recovery file</summary>
@@ -392,6 +397,7 @@
         <button id="updateSavedPdfsButton" class="btn save" type="button" disabled>Update all saved PDFs</button>
         <p id="savedPdfUpdateStatus" class="plan-save-message" role="status" aria-live="polite" data-state="waiting">Updating uses each saved territory's own addresses and boundary.</p>
         <div id="savedTerritoryPdfs" class="saved-list"><div class="empty">Sign in to see saved territory PDFs.</div></div>
+        </details>
       </section>
     </aside>
   </main>

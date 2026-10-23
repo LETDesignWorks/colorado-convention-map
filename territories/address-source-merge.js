@@ -47,6 +47,7 @@ function sourceCounts() {
   };
 }
 function placeAvoidAfterAssessor() {
+  if (document.getElementById('addressWorkflowPair')) return;
   const card = document.getElementById('addressSourceMergeCard');
   const avoidCard = document.getElementById('avoidWorkflowCard');
   if (card && avoidCard && card.nextElementSibling !== avoidCard) {
@@ -57,7 +58,8 @@ function syncCardVisibility() {
   const bulkCard = document.getElementById('bulkAddressCard');
   const card = document.getElementById('addressSourceMergeCard');
   if (!bulkCard || !card) return;
-  card.classList.toggle('territory-workflow-hidden', bulkCard.classList.contains('territory-workflow-hidden'));
+  const hasMappedAddresses = (planner?.getHouses?.() || []).some(validCoordinates);
+  card.classList.toggle('territory-workflow-hidden', !hasMappedAddresses);
   placeAvoidAfterAssessor();
 }
 function updateCounts() {

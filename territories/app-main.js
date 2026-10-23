@@ -10,6 +10,7 @@ import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
 import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261020-36';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-37';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -76,6 +77,7 @@ let selectedHouseIds = new Set();
 let focusedTerritoryId = null;
 let currentBoundaryId = null;
 let currentPlanId = null;
+let activeSavedWorkKey = '';
 let planSaveQueue = Promise.resolve();
 let workspaceGeneration = 0;
 let savedTerritoryEditId = null;
@@ -2586,106 +2588,102 @@ function savePlan(options = {}) {
 }
 async function persistPlan(options = {}) {
   const unavailable = message => { setPlanSaveMessage(message, 'error'); toast(message, true); return null; };
-  if (!requireAdmin()) return unavailable('Sign in to save this territory plan.');
-  if (!selectedHall || !selectedCongregation) return unavailable('Select a Kingdom Hall and congregation before saving the territory plan.');
-  const addressOnlyMode = !boundaryGeometry && houses.length > 0;
-  const addressSetMode = Boolean(options.addressSetMode || addressOnlyMode || boundaryPreservesAddresses);
-  if (!houses.length) return unavailable('Load or add addresses before saving the territory plan.');
-  const duplicatesRemovedBeforeSave = dedupeHouseRecords();
-  if (duplicatesRemovedBeforeSave) renderAllPlanningData();
-  const defaultPlanName = addressSetMode
-    ? `${selectedCongregation} — ${markerLabel(selectedHall)} Address Set`
-    : `${selectedCongregation} — Convention Ministry Territories`;
+  if (!requireAdmin()) return unavailable('Sign in to save your work.');
+  if (!selectedHall || !selectedCongregation) return unavailable('Select the meeting location and congregation before saving your work.');
+  if (!houses.length) return unavailable('Load or add addresses before saving your work.');
+  if (savedRecordsStatus === 'loading' || savedRecordsStatus === 'error') return unavailable('Saved records are not ready. Reconnect or refresh saved records, then save. Your current work has been kept.');
+  const duplicatesRemoved = dedupeHouseRecords();
+  if (duplicatesRemoved) renderAllPlanningData();
+  const key = workKey(selectedHall.id, selectedCongregation);
+  const latest = currentWorkFor(savedPlans(), selectedHall.id, selectedCongregation);
+  const partialEdit = Boolean(savedTerritoryEditId);
+  const saveAsWork = Boolean(options.saveYourWork || activeSavedWorkKey === key || (partialEdit && latest));
+  if (saveAsWork && !partialEdit && latest && latest.id !== currentPlanId &&
+    !confirm('Use this entire workspace as the current saved work for this meeting location and congregation? The previous saved work will remain in Backup with its own addresses and territories. Choose Cancel to load the current saved work first.')) return null;
+
+  // Capture everything before awaiting a database write. A later selection or
+  // sign-out must never attach this snapshot to a different editable workspace.
+  const generation = workspaceGeneration, hall = { ...selectedHall }, congregation = selectedCongregation;
+  let savedHouses = houses.map(serializeHouse);
+  let savedTerritories = JSON.parse(JSON.stringify(territories));
+  let base = null;
+  if (partialEdit && latest && saveAsWork) {
+    try {
+      base = latest;
+      const combined = mergeTerritoryWork(readPlanAddresses(base, reviewRecords), readPlanTerritories(base),
+        savedHouses, savedTerritories, savedTerritoryEditId);
+      savedHouses = combined.houses.map(serializeHouse); savedTerritories = combined.territories;
+    } catch (error) { return unavailable(`Your saved work was not changed: ${friendlyError(error)}`); }
+  }
+  const savedBoundary = base ? decodeGeometry(base.boundaryJson, base.boundary) : boundaryGeometry;
+  const addressOnlyMode = !savedBoundary && savedHouses.length > 0;
+  const preserves = base ? Boolean(base.boundaryPreservesAddresses || base.addressSetMode || base.addressOnlyMode) : Boolean(boundaryPreservesAddresses);
+  const addressSetMode = Boolean(options.addressSetMode || addressOnlyMode || preserves);
+  const defaultName = `${hall.name || markerLabel(hall)} — ${congregation}`;
+  const planName = base?.planName || clean(els.planName.value) || defaultName;
   const button = els.savePlanButton;
-  const generation = workspaceGeneration;
-  button.disabled = true; button.textContent = 'Saving…';
-  setPlanSaveMessage('Saving your territory plan. Please keep this page open until saving finishes.', 'working');
-  const pendingNotice = setTimeout(() => setPlanSaveMessage('Still waiting for the save to finish. Check your connection and keep this page open; your plan is not confirmed saved yet.', 'working'), 12000);
+  button.disabled = true; button.textContent = 'Saving your work…';
+  setPlanSaveMessage('Saving all addresses, avoid information, boundaries, and territories. Keep this page open until saving is confirmed.', 'working');
+  const pending = setTimeout(() => setPlanSaveMessage('The save is still awaiting confirmation. Your earlier saved work is safe; keep this page open and check your connection.', 'working'), 12000);
   try {
-    const planRef = currentPlanId ? doc(db, 'reviews', currentPlanId) : doc(collection(db, 'reviews'));
-    const planId = planRef.id;
+    // Every save owns its address chunks. No current work or backup relies on
+    // another plan's chunks, and no prior manifest or PDF is overwritten.
+    const ref = doc(collection(db, 'reviews')), planId = ref.id;
     const chunks = [];
-    for (let index = 0; index < houses.length; index += FIRESTORE_HOUSE_CHUNK_SIZE) chunks.push(houses.slice(index, index + FIRESTORE_HOUSE_CHUNK_SIZE).map(serializeHouse));
-    const previous = reviewRecords.get(planId), revision = uniqueId('save');
-    const chunkJson = chunks.map(chunk => JSON.stringify(chunk));
-    const changed = [];
-    const chunkIds = chunks.map((chunk, index) => {
-      const oldId = previous?.chunkIds?.[index], oldHouses = decodeHouseChunk(reviewRecords.get(oldId));
-      if (oldHouses && JSON.stringify(oldHouses.map(serializeHouse)) === chunkJson[index]) return oldId;
-      changed.push(index);
-      return `${planId}__${revision}_houses_${String(index).padStart(3, '0')}`;
-    });
-    const batch = writeBatch(db);
-    const planRecord = {
-      recordType: 'territory-plan',
-      planName: clean(els.planName.value) || defaultPlanName,
-      hallId: selectedHall.id,
-      hallLabel: markerLabel(selectedHall),
-      hallName: selectedHall.name,
-      hallAddress: selectedHall.address || '',
-      congregation: selectedCongregation,
-      territoryPrefix: clean(els.territoryPrefix.value).toUpperCase(),
-      addressOnlyMode,
-      addressSetMode,
-      boundaryPreservesAddresses: Boolean(boundaryPreservesAddresses),
-      boundaryJson: encodeGeometry(boundaryGeometry),
-      boundaryName: boundaryGeometry ? (clean(els.boundaryName.value) || `${selectedCongregation} service area`) : 'CSV address-only map — no outer boundary',
-      sourceKey: currentSourceKey(),
-      targetSize: targetSizeValue(),
-      groupingMethod: els.groupingMethod.value,
-      residentialOnly: els.residentialOnly.checked,
-      separateUnits: els.separateUnits.checked,
-      houseCount: houses.length,
-      includedHouseCount: houses.filter(house => house.included && !house.avoid).length,
-      avoidHouseCount: houses.filter(house => house.avoid).length,
-      territoriesJson: JSON.stringify(territories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex, houseIds: [...(item.houseIds || [])], geometryJson: encodeGeometry(item.geometry), manualBoundary: Boolean(item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
-      territoryCount: territories.length,
-      chunkIds,
-      chunkCount: chunkIds.length,
-      updatedByEmail: currentUser.email,
-      updatedAt: serverTimestamp(),
-      ...(currentPlanId ? {} : { createdAt: serverTimestamp() })
+    for (let start = 0; start < savedHouses.length; start += FIRESTORE_HOUSE_CHUNK_SIZE) chunks.push(savedHouses.slice(start, start + FIRESTORE_HOUSE_CHUNK_SIZE));
+    const chunkIds = chunks.map((_, index) => `${planId}__houses_${String(index).padStart(4, '0')}`);
+    const record = {
+      recordType: 'territory-plan', saveKind: saveAsWork ? 'work' : 'backup',
+      savedWorkKey: key, savedWorkSchemaVersion: 1,
+      previousWorkId: saveAsWork ? latest?.id || null : null,
+      sourcePlanId: currentPlanId || null,
+      planName, hallId: hall.id, hallLabel: markerLabel(hall), hallName: hall.name, hallAddress: hall.address || '',
+      congregation, territoryPrefix: base?.territoryPrefix ?? clean(els.territoryPrefix.value).toUpperCase(),
+      addressOnlyMode, addressSetMode, boundaryPreservesAddresses: preserves,
+      boundaryJson: encodeGeometry(savedBoundary),
+      boundaryName: base?.boundaryName ?? (savedBoundary ? clean(els.boundaryName.value) || `${congregation} service area` : 'Address-only map — no outer boundary'),
+      sourceKey: base?.sourceKey ?? currentSourceKey(), targetSize: base?.targetSize ?? targetSizeValue(),
+      groupingMethod: base?.groupingMethod ?? els.groupingMethod.value,
+      residentialOnly: base?.residentialOnly ?? els.residentialOnly.checked,
+      separateUnits: base?.separateUnits ?? els.separateUnits.checked,
+      houseCount: savedHouses.length, includedHouseCount: savedHouses.filter(house => house.included && !house.avoid).length,
+      avoidHouseCount: savedHouses.filter(house => house.avoid).length,
+      territoriesJson: JSON.stringify(savedTerritories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex || 0,
+        houseIds: [...(item.houseIds || [])], geometryJson: encodeGeometry(decodeGeometry(item.geometryJson, item.geometry)),
+        manualBoundary: Boolean(item.geometryJson || item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
+      territoryCount: savedTerritories.length, chunkIds, chunkCount: chunkIds.length,
+      updatedByEmail: currentUser.email, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     };
-    batch.set(planRef, planRecord, { merge: true });
-    // Stage only changed address parts, one small request at a time. JSON avoids
-    // thousands of unnecessary field indexes inside each address-array document.
-    // New revision IDs keep the old saved plan intact until its pointer commits.
-    for (const [part, index] of changed.entries()) {
-      setPlanSaveMessage(`Saving address changes ${part + 1} of ${changed.length}… Keep this page open.`, 'working');
-      const partBatch = writeBatch(db);
-      partBatch.set(doc(db, 'reviews', chunkIds[index]), {
-        recordType: 'territory-plan-chunk', planId, chunkIndex: index, housesJson: chunkJson[index], houseCount: chunks[index].length,
-        updatedByEmail: currentUser.email, updatedAt: serverTimestamp()
-      });
-      await partBatch.commit();
+    for (const [index, chunk] of chunks.entries()) {
+      setPlanSaveMessage(`Saving address data ${index + 1} of ${chunks.length}… Your earlier saved work remains unchanged.`, 'working');
+      const batch = writeBatch(db);
+      batch.set(doc(db, 'reviews', chunkIds[index]), { recordType: 'territory-plan-chunk', planId, chunkIndex: index,
+        housesJson: JSON.stringify(chunk), houseCount: chunk.length, updatedByEmail: record.updatedByEmail, updatedAt: serverTimestamp() });
+      await batch.commit();
     }
-    // Publish only after every referenced part is confirmed. Previous parts are
-    // retained until plan deletion, so an interrupted save cannot destroy them.
-    await batch.commit();
-    // Do not attach an old save to a different workspace opened while waiting.
+    // Publish the manifest only after every independent address chunk succeeds.
+    await setDoc(ref, record);
+    reviewRecords.set(planId, { ...record, id: planId, updatedAt: new Date() });
+    chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], { id: chunkIds[index], recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk }));
+    if (generation === workspaceGeneration && !partialEdit) {
+      currentPlanId = planId; activeSavedWorkKey = saveAsWork ? key : '';
+      els.planName.value = planName;
+    }
+    renderSavedRecords(); updateSummary(); emitPlannerDataChange();
     if (generation === workspaceGeneration) {
-      currentPlanId = planId;
-      els.planName.value = clean(els.planName.value) || defaultPlanName;
+      const message = saveAsWork ? `Saved ${record.houseCount.toLocaleString()} addresses and ${record.territoryCount} territories for ${hall.name} — ${congregation}. Load them under Return to your territories. Earlier saves are in Backup.`
+        : 'Backup copy saved. Your main saved work is unchanged. Use SAVE YOUR WORK to make this workspace your current saved work.';
+      setPlanSaveMessage(message, 'success');
+      if (!options.silent) toast(message);
     }
-    // Make the confirmed save immediately loadable, even if the listener has
-    // not delivered its acknowledgement yet. Never publish pending writes here.
-    reviewRecords.set(planId, { ...planRecord, id: planId, updatedAt: new Date() });
-    chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], {
-      id: chunkIds[index], recordType: 'territory-plan-chunk', planId, chunkIndex: index, houses: chunk
-    }));
-    renderSavedRecords();
-    updateSummary();
-    emitPlannerDataChange();
-    setPlanSaveMessage(`Saved “${planRecord.planName}” at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Open Saved plans below and choose Load to return to these territories.`, 'success');
-    if (!options.silent) toast(options.successMessage || 'Territory plan saved. You can return to it under Saved plans.');
     return planId;
   } catch (error) {
-    console.error('Territory plan save failed.', error);
-    const message = `Territory plan was not saved: ${friendlyError(error)} Keep this page open and try Save Territory Plan again.`;
-    setPlanSaveMessage(message, 'error');
-    toast(message, true);
-    return null;
-  } finally { clearTimeout(pendingNotice); button.disabled = !isAdmin(); button.textContent = 'Save Territory Plan'; }
+    console.error('Saved-work snapshot failed.', error);
+    const message = `Your new work was not confirmed saved: ${friendlyError(error)}. Your earlier saved work is unchanged. Keep this page open and try SAVE YOUR WORK again.`;
+    setPlanSaveMessage(message, 'error'); toast(message, true); return null;
+  } finally {
+    clearTimeout(pending); button.disabled = !isAdmin(); button.textContent = 'SAVE YOUR WORK';
+  }
 }
 function subscribeReviews() {
   if (!db || !isAdmin()) return;
@@ -2720,9 +2718,10 @@ function renderSavedRecords() {
     return;
   }
   const boundaries = savedBoundaries();
-  const plans = savedPlans();
-  els.savedBoundaries.innerHTML = boundaries.length ? boundaries.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.name || item.congregation || 'Saved boundary')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-boundary="${item.id}">Load</button><button class="row-action danger" data-delete-boundary="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No congregation boundaries saved yet.</div>';
-  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')}${item.addressSetMode ? ' • Hall address set' : item.addressOnlyMode ? ' • CSV address map' : ''} • ${(item.houseCount || 0).toLocaleString()} addresses${item.avoidHouseCount ? ` • ${Number(item.avoidHouseCount).toLocaleString()} avoid` : ''} • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load</button><button class="row-action danger" data-delete-plan="${item.id}">Delete</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
+  const currentIds = new Set(latestWork(savedPlans()).map(plan => plan.id));
+  const plans = savedPlans().filter(plan => !currentIds.has(plan.id));
+  els.savedBoundaries.innerHTML = boundaries.length ? boundaries.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.name || item.congregation || 'Saved boundary')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-boundary="${item.id}">Load</button></div></article>`).join('') : '<div class="empty">No congregation boundaries saved yet.</div>';
+  els.savedPlans.innerHTML = plans.length ? plans.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.planName || 'Saved territory plan')}</strong><small>${escapeHtml(item.hallLabel || '')} ${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')}${item.addressSetMode ? ' • Hall address set' : item.addressOnlyMode ? ' • CSV address map' : ''} • ${(item.houseCount || 0).toLocaleString()} addresses${item.avoidHouseCount ? ` • ${Number(item.avoidHouseCount).toLocaleString()} avoid` : ''} • ${savedTerritoryCount(item)} territories • ${escapeHtml(formatDate(item.updatedAt))}</small></div><div class="row-actions"><button class="row-action" data-load-plan="${item.id}">Load backup copy</button></div></article>`).join('') : '<div class="empty">No territory plans saved yet.</div>';
   els.savedBoundaries.querySelectorAll('[data-load-boundary]').forEach(button => button.addEventListener('click', () => loadBoundaryRecord(button.dataset.loadBoundary)));
   els.savedBoundaries.querySelectorAll('[data-delete-boundary]').forEach(button => button.addEventListener('click', () => deleteBoundaryRecord(button.dataset.deleteBoundary)));
   els.savedPlans.querySelectorAll('[data-load-plan]').forEach(button => button.addEventListener('click', () => loadPlanRecord(button.dataset.loadPlan)));
@@ -2764,6 +2763,8 @@ function loadPlanRecord(id) {
   clearPlanWorkspace(false);
   restoreHallAndCongregation(plan.hallId, plan.congregation);
   currentPlanId = plan.pdfArchive ? null : plan.id;
+  const currentSavedWork = currentWorkFor(savedPlans(), plan.hallId, plan.congregation);
+  activeSavedWorkKey = currentSavedWork?.id === plan.id ? workKey(plan.hallId, plan.congregation) : '';
   currentBoundaryId = null;
   els.planName.value = plan.planName || '';
   els.territoryPrefix.value = plan.territoryPrefix || initialPrefix(plan.congregation || 'T');
@@ -2804,7 +2805,7 @@ function loadPlanRecord(id) {
     if (mappedPoints.length) map.fitBounds(L.latLngBounds(mappedPoints), { padding: [36, 36], maxZoom: 16 });
   }
   toast(`Saved ${plan.addressSetMode ? 'Kingdom Hall address-set ' : plan.addressOnlyMode ? 'CSV address-only ' : ''}plan loaded with ${houses.length.toLocaleString()} addresses.`);
-  setPlanSaveMessage(`Loaded “${plan.planName || 'Saved territory plan'}”. Exporting a PDF will save your latest changes automatically.`, 'success');
+  setPlanSaveMessage(activeSavedWorkKey ? `Loaded saved work for ${plan.hallName || 'this meeting location'}. Edit addresses or territories, then select SAVE YOUR WORK.` : 'Backup copy loaded for editing. Your main saved work is unchanged. Select SAVE YOUR WORK only when you want to make this workspace the current saved work.', 'success');
   return true;
 }
 
@@ -2887,6 +2888,7 @@ async function deleteBoundaryRecord(id) {
 }
 async function deletePlanRecord(id) {
   const plan = reviewRecords.get(id);
+  if (plan?.saveKind === 'work') { toast('Saved-work snapshots are protected. Earlier copies remain available in Backup.', true); return; }
   if (!plan || !confirm(`Delete the saved territory plan “${plan.planName || 'Territory plan'}” and all of its private address chunks?`)) return;
   try {
     const batch = writeBatch(db);
@@ -3493,6 +3495,7 @@ function clearPlanWorkspace(resetSelection = true) {
   selectedHouseIds.clear();
   currentBoundaryId = null;
   currentPlanId = null;
+  activeSavedWorkKey = '';
   boundaryGroup?.clearLayers();
   territoryGroup?.clearLayers();
   houseGroup?.clearLayers();
@@ -3558,7 +3561,7 @@ function wireEvents() {
   els.saveTerritoryBoundaryEditButton?.addEventListener('click', saveActiveTerritoryBoundaryEdit);
   els.cancelTerritoryBoundaryEditButton?.addEventListener('click', () => cancelTerritoryBoundaryEdit(true));
   els.houseSearch.addEventListener('input', renderHouseList);
-  els.savePlanButton.addEventListener('click', savePlan);
+  els.savePlanButton.addEventListener('click', () => savePlan({ saveYourWork: true }));
   document.getElementById('editSavedTerritoryBoundaryButton')?.addEventListener('click', () => editTerritoryBoundary(savedTerritoryEditId));
   document.getElementById('selectSavedTerritoryHomesButton')?.addEventListener('click', () => selectTerritoryHouses(savedTerritoryEditId));
   // The current PDF renderer intercepts this data-territory-pdf button and saves
@@ -3659,6 +3662,7 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   recalculateTerritoryHouseIds,
   render: renderAllPlanningData,
   savePlan,
+  saveYourWork: () => savePlan({ saveYourWork: true }),
   saveTerritoryPdf,
   finishTerritoryBoundaryEdit: async id => {
     if (activeTerritoryEditId !== id) return true;
