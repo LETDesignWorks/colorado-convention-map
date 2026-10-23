@@ -4,6 +4,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/fireba
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from './data.js';
+import { CONVENTION_CENTER, recenterPlanningBoundary } from './planning-center.mjs?v=bus-center-20261023-53';
+const PLANNING_BOUNDARY = recenterPlanningBoundary(DTC_BOUNDARY, DTC);
 
 const firebaseConfig={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',storageBucket:'convention-fs.firebasestorage.app',messagingSenderId:'29365992209',appId:'1:29365992209:web:0bd35e723688b37d776ab0',measurementId:'G-054BLBBE0F'};
 const ADMIN_EMAIL='michaeltarin@hotmail.com';
@@ -83,10 +85,10 @@ function syncMarkers(){
 }
 function initMap(){
   if(!window.L){document.getElementById('map').innerHTML='<div style="padding:25px">The map library could not load. The location directory and review forms remain available.</div>';return;}
-  map=L.map('map',{zoomControl:true,attributionControl:true}).setView(DTC,10);
+  map=L.map('map',{zoomControl:true,attributionControl:true}).setView(CONVENTION_CENTER.point,10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
-  boundaryLayer=L.polygon(DTC_BOUNDARY,{color:'#0b4da2',weight:3,dashArray:'9 7',fillColor:'#4d9cdb',fillOpacity:.06,interactive:false}).addTo(map);
-  L.marker(DTC,{icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup('<div class="pop-title">DTC Center Point</div><div class="pop-address">I-25 & E. Belleview Avenue</div>');
+  boundaryLayer=L.polygon(PLANNING_BOUNDARY,{color:'#0b4da2',weight:3,dashArray:'9 7',fillColor:'#4d9cdb',fillOpacity:.06,interactive:false}).addTo(map);
+  L.marker(CONVENTION_CENTER.point,{title:'Colorado Convention Center — 45-minute planning center',icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup(`<div class="pop-title">${CONVENTION_CENTER.name}</div><div class="pop-address">${CONVENTION_CENTER.address}</div><div>45-minute planning center (estimated guide)</div>`);
   syncMarkers();
   map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
 }
@@ -158,7 +160,7 @@ async function saveReview(event){
 function nextLabel(type='kingdom-hall'){
   const prefix=type==='meeting-area'?'M':'K',used=new Set(locations.map(markerLabel).map(x=>x.toUpperCase()));let n=1;while(used.has(`${prefix}${n}`))n++;return`${prefix}${n}`;
 }
-function resetLocationForm(){locationForm.reset();locationForm.elements.locationId.value='';locationForm.elements.locationType.value='kingdom-hall';locationForm.elements.markerLabel.value=nextLabel('kingdom-hall');locationForm.elements.lat.value=DTC[0];locationForm.elements.lng.value=DTC[1];locationForm.elements.planningArea.value='dtc-45';document.getElementById('deleteLocationButton').hidden=true;document.getElementById('locationModalTitle').textContent='Add Kingdom Hall or Meeting Area';document.getElementById('locationModalHelp').textContent='Add a location to the public map. Bus review details and private contacts can be entered after the location is saved.';locationForm.querySelector('button[type=submit]').textContent='Save Location';}
+function resetLocationForm(){locationForm.reset();locationForm.elements.locationId.value='';locationForm.elements.locationType.value='kingdom-hall';locationForm.elements.markerLabel.value=nextLabel('kingdom-hall');locationForm.elements.lat.value=CONVENTION_CENTER.point[0];locationForm.elements.lng.value=CONVENTION_CENTER.point[1];locationForm.elements.planningArea.value=CONVENTION_CENTER.planningArea;document.getElementById('deleteLocationButton').hidden=true;document.getElementById('locationModalTitle').textContent='Add Kingdom Hall or Meeting Area';document.getElementById('locationModalHelp').textContent='Add a location to the public map. Bus review details and private contacts can be entered after the location is saved.';locationForm.querySelector('button[type=submit]').textContent='Save Location';}
 function openLocationEditor(location=null){
   if(!isAdmin()){openLogin();toast('Administrator sign-in is required.',true);return;}
   resetLocationForm();
