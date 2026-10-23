@@ -1,4 +1,4 @@
-import {validatePlan, arrowheads} from './traffic-model.mjs?v=traffic-20261023-47';
+import {validatePlan, arrowheads} from './traffic-model.mjs?v=traffic-20261023-48';
 
 // A detached, full-layout print snapshot. This module never writes to cloud storage.
 export const PDF_LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;

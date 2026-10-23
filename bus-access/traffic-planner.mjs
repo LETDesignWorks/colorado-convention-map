@@ -1,10 +1,10 @@
-import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-47';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=traffic-20261023-47';
+import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-48';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=traffic-20261023-48';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
-const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-47',import.meta.url).href;
+const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-48',import.meta.url).href;
 export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exportTrafficPdf,notify=()=>{},document:documentHost=globalThis.document,window:windowHost=globalThis.window}) {
   const d=documentHost,w=windowHost;
   if(d.getElementById('trafficPlannerLauncher'))return null;
