@@ -1,0 +1,17 @@
+name: Verify Bus Review convention center
+on:
+  push:
+    branches: [work/bus-convention-center-53]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: tar --exclude='.git' --exclude='.github' -czf /tmp/bus-center-source.tgz .
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bus-center-source
+          path: /tmp/bus-center-source.tgz
+          retention-days: 1
