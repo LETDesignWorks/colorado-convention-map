@@ -15,28 +15,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prepare scoped update
+      - name: Final recovery and confirmed-read checks
         run: |
           python - <<'PY'
           import base64,gzip,json,pathlib
-          encoded=''.join(p.read_text().strip() for p in sorted(pathlib.Path('.github/updates40').glob('bundle*.txt')))
-          files=json.loads(gzip.decompress(base64.b64decode(encoded)))
-          for name,content in files.items():
+          encoded=pathlib.Path('.github/updates40/final-fixes.json.gz.b64').read_text().strip()
+          for name,content in json.loads(gzip.decompress(base64.b64decode(encoded))).items():
               p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
           PY
-          python .github/updates40/apply.py
+          python .github/updates40/final-fixes.py
       - name: Install test dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0
       - name: Check syntax and regressions
         run: |
           for file in territories/*.js; do node --check "$file"; done
-          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs
       - name: Commit tested application on review branch
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add territories tests
           git diff --cached --stat
-          git commit -m 'Add visible loading, lower-cost refresh, exact-version keeps, PDFs and safe cleanup'
+          git diff --cached --quiet || git commit -m 'Harden loading recovery, confirmed record updates and individual version cleanup'
           git push origin HEAD:refs/heads/work/loading-library-cleanup-40
           git rev-parse HEAD
