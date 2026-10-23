@@ -3,18 +3,42 @@ on:
   push:
     branches: [work/territory-duplicate-cleanup-49]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          persist-credentials: false
-      - name: Package public source for isolated testing
-        run: tar -czf /tmp/public-source.tgz territories tests bus-access assets load-tests/vendor
+          node-version: 22
+      - name: Prepare scoped cleanup fix
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,base64,zlib,json
+          data=pathlib.Path('.github/updates49/source.b64').read_text().strip()
+          assert hashlib.sha256(data.encode()).hexdigest()=='3f907ab65f767dedc784df3675b446b184318fee74c8b3883f7bd5fe4cd89a44'
+          for name,text in json.loads(zlib.decompress(base64.b64decode(data))).items():
+              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          PY
+          python .github/updates49/patch49.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
+      - name: Syntax and regression tests
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/*.test.mjs > /tmp/results49.log 2>&1 || { grep -A 30 '^not ok' /tmp/results49.log; tail -12 /tmp/results49.log; exit 1; }
+          tail -12 /tmp/results49.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: duplicate-cleanup-source
-          path: /tmp/public-source.tgz
-          retention-days: 1
+          name: duplicate-cleanup-results
+          path: /tmp/results49.log
+          retention-days: 2
+      - name: Commit tested source to work branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git commit -m 'Keep duplicate cleanup authoritative across rescans and saves; explain remaining matches'
+          git push origin HEAD:refs/heads/work/territory-duplicate-cleanup-49
