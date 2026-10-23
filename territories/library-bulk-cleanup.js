@@ -1,4 +1,4 @@
-import { deletionProblem } from './backup-merge-model.js?v=territories-20261022-41';
+import { deletionProblem } from './backup-merge-model.js?v=territories-20261022-42';
 // Backup deletion uses the same recoverable Trash as individual cleanup.
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 let api, busy = false;

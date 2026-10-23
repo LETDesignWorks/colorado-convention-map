@@ -1,4 +1,4 @@
-import { locationKey, savedTime, deletionProblem } from './backup-merge-model.js?v=territories-20261022-41';
+import { locationKey, savedTime, deletionProblem } from './backup-merge-model.js?v=territories-20261022-42';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const el = id => document.getElementById(id);
 let api, tools, prepared = null, decisions = {}, previewLayer = null, working = false, refreshQueued = false;

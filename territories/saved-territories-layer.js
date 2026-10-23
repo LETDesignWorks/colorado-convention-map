@@ -1,9 +1,9 @@
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-41';
-import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-41';
-import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-41';
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-41';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-42';
+import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-42';
+import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-42';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-42';
 
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-41';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-42';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
@@ -54,6 +54,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
     }, 180);
   }
   function hideLayer() {
+    globalThis.__denverDuplicateReview?.clear();
     clearTimeout(sessionRefreshTimer);
     visible = false; epoch++; loadSequence++; loader.cancel(); revokeUrls();
     map.removeLayer(layer); layer.clearLayers(); layers.clear(); drawnVersions.clear();
@@ -200,6 +201,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
     detail.hidden = !group;
     if (!group) { detail.replaceChildren(); return; }
     const version = versionFor(group), earlier = version !== group.versions[0];
+    globalThis.__denverDuplicateReview?.selectVersion(version);
     const homes = version.houses.filter(h => !h.avoid), avoids = version.houses.filter(h => h.avoid);
     detail.innerHTML = `<h3>${esc(version.territory.name || 'Unnamed territory')} <span class="saved-readonly-chip">View only</span></h3>
       ${duplicateReviewHtml(group)}
