@@ -320,6 +320,10 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
   latest.addEventListener('click', () => { epoch++; selectedVersions.clear(); renderMap(); renderList(); renderDetail(); summary(); });
   window.addEventListener('territory-planner:data', contextChanged);
   window.addEventListener('territory-planner:saved-records', savedRecordsChanged);
+  window.addEventListener('territory-planner:duplicates-cleaned', () => {
+    selectedVersions.clear(); nameOverrides.clear();
+    if (active() && !libraryBusy) { regroupNames(); renderMap(); renderList(); renderDetail(); summary(); }
+  });
 
   if (libraryManager) {
     const saveSetButton = document.createElement('button'); saveSetButton.type = 'button'; saveSetButton.className = 'btn save';

@@ -63,6 +63,7 @@ export function mountDuplicateAddressReview(api) {
     try{
       const result=await api.meetingSessionManager.repairDuplicates(review.token,readDecisions());
       if(!result)return;
+      window.dispatchEvent(new window.CustomEvent('territory-planner:duplicates-cleaned'));
       // Applying a draft emits a data change; report the result without replacing newer selections.
       if(request===epoch){review=null;el('duplicateScanResults').replaceChildren();el('applyDuplicateCleanup').hidden=true;el('duplicateScanStatus').textContent=`Removed ${result.removed} repeated address record(s). ${duplicateSummary(result.remaining)} Select SAVE YOUR WORK to retain the cleaned session.`;}
     }catch(error){if(request===epoch)el('duplicateScanStatus').textContent=`Nothing was cleaned: ${error.message}`;}
