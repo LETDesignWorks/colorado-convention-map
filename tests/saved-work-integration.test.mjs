@@ -128,16 +128,15 @@ test('address-list mode always hides the big-picture boundary, even with a saved
     assert.equal(targets.boundary.classList.contains('territory-workflow-hidden'), false);
   }
 });
-test('assessor-fill panel is hidden until usable addresses are loaded', () => {
+test('assessor-fill panel is available for a selected meeting place even before uploads', () => {
   const source = read('territories/address-source-merge.js');
   const sync = section(source, 'function syncCardVisibility() {', '\nfunction updateCounts()');
-  const card = { classList: fakeClassList() }, bulk = {};
-  let addresses = [];
-  const context = { document: { getElementById: id => id === 'bulkAddressCard' ? bulk : card }, planner: { getHouses: () => addresses },
-    validCoordinates: home => Number.isFinite(home.lat) && Number.isFinite(home.lng), placeAvoidAfterAssessor() {} };
+  const card = { classList: fakeClassList() };
+  let hall = null, congregation = '';
+  const context = { document: { getElementById: () => card }, planner: { getSelectedHall: () => hall, getSelectedCongregation: () => congregation }, placeAvoidAfterAssessor() {} };
   vm.createContext(context); vm.runInContext(sync+'\nsyncCardVisibility();', context);
   assert.equal(card.classList.contains('territory-workflow-hidden'), true);
-  addresses = [house('1')]; vm.runInContext('syncCardVisibility();', context);
+  hall = { id: '21' }; congregation = 'Highlands Ranch'; vm.runInContext('syncCardVisibility();', context);
   assert.equal(card.classList.contains('territory-workflow-hidden'), false);
 });
 test('return section has a current-work list and a collapsed load-only backup section', () => {
@@ -153,7 +152,8 @@ test('save controls call complete-work saves and modified modules bypass old cac
   assert.match(main, /els\.savePlanButton\.addEventListener\('click', \(\) => savePlan\(\{ saveYourWork: true \}\)\)/);
   assert.match(read('territories/hall-address-sets.js'), /saveYourWork: true/);
   const bootstrap = read('territories/bootstrap.js');
-  for (const name of ['app-main', 'hall-address-sets', 'territory-workflow-ui', 'address-source-merge', 'assessor-one-click', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-37`));
+  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-37`));
+  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-38`));
 });
 
 
@@ -170,5 +170,5 @@ test('SAVE YOUR WORK keeps every loaded record without silently deduplicating un
 });
 
 test('loading protected complete saved work preserves its exact address records', () => {
-  assert.match(main, /plan\.saveKind === 'work' \? 0 : dedupeHouseRecords\(\)/);
+  assert.match(main, /const duplicatesRemovedOnLoad = 0;/);
 });

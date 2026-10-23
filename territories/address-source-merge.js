@@ -55,13 +55,13 @@ function placeAvoidAfterAssessor() {
   }
 }
 function syncCardVisibility() {
-  const bulkCard = document.getElementById('bulkAddressCard');
   const card = document.getElementById('addressSourceMergeCard');
-  if (!bulkCard || !card) return;
-  const hasMappedAddresses = (planner?.getHouses?.() || []).some(validCoordinates);
-  card.classList.toggle('territory-workflow-hidden', !hasMappedAddresses);
+  if (!card) return;
+  const ready = Boolean(planner?.getSelectedHall?.() && planner?.getSelectedCongregation?.());
+  card.classList.toggle('territory-workflow-hidden', !ready);
   placeAvoidAfterAssessor();
 }
+
 function updateCounts() {
   const counts = sourceCounts();
   const uploaded = document.getElementById('sourceUploadedCount');
