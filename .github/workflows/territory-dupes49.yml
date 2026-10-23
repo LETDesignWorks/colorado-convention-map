@@ -1,0 +1,20 @@
+name: Review territory duplicate cleanup
+on:
+  push:
+    branches: [work/territory-duplicate-cleanup-49]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Package public source for isolated testing
+        run: tar -czf /tmp/public-source.tgz territories tests bus-access assets load-tests/vendor
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: duplicate-cleanup-source
+          path: /tmp/public-source.tgz
+          retention-days: 1
