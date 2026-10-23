@@ -1,10 +1,11 @@
-import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261022-43';
-import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-43';
-import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-43';
-import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-43';
-import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-43';
-import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-43';
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-43';
+import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261022-44';
+import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261022-44';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-44';
+import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-44';
+import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-44';
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-44';
+import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-44';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-44';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -15,11 +16,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-43';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-44';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-43';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-43';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-43';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-44';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-44';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-44';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -699,8 +700,26 @@ function hideTerritoryEditActions() {
   els.territoryEditActions.hidden = true;
   els.territoryEditActions.closest('.map-card')?.classList.remove('territory-edit-active');
 }
+function confirmBoundaryEditUpdate(territoryId, geometry) {
+  try { validateTrimmedBoundary(geometry, turf); }
+  catch (error) { toast(error.message, true); return false; }
+  const inside = new Set(includedAddressesInsideGeometry(geometry).map(h => h.id));
+  const moving = houses.filter(h => h.included && !h.avoid && inside.has(h.id) && h.territoryId && h.territoryId !== territoryId).length;
+  const outside = houses.filter(h => h.included && !h.avoid && h.territoryId === territoryId && !inside.has(h.id)).length;
+  if (!moving && !outside) return true;
+  const changes = [];
+  if (outside) changes.push(`${outside} current home(s) will move to Unassigned because they are outside the edited boundary. These addresses are kept, not deleted.`);
+  if (moving) changes.push(`${moving} home(s) inside the edited boundary will move from other territories into this one.`);
+  return confirm(changes.join('\n\n') + '\n\nApply this boundary change? Cancel keeps the draft open for editing. Avoid and excluded addresses remain protected.');
+}
+function announceBoundaryUpdate(territory) {
+  window.dispatchEvent(new CustomEvent('territory-planner:boundary-updated', {
+    detail: { territoryId: String(territory.id), name: territory.name, hallId: String(selectedHall?.id || '') }
+  }));
+}
 async function saveActiveTerritoryBoundaryEdit() {
   if (!requireAdmin()) return;
+  if (disposeVertexRemoval?.isTrimming?.()) { toast('Finish or cancel the trim box before saving the boundary.', true); return; }
   const territoryId = activeTerritoryEditId || territoryIdFromLayerGroup(territoryEditGroup);
   if (!territoryId) {
     toast('No territory boundary is currently being edited.', true);
@@ -713,6 +732,7 @@ async function saveActiveTerritoryBoundaryEdit() {
     return;
   }
 
+  if (!confirmBoundaryEditUpdate(territoryId, geometry)) return;
   const result = applyTerritoryBoundaryAssignments(territoryId, geometry);
   if (!result) {
     toast('The edited territory boundary could not be saved. Reopen Edit Boundary and try again.', true);
@@ -728,6 +748,7 @@ async function saveActiveTerritoryBoundaryEdit() {
   territoryEditGroup.clearLayers();
   renderAllPlanningData();
   selectTerritoryHouses(result.territory.id);
+  announceBoundaryUpdate(result.territory);
 
   toast(`${result.territory.name} boundary and address assignments updated in this session. Select SAVE YOUR WORK to save all territories and addresses together.`);
 }
@@ -804,9 +825,11 @@ conflicts += 1;
     const editedGroup = event?.layers;
     const editedTerritoryId = territoryIdFromLayerGroup(editedGroup) || activeTerritoryEditId;
     if (editedTerritoryId) {
+      // Include untouched multipart components, not only the layers moved by the editor.
+      const geometry = combinedGeometryFromFeatureGroup(territoryEditGroup) || combinedGeometryFromFeatureGroup(editedGroup);
+      if (!confirmBoundaryEditUpdate(editedTerritoryId, geometry)) return;
       hideLiveTerritoryBoundaryCount();
       hideTerritoryEditActions();
-      const geometry = combinedGeometryFromFeatureGroup(editedGroup) || combinedGeometryFromFeatureGroup(territoryEditGroup);
       const result = applyTerritoryBoundaryAssignments(editedTerritoryId, geometry);
       activeTerritoryEditId = null;
       territoryEditToolbar = null;
@@ -821,6 +844,7 @@ conflicts += 1;
 
       renderAllPlanningData();
       selectTerritoryHouses(result.territory.id);
+      announceBoundaryUpdate(result.territory);
       const summary = boundaryChangeSummary(result);
       toast(`${result.territory.name} updated in this session. ${summary}. Select SAVE YOUR WORK to save the complete session.`);
       return;
@@ -2005,7 +2029,7 @@ function editTerritoryBoundary(id) {
   disposeVertexRemoval = mountVertexRemoval({ L, turf, map, group: territoryEditGroup,
     container: els.territoryEditActions, notify: toast,
     onChange: () => scheduleLiveTerritoryBoundaryCount({ mode: 'edit', geometry: combinedGeometryFromFeatureGroup(territoryEditGroup), territoryId: id }, true) });
-  toast(`Editing ${territory.name}. Move the white handles, then select Save Boundary & Update Homes at the bottom of the map.`);
+  toast(`Editing ${territory.name}. Move corners, remove points, or use Trim tail / area. Then select Save Boundary & Update Homes.`);
 }
 function resetTerritoryBoundary(id) {
   if (!requireAdmin()) return;
@@ -2944,7 +2968,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-43');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-44');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3800,7 +3824,7 @@ async function libraryVersionPdf(version, progress) {
   return buildReviewedVersionPdf(version, hall, progress, {
     readPdf: async record => readArchivePdf(record, await archiveParts(record, 'pdf')),
     buildPdf: async (snapshot, progress) => {
-      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-43');
+      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-44');
       return buildTerritoryPdf(snapshot, progress);
     }
   });

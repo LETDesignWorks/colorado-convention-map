@@ -1,4 +1,4 @@
-import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-43';
+import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-44';
 import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';

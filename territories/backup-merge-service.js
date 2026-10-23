@@ -1,4 +1,4 @@
-import { previewBackupMerge, workspaceStamp, locationKey, stable, deletionProblem, nameKey } from './backup-merge-model.js?v=territories-20261022-43';
+import { previewBackupMerge, workspaceStamp, locationKey, stable, deletionProblem, nameKey } from './backup-merge-model.js?v=territories-20261022-44';
 
 // Storage and editable-map access are supplied by the signed-in planner.
 export function createBackupTools(host) {
