@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
 <meta content="#0b447e" name="theme-color"/>
-<title>DTC Kingdom Hall Bus Access Review</title>
+<title>Kingdom Hall &amp; Meeting Place Bus Access Review</title>
 <link href="https://unpkg.com" rel="preconnect"/>
 <link href="https://tile.openstreetmap.org" rel="preconnect"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
@@ -18,8 +18,8 @@
 <header>
   <div class="header-row">
     <div class="title">
-      <h1>DTC Kingdom Hall Bus Access Review</h1>
-      <p>2027 Colorado Convention transportation planning • Public map with administrator-only editing</p>
+      <h1>Kingdom Hall &amp; Meeting Place Bus Access Review</h1>
+      <p>45-minute planning center: Colorado Convention Center • 2027 transportation planning</p>
     </div>
     <div class="header-actions">
       <a class="btn secondary" href="../">← Full Planning Map</a>
@@ -44,7 +44,7 @@
 </div>
 <div class="workspace">
   <div class="map-wrap">
-    <div aria-label="Interactive DTC Kingdom Hall and meeting-area bus access map" id="map" role="application"></div>
+    <div aria-label="Interactive Kingdom Hall and meeting-area bus access map centered on the Colorado Convention Center" id="map" role="application"></div>
     <div class="legend">
       <strong>Bus Access</strong>
       <div class="legend-row"><span class="dot" style="background:#667085"></span>Not reviewed</div>
@@ -55,7 +55,7 @@
       <div class="legend-row"><span class="shape hall-shape"></span>Kingdom Hall</div>
       <div class="legend-row"><span class="shape meeting-shape"></span>Other meeting area</div>
     </div>
-    <div class="map-note">The blue dashed line is the estimated 45-minute DTC planning boundary, not a live-traffic route. Tap any numbered marker to review the location.</div>
+    <div class="map-note">The star marks the Colorado Convention Center. The blue dashed line is an approximate 45-minute planning guide recentered here, not a verified drive-time or live-traffic boundary. Confirm actual routes and travel times. Tap a numbered marker to review a location.</div>
   </div>
   <aside class="panel" id="panel">
     <div class="firebase-warning" id="firebaseWarning"></div>
@@ -109,11 +109,11 @@
         </div>
         <div class="field">
           <label for="locationLat">Latitude</label>
-          <input id="locationLat" inputmode="decimal" name="lat" placeholder="39.6240" required type="number" min="-90" max="90" step="any"/>
+          <input id="locationLat" inputmode="decimal" name="lat" placeholder="39.74248" required type="number" min="-90" max="90" step="any"/>
         </div>
         <div class="field">
           <label for="locationLng">Longitude</label>
-          <input id="locationLng" inputmode="decimal" name="lng" placeholder="-104.9050" required type="number" min="-180" max="180" step="any"/>
+          <input id="locationLng" inputmode="decimal" name="lng" placeholder="-104.99567" required type="number" min="-180" max="180" step="any"/>
         </div>
         <div class="field full coordinate-tools">
           <button class="btn light" id="useMapCenter" type="button">Use Current Map Center Coordinates</button>
@@ -126,7 +126,8 @@
         <div class="field full">
           <label for="planningArea">Planning area</label>
           <select id="planningArea" name="planningArea">
-            <option value="dtc-45">Within the DTC 45-minute planning area</option>
+            <option value="ccc-45">Colorado Convention Center — estimated 45-minute area</option>
+            <option value="dtc-45">Legacy DTC area — review against the new center</option>
             <option value="other">Other / outside the current 45-minute area</option>
           </select>
         </div>
@@ -142,6 +143,6 @@
 </div>
 
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
-<script src="app.js?v=traffic-20261023-48" type="module"></script>
+<script src="app.js?v=bus-center-20261023-53" type="module"></script>
 </body>
 </html>
