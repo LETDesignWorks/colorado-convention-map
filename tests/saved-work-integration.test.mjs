@@ -149,11 +149,11 @@ test('return section has a current-work list and a collapsed load-only backup se
   assert.match(read('territories/saved-work-ui.js'), /mapCard\.after\(pair\)/);
 });
 test('save controls call complete-work saves and modified modules bypass old caches', () => {
-  assert.match(main, /els\.savePlanButton\.addEventListener\('click', \(\) => savePlan\(\{ saveYourWork: true \}\)\)/);
+  assert.match(main, /savePlanButton[\s\S]*saveNamedWork/);
   assert.match(read('territories/hall-address-sets.js'), /saveYourWork: true/);
   const bootstrap = read('territories/bootstrap.js');
-  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-39`));
-  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-39`));
+  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-40`));
+  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-40`));
 });
 
 

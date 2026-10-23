@@ -1,4 +1,4 @@
-import { latestWork, workTime } from './saved-work-model.js?v=territories-20261022-39';
+import { latestWork, workTime } from './saved-work-model.js?v=territories-20261022-40';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const el = id => document.getElementById(id);
 let api, busy = false, lastList = '';
@@ -29,7 +29,7 @@ function renderSavedWork() {
   }
   const html = plans.length ? [...groups.values()].map(group => `<article class="saved-work-location"><h3>${esc(group[0].hallName || 'Meeting location')}</h3>${group.map(plan => {
     const stamp = workTime(plan);
-    return `<div class="saved-work-plan"><div><strong>${esc(plan.congregation)}</strong><small>${Number(plan.houseCount || 0).toLocaleString()} addresses • ${Number(plan.territoryCount || 0).toLocaleString()} territories${plan.avoidHouseCount ? ` • ${Number(plan.avoidHouseCount).toLocaleString()} avoid` : ''}</small><small>${stamp ? esc(new Date(stamp).toLocaleString()) : 'Saved time unavailable'}</small></div><button type="button" class="btn outline" data-work-load="${esc(plan.id)}">Load saved work</button></div>`;
+    return `<div class="saved-work-plan"><div><strong>${esc(plan.planName || plan.congregation)}</strong><small>${esc(plan.congregation)}</small><small>${Number(plan.houseCount || 0).toLocaleString()} addresses • ${Number(plan.territoryCount || 0).toLocaleString()} territories${plan.avoidHouseCount ? ` • ${Number(plan.avoidHouseCount).toLocaleString()} avoid` : ''}</small><small>${stamp ? esc(new Date(stamp).toLocaleString()) : 'Saved time unavailable'}</small></div><button type="button" class="btn outline" data-work-load="${esc(plan.id)}">Load saved work</button></div>`;
   }).join('')}</article>`).join('') : '<div class="empty">No main saved work yet. Your earlier plans are safe in Backup below. Load the plan you want to continue, then choose SAVE YOUR WORK.</div>';
   if (html === lastList) return;
   lastList = html; target.innerHTML = html;

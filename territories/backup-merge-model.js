@@ -195,8 +195,8 @@ export function groupTerritoriesByName(groups, records, hallId, overrides = new 
   const preferences = new Map();
   for (const record of records.values()) {
     if (record.deletedAt || record.recordType !== 'territory-name-choice' || text(record.hallId) !== text(hallId)) continue;
-    const key = record.normalizedName;
-    if (!preferences.has(key) || savedTime(record) >= savedTime(preferences.get(key))) preferences.set(key, record);
+    const key = record.normalizedName, old = preferences.get(key);
+    if (!old || savedTime(record) > savedTime(old) || (savedTime(record) === savedTime(old) && text(record.id).localeCompare(text(old.id)) > 0)) preferences.set(key, record);
   }
   const buckets = new Map();
   for (const group of groups) {
@@ -205,16 +205,36 @@ export function groupTerritoriesByName(groups, records, hallId, overrides = new 
     buckets.get(key).push(group);
   }
   return [...buckets.entries()].map(([key, options]) => {
-    const sorted = [...options].sort((a, b) => Number(b.versions[0]?.time || 0) - Number(a.versions[0]?.time || 0) || a.key.localeCompare(b.key));
-    const persisted = sorted.find(group => group.key === preferences.get(key)?.territoryKey);
-    const representative = sorted.find(group => group.key === overrides.get(key)) || persisted || sorted[0];
-    return { ...representative, nameBucket: key, alternatives: sorted, nameChoiceSaved: Boolean(persisted && persisted.key === representative.key),
+    const preference = preferences.get(key), hidden = new Set(preference?.hiddenVersionIds || []);
+    const removed = options.flatMap(g => g.versions).filter(v => hidden.has(v.id));
+    const available = options.map(g => ({ ...g, versions: g.versions.filter(v => !hidden.has(v.id)) })).filter(g => g.versions.length);
+    if (!available.length) return null;
+    const sorted = available.sort((a, b) => Number(b.versions[0]?.time || 0) - Number(a.versions[0]?.time || 0) || a.key.localeCompare(b.key));
+    const persisted = sorted.find(g => g.key === preference?.territoryKey);
+    const representative = sorted.find(g => g.key === overrides.get(key)) || persisted || sorted[0];
+    const all = sorted.flatMap(g => g.versions).sort((a, b) => Number(b.time || 0) - Number(a.time || 0) || a.id.localeCompare(b.id));
+    const kept = all.find(v => v.id === preference?.versionId);
+    const temporaryOverride = overrides.has(key) && representative.key !== preference?.territoryKey;
+    const first = !temporaryOverride && kept ? kept : representative.versions[0];
+    return { ...representative, versions: [first, ...all.filter(v => v.id !== first.id)], nameBucket: key, alternatives: sorted,
+      nameChoiceSaved: Boolean(persisted && persisted.key === representative.key && (!preference?.versionId || kept)),
+      keptVersionId: kept?.id || '', hiddenVersionCount: removed.length,
       reviewNeeded: sorted.length > 1 && !persisted };
-  }).sort((a, b) => a.nameBucket.localeCompare(b.nameBucket, undefined, { numeric: true }));
+  }).filter(Boolean).sort((a, b) => a.nameBucket.localeCompare(b.nameBucket, undefined, { numeric: true }));
 }
+
 export function deletionProblem(record, records, currentPlanId, pendingSources = []) {
   if (!record || !['territory-plan', 'territory-pdf', 'territory-boundary'].includes(record.recordType)) return 'This is not a removable backup.';
   if (record.deletedAt) return 'This backup is already in Trash.';
+  const preferences = new Map();
+  for (const choice of records.values()) {
+    if (choice.deletedAt || choice.recordType !== 'territory-name-choice' || String(choice.hallId) !== String(record.hallId)) continue;
+    const old = preferences.get(choice.normalizedName);
+    if (!old || savedTime(choice) > savedTime(old) || (savedTime(choice) === savedTime(old) && String(choice.id).localeCompare(String(old.id)) > 0)) preferences.set(choice.normalizedName, choice);
+  }
+  for (const choice of preferences.values()) {
+    try { if (JSON.parse(choice.versionId || 'null')?.[1] === record.id) return 'This backup holds a kept territory version. Choose a different version before removing it.'; } catch { /* Older choices did not store a version ID. */ }
+  }
   if (text(record.id) === text(currentPlanId)) return 'This backup is currently open. Save an independent merged copy or load another set before removing it.';
   if (pendingSources.includes(record.id)) return 'Save the merged backup successfully before removing a backup used in the unsaved merge.';
   const sameScope = [...records.values()].filter(r => !r.deletedAt && locationKey(r.hallId, r.congregation) === locationKey(record.hallId, record.congregation));

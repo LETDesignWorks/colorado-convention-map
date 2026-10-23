@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import * as turf from '@turf/turf';
-const tick=()=>new Promise(resolve=>setImmediate(resolve));
+const tick=()=>new Promise(resolve=>setTimeout(resolve,35));
 test('selecting meeting places restores saved homes after records arrive, including earlier address sets',async()=>{
  const dom=new JSDOM('<body><div class="field"><select id="hallSelect"></select></div><input id="bulkFocus" type="checkbox" checked><input id="assessorBoundaryPadding" value="0.12"></body>');
  globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.turf=turf;

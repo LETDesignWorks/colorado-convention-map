@@ -1,7 +1,9 @@
-import { workKey } from './saved-work-model.js?v=territories-20261022-39';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-40';
+import { workKey } from './saved-work-model.js?v=territories-20261022-40';
 import { chooseMeetingPlan, latestMeetingBoundary, createMeetingBoundaryFlow,
-  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-39';
+  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-40';
 let api, flow, known = new Set(), lastKey = '', lastGeneration = -1;
+let restoring = false, restoreAttempt = 0;
 let restorePending = true, restoreQueued = false, flushTimer, preview, uiBusy = false;
 const el = id => document.getElementById(id);
 const context = () => ({ hallId: String(api.getSelectedHall()?.id || ''), congregation: api.getSelectedCongregation() || '', generation: api.getWorkspaceGeneration() });
@@ -19,7 +21,6 @@ function showHomes() {
   const focus = el('bulkFocus'); if (focus) focus.checked = false;
   const points = houses().map(home => [Number(home.lat), Number(home.lng)]);
   if (points.length) api.getMap().fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
-  api.render();
 }
 function mountUi() {
   if (el('meetingAddressTools')) return;
@@ -36,14 +37,22 @@ function controls() {
   if (el('reloadMeetingAddresses')) el('reloadMeetingAddresses').disabled = !ready || uiBusy;
   if (el('reviewMeetingBoundary')) el('reviewMeetingBoundary').disabled = !ready || uiBusy;
 }
-function restore(explicit = false) {
+async function restore(explicit = false) {
   restorePending = false;
-  if (!api.isAdmin()) { status('Sign in to load saved addresses.'); return; }
+  if (!api.isAdmin()) { stopLoading('meeting-load'); status('Sign in to load saved addresses.'); return; }
   if (api.getSavedRecordsStatus() !== 'ready') {
-    restorePending = true; status('Waiting for the saved records to finish loading. Your current work is unchanged.'); return;
+    restorePending = api.getSavedRecordsStatus() !== 'error';
+    if (restorePending) startLoading('meeting-load', `Loading saved work for ${api.getSelectedHall()?.name || 'meeting place'}…`);
+    else stopLoading('meeting-load');
+    status(restorePending ? 'Loading saved addresses and territories…' : 'Saved records could not connect. Check your connection and use Load saved addresses to retry.'); return;
   }
-  if (!explicit && (api.getHouses().length || api.getTerritories().length)) return;
-  const scope = context(), records = api.getSavedRecords();
+  if (!explicit && (api.getHouses().length || api.getTerritories().length)) { stopLoading('meeting-load'); return; }
+  const scope = context(), attempt = ++restoreAttempt;
+  restoring = true; startLoading('meeting-load', `Loading ${api.getSelectedHall()?.name || 'meeting place'} — ${scope.congregation}…`);
+  await paintBeforeWork();
+  if (!isCurrent(scope)) { restoring = false; stopLoading('meeting-load'); observe(); return; }
+  const records = api.getSavedRecords();
+  const focus = el('bulkFocus'); if (focus) focus.checked = false;
   try {
     const selection = chooseMeetingPlan(records, scope.hallId, scope.congregation);
     const accepted = latestMeetingBoundary(records, scope.hallId, scope.congregation);
@@ -61,6 +70,7 @@ function restore(explicit = false) {
         : 'No complete saved address set was found for this congregation. Upload addresses or choose Review boundary & fill to start an assessor/GIS search around the meeting place. Existing PDF copies remain in the saved-territory library.');
     }
   } catch (error) { status(`Saved addresses could not be restored: ${error.message}. Your current work is kept.`); }
+  finally { restoring = false; if (attempt === restoreAttempt) stopLoading('meeting-load'); if (restorePending) observe(); }
 }
 async function runFill(automatic) {
   if (uiBusy) return;
@@ -84,12 +94,12 @@ function observe() {
     globalThis.__denverFullBoundaryAssessor?.cancel(); clearPreview();
     reset(); restorePending = Boolean(context().hallId);
   } else if (generation !== lastGeneration) reset();
-  if (!api.isAdmin()) { status('Sign in to load saved meeting-place addresses.'); return; }
-  if (restorePending && !restoreQueued) {
+  if (!api.isAdmin()) { stopLoading('meeting-load'); status('Sign in to load saved meeting-place addresses.'); return; }
+  if (restorePending && !restoreQueued && !restoring) {
     restoreQueued = true;
-    queueMicrotask(() => { restoreQueued = false; if (restorePending) restore(); });
+    setTimeout(() => { restoreQueued = false; if (restorePending && !restoring) void restore(); }, 0);
   }
-  if (uiBusy || restorePending || api.getSavedRecordsStatus() !== 'ready') return;
+  if (uiBusy || restoring || restorePending || api.getSavedRecordsStatus() !== 'ready') return;
   const additions = houses().filter(home => !known.has(homeFingerprint(home)));
   if (!additions.length) return;
   clearTimeout(flushTimer);
