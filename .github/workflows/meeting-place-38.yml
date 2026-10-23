@@ -1,0 +1,33 @@
+name: Verify meeting-place restore and boundary flow
+on:
+  push:
+    branches: [work/meeting-place-boundaries-38]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/meeting-place-boundaries-38
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply scoped source updates
+        run: python .github/scripts/meeting-boundary-38.py
+      - name: Install pinned test-only dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0
+      - name: Syntax and behavior regressions
+        run: |
+          for file in territories/app-main.js territories/meeting-place-model.js territories/meeting-place-ui.js territories/assessor-full-boundary.js territories/assessor-one-click.js territories/address-source-merge.js territories/bulk-addresses.js territories/bootstrap.js; do node --check "$file"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs
+      - name: Commit tested source to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git diff --cached --stat
+          git commit -m 'Restore meeting-place homes and confirm assessor boundary adoption and expansion'
+          git push origin HEAD:refs/heads/work/meeting-place-boundaries-38
+          git rev-parse HEAD

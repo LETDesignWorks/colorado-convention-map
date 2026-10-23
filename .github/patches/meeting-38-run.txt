@@ -1,0 +1,55 @@
+async function runEveryAddressInsideBoundary(options = {}) {
+  if (!options.managed && globalThis.__denverMeetingPlaceFlow) return globalThis.__denverMeetingPlaceFlow.fill();
+  if (fullBoundaryRunning) return { status: 'busy' };
+  const planner = plannerApi();
+  if (!planner?.isAdmin?.()) { planner?.requireAdmin?.(); return { status: 'unauthorized' }; }
+  if (!planner.getSelectedHall?.() || !clean(planner.getSelectedCongregation?.())) {
+    setMessage('Select the meeting place and congregation first.', 'error'); return { status: 'empty' };
+  }
+  const startGeneration = planner.getWorkspaceGeneration?.(), startHall = String(planner.getSelectedHall().id);
+  const startCongregation = planner.getSelectedCongregation();
+  let scope, changedHandler, result = { status: 'failed' };
+  fullBoundaryRunning = true; cancelFullBoundary = false;
+  setMainButton('Preparing Boundary Scan…', true);
+  document.getElementById('directAssessorCancel')?.removeAttribute('hidden');
+  try {
+    removeLegacyControls();
+    const geometry = await ensureBoundary(planner);
+    if (startGeneration !== planner.getWorkspaceGeneration?.() || startHall !== String(planner.getSelectedHall()?.id)
+      || startCongregation !== planner.getSelectedCongregation() || !planner.isAdmin()) return { status: 'stale' };
+    scope = captureScanScope(planner);
+    changedHandler = () => { if (!scanScopeIsCurrent(planner, scope)) cancelActiveRequests(); };
+    window.addEventListener('territory-planner:data', changedHandler);
+    const envelope = geometryBounds(geometry);
+    if (!envelope) throw new Error('The search boundary has invalid coordinates.');
+    const sourceKey = sourceKeyForHall(planner), source = ASSESSOR_SOURCES[sourceKey];
+    if (!source?.endpoint) throw new Error('No official assessor/GIS source is available for this meeting place.');
+    setMessage(`Finding home addresses using ${source.label}. Existing homes and territory groups will stay in place.`, 'working');
+    const idResult = await queryObjectIds(source, envelope);
+    if (cancelFullBoundary || !scanScopeIsCurrent(planner, scope)) return { status: 'cancelled' };
+    const objectIds = [...new Set(idResult.objectIds.map(String))];
+    if (!objectIds.length) throw new Error(`${source.label} returned no address IDs. Check the boundary or select another official source.`);
+    if (objectIds.length > MAX_FEATURES) throw new Error(`This area contains ${objectIds.length.toLocaleString()} records, over the ${MAX_FEATURES.toLocaleString()}-record safety limit. Use a smaller boundary.`);
+    setMainButton(`Downloading ${objectIds.length.toLocaleString()} Official Records…`, true);
+    const downloaded = await fetchFeatureChunks(source, objectIds);
+    if (cancelFullBoundary || !scanScopeIsCurrent(planner, scope)) return { status: 'cancelled' };
+    const merged = await mergeFeatures(planner, sourceKey, downloaded.features, scope);
+    if (merged.stale || cancelFullBoundary || !scanScopeIsCurrent(planner, scope)) return { status: 'cancelled' };
+    planner.recalculateTerritoryHouseIds?.(); planner.render?.(); planner.refresh?.();
+    const partial = downloaded.failedBatches > 0;
+    result = { status: partial ? 'partial' : 'complete', ...merged, failedBatches: downloaded.failedBatches };
+    updateProgress(100, partial ? 'Partial results loaded — retry to complete the scan.' : 'Address scan finished.');
+    setMessage(`${source.label}: ${merged.added.toLocaleString()} new homes added; ${merged.duplicates.toLocaleString()} duplicates skipped; ${merged.outside.toLocaleString()} outside the boundary; ${merged.nonResidential.toLocaleString()} nonresidential; ${merged.unusable.toLocaleString()} unusable.${partial ? ` ${downloaded.failedBatches} GIS batches failed. Retry to fill the remaining addresses.` : ''} Select SAVE YOUR WORK to keep the results.`, partial ? 'warning' : 'success');
+    planner.toast?.(`${merged.added.toLocaleString()} assessor/GIS homes added.${partial ? ' Some requests failed; retry to complete.' : ''}`);
+    return result;
+  } catch (error) {
+    result = { status: cancelFullBoundary || error?.name === 'AbortError' ? 'cancelled' : 'failed', error: error?.message || 'Unknown error' };
+    if (!scope || scanScopeIsCurrent(planner, scope)) setMessage(`The address scan ${result.status === 'cancelled' ? 'was cancelled' : `stopped: ${result.error}`}. Existing addresses and territories are kept.`, 'warning');
+    return result;
+  } finally {
+    if (changedHandler) window.removeEventListener('territory-planner:data', changedHandler);
+    fullBoundaryRunning = false; cancelFullBoundary = false; activeControllers.clear();
+    const cancel = document.getElementById('directAssessorCancel'); if (cancel) cancel.hidden = true;
+    setMainButton('Fill Boundary with All Addresses', false); hideProgress(); updateUi();
+  }
+}

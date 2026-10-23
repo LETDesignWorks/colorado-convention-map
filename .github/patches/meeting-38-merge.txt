@@ -1,0 +1,33 @@
+async function mergeFeatures(planner, sourceKey, features, scope) {
+  const houses = planner.getHouses();
+  const addressIndex = buildAddressIndex(houses, true), staged = [];
+  const ids = new Set(houses.map(home => String(home.id)));
+  let duplicates = 0, outside = 0, unusable = 0, nonResidential = 0;
+  for (let index = 0; index < features.length; index++) {
+    if (cancelFullBoundary || !scanScopeIsCurrent(planner, scope)) return { stale: true, added: 0 };
+    const record = parseSourceFeature(sourceKey, features[index]);
+    if (!record || !validCoordinates(record) || !clean(record.address)) { unusable++; continue; }
+    if (document.getElementById('residentialOnly')?.checked !== false && record.residential === false) { nonResidential++; continue; }
+    if (!planner.pointInsideBoundary(record)) { outside++; continue; }
+    const key = addressKey(record, true);
+    if (!key || addressIndex.has(key)) { duplicates++; continue; }
+    let id = String(record.id || planner.uniqueId('assessor'));
+    if (ids.has(id)) id = planner.uniqueId('assessor');
+    ids.add(id); addressIndex.add(key);
+    staged.push({ ...record, id, supplemental: true, avoid: false, included: true, territoryId: null });
+    if (index > 0 && index % 300 === 0) {
+      updateProgress(76 + index / Math.max(1, features.length) * 15, `${index.toLocaleString()} official records checked • ${staged.length.toLocaleString()} new homes ready`);
+      await nextFrame();
+    }
+  }
+  if (cancelFullBoundary || !scanScopeIsCurrent(planner, scope) || houses !== planner.getHouses()) return { stale: true, added: 0 };
+  const currentIndex = buildAddressIndex(houses, true), liveIds = new Set(houses.map(h => String(h.id)));
+  let added = 0;
+  for (const record of staged) {
+    const key = addressKey(record, true);
+    if (currentIndex.has(key)) { duplicates++; continue; }
+    if (liveIds.has(record.id)) record.id = planner.uniqueId('assessor');
+    liveIds.add(record.id); houses.push(record); currentIndex.add(key); added++;
+  }
+  return { added, duplicates, outside, unusable, nonResidential };
+}
