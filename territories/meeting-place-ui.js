@@ -1,7 +1,7 @@
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-40';
-import { workKey } from './saved-work-model.js?v=territories-20261022-40';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-41';
+import { workKey } from './saved-work-model.js?v=territories-20261022-41';
 import { chooseMeetingPlan, latestMeetingBoundary, createMeetingBoundaryFlow,
-  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-40';
+  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-41';
 let api, flow, known = new Set(), lastKey = '', lastGeneration = -1;
 let restoring = false, restoreAttempt = 0;
 let restorePending = true, restoreQueued = false, flushTimer, preview, uiBusy = false;

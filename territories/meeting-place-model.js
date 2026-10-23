@@ -1,4 +1,4 @@
-import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-40';
+import { currentWorkFor, workKey, workTime } from './saved-work-model.js?v=territories-20261022-41';
 const text = value => String(value ?? '').trim();
 const copy = value => JSON.parse(JSON.stringify(value));
 export const geometryValue = value => value?.type === 'Feature' ? value.geometry : value;
@@ -10,6 +10,8 @@ export function mappedHome(home) {
 }
 export function homeFingerprint(home) { return JSON.stringify([String(home.id), Number(home.lat), Number(home.lng)]); }
 export function chooseMeetingPlan(records, hallId, congregation) {
+  const session = currentWorkFor([...records.values()].filter(r => r.recordType === 'territory-plan'), hallId, congregation);
+  if (session?.sessionScope === 'meeting-place') return { plan: session, legacy: false };
   const plans = [...records.values()].filter(record => !record.deletedAt && record.recordType === 'territory-plan'
     && workKey(record.hallId, record.congregation) === workKey(hallId, congregation));
   const current = currentWorkFor(plans, hallId, congregation);
