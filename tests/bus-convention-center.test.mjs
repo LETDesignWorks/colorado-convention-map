@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {DRIVE_TIME_AREA} from '../bus-access/drive-time-area.mjs';
 import {CONVENTION_CENTER, recenterPlanningBoundary} from '../bus-access/planning-center.mjs';
 const read = p => fs.readFileSync(p, 'utf8');
 const data = read('bus-access/data.js');
@@ -35,17 +36,17 @@ test('invalid guide coordinates are refused rather than drawn at the wrong locat
   for(const boundary of [null,[],[[NaN,0],[0,0],[0,1],[NaN,0]]])assert.throws(()=>recenterPlanningBoundary(boundary,DTC),/invalid/);
   assert.throws(()=>recenterPlanningBoundary(oldBoundary,[null,0]),/invalid/);
 });
-test('live map initializes with the new center, star popup and relocated outline',()=>{
+test('live map initializes with the Convention Center, star popup and road-network outline',()=>{
   const events=[], map={setView:(point,zoom)=>{events.push(['view',point,zoom]);return map},fitBounds:(...v)=>events.push(['bounds',...v])};
   const layer={addTo:()=>layer,getBounds:()=> 'new-guide-bounds'};
   const marker={addTo:()=>marker,bindPopup:text=>events.push(['popup',text])};
-  const L={map:()=>map,tileLayer:()=>layer,polygon:(p)=>{events.push(['polygon',p]);return layer;},divIcon:x=>x,marker:(p,o)=>{events.push(['marker',p,o]);return marker;}};
+  const L={map:()=>map,tileLayer:()=>layer,geoJSON:(p)=>{events.push(['geoJSON',p]);return layer;},divIcon:x=>x,marker:(p,o)=>{events.push(['marker',p,o]);return marker;}};
   const boundary=recenterPlanningBoundary(oldBoundary,DTC);
-  const context=vm.createContext({L,window:{L},CONVENTION_CENTER,PLANNING_BOUNDARY:boundary,syncMarkers:()=>events.push(['sync']),map:null,boundaryLayer:null});
+  const context=vm.createContext({L,window:{L},CONVENTION_CENTER,DRIVE_TIME_AREA,syncMarkers:()=>events.push(['sync']),map:null,boundaryLayer:null});
   vm.runInContext(source.slice(source.indexOf('function initMap()'),source.indexOf('function filteredLocations()'))+'\ninitMap();',context);
   assert.deepEqual(events.find(e=>e[0]==='view')[1],CONVENTION_CENTER.point);
   assert.deepEqual(events.find(e=>e[0]==='marker')[1],CONVENTION_CENTER.point);
-  assert.equal(events.find(e=>e[0]==='polygon')[1],boundary);
+  assert.equal(events.find(e=>e[0]==='geoJSON')[1],DRIVE_TIME_AREA);
   assert.match(events.find(e=>e[0]==='popup')[1],/Colorado Convention Center/);
   assert.doesNotMatch(events.find(e=>e[0]==='popup')[1],/DTC|Belleview/);
   assert.equal(events.find(e=>e[0]==='bounds')[1],'new-guide-bounds');
@@ -65,15 +66,15 @@ test('legacy DTC classifications remain available and are not silently renamed',
   assert.match(source,/planningArea:data\.planningArea\|\|'other'/);
   assert.match(html,/<option value="ccc-45">Colorado Convention Center/);
 });
-test('labels explicitly describe an approximate guide and not verified or live travel times',()=>{
+test('labels distinguish a road-network estimate from live traffic or bus verification',()=>{
   assert.match(html,/45-minute planning center: Colorado Convention Center/);
-  assert.match(html,/approximate 45-minute planning guide recentered here/);
-  assert.match(html,/not a verified drive-time or live-traffic boundary/);
+  assert.match(html,/calculated 45-minute driving estimate FROM the Colorado Convention Center/);
+  assert.match(html,/No live traffic, loading time, or bus-clearance verification/);
   assert.doesNotMatch(html,/<title>DTC|<h1>DTC|estimated 45-minute DTC planning boundary/);
 });
 test('entry points fetch the updated map without changing parking-lot modules',()=>{
-  assert.match(html,/app\.js\?v=bus-center-20261023-53/);
-  assert.match(read('bus-access/app.js'),/app-v2\.js\?v=bus-center-20261023-53/);
+  assert.match(html,/app\.js\?v=bus-drive-time-20261023-54/);
+  assert.match(read('bus-access/app.js'),/app-v2\.js\?v=bus-drive-time-20261023-54/);
   assert.match(source,/planning-center\.mjs\?v=bus-center-20261023-53/);
   assert.match(source,/traffic-planner\.mjs\?v=traffic-20261023-48/);
   assert.match(source,/traffic-model\.mjs\?v=traffic-20261023-48/);
