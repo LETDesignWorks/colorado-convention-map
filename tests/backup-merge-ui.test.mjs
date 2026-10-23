@@ -48,7 +48,7 @@ function layerHarness() {
   const context={document:dom.window.document,window:dom.window,URL,console,queueMicrotask,setTimeout,clearTimeout,host,
     paintBeforeWork:()=>Promise.resolve(), groupTerritoriesByName:model.groupTerritoriesByName,createSavedLayerLoader:()=>({cancel(){},load:async()=>({groups,issues:[],planCount:2,pdfCount:0})}),savedGeometry:v=>v.territory.geometry};
   const code=read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories');
-  vm.runInNewContext(code+'\nmountSavedTerritories(host);',context);
+  vm.runInNewContext(read('territories/saved-pdf-view.js').replace(/^export /gm,'')+'\n'+code+'\nmountSavedTerritories(host);',context);
   return{dom,calls,records,get layer(){return savedLayer;}};
 }
 test('same-name saved territories show once, with both alternatives available to review',async()=>{

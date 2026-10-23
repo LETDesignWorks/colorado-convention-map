@@ -1,3 +1,4 @@
+import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from '../territories/pdf-boundary-scope.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -86,13 +87,13 @@ test('both production PDF entry paths invoke the shared guard',()=>{
  const source=fs.readFileSync(new URL('../territories/territory-flex-grouping-pdf.js',import.meta.url),'utf8');assert.match(source,/const reviewed = preparePdfAddressSnapshot\(sourceSnapshot\)/);assert.match(source,/const snapshot = reviewed.snapshot/);
  const main=fs.readFileSync(new URL('../territories/app-main.js',import.meta.url),'utf8');const fn=main.slice(main.indexOf('async function libraryVersionPdf('),main.indexOf('\nlet hallSelectionSequence'));
  assert.match(fn,/buildReviewedVersionPdf/);assert.doesNotMatch(fn,/if \(version.pdfRecord\) return/);
- const layer=fs.readFileSync(new URL('../territories/saved-territories-layer.js',import.meta.url),'utf8');assert.match(layer,/built.regenerated/);
+ const layer=fs.readFileSync(new URL('../territories/saved-territories-layer.js',import.meta.url),'utf8');assert.match(layer,/pdfView.bind/);assert.match(fs.readFileSync(new URL('../territories/saved-pdf-view.js',import.meta.url),'utf8'),/REVIEW COPY ready/);
 });
 test('full PDF renderer receives unique rows for both maps and the address list',async()=>{
  const source=fs.readFileSync(new URL('../territories/territory-flex-grouping-pdf.js',import.meta.url),'utf8');
  const a=source.indexOf('export async function buildTerritoryPdf('),b=source.indexOf('\nasync function generateTerritoryPdf(',a);const code=source.slice(a,b).replace('export async function','async function');
  const rows=[],mapRows=[],s=snapshot(alias());
- const context={preparePdfAddressSnapshot,JSON,sortedByAddress:h=>h,validCoordinates:()=>true,pdfHouseNumber:h=>h.address.split(' ')[0],territoryGeometry:()=>({type:'Polygon',coordinates:[]}),pointInsideGeometry:()=>true,relevantAvoids:h=>h,
+ const context={scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview, geometryRings:()=>[[]], preparePdfAddressSnapshot,JSON,sortedByAddress:h=>h,validCoordinates:()=>true,pdfHouseNumber:h=>h.address.split(' ')[0],territoryGeometry:()=>({type:'Polygon',coordinates:[]}),pointInsideGeometry:()=>true,relevantAvoids:h=>h,
   globalThis:{jspdf:{jsPDF:class{addPage(){}getNumberOfPages(){return 3;}setPage(){}output(){return'pdf-bytes';}}}},LOGO_URL:'logo',imageCanvasData:async()=>'',
   buildStreetMapImage:async(t,h)=>{mapRows.push(h.map(v=>v.id));return{dataUrl:'tile'};},loadNearbyCoffee:async()=>({shops:[]}),sleepFrame:async()=>{},
   drawTerritoryMapPage:(doc,logo,t,h)=>rows.push(['map',h.map(v=>v.id)]),addAddressListPages:(doc,logo,t,h)=>rows.push(['list',h.map(v=>v.id)]),addAvoidPages(){},pdfHeader(){},drawNearbyCoffeePage(){},pdfFooter(){},clean:v=>String(v||'').trim(),PDF_LAYOUT_VERSION:33};

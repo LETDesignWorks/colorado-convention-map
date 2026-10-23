@@ -68,7 +68,7 @@ function layerHarness() {
    libraryManager:{keep:async()=>{throw Error('Storage unavailable');}},versionPdf:async version=>{calls.push(version.id);return{blob:new Blob(['mock']),filename:'test.pdf'};}};
  const ctx={document:dom.window.document,window:dom.window,URL,console,queueMicrotask,setTimeout,clearTimeout,confirm:()=>true,prompt:()=>null,host,datedWorkName,
    paintBeforeWork:()=>Promise.resolve(),groupTerritoriesByName,createSavedLayerLoader:()=>({cancel(){},load:async()=>({groups,issues:[],planCount:1,pdfCount:0})}),savedGeometry:()=>({type:'Polygon'})};
- vm.runInNewContext(read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories')+'\nmountSavedTerritories(host);',ctx);
+ vm.runInNewContext(read('territories/saved-pdf-view.js').replace(/^export /gm,'')+'\n'+read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories')+'\nmountSavedTerritories(host);',ctx);
  return{dom,calls};
 }
 test('a plan-only saved version has a functioning PDF action for the exact selection',async()=>{

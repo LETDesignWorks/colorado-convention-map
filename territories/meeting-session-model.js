@@ -1,4 +1,4 @@
-import { previewBackupMerge, nameKey, clone, stable } from './backup-merge-model.js?v=territories-20261022-44';
+import { previewBackupMerge, nameKey, clone, stable } from './backup-merge-model.js?v=territories-20261022-45';
 
 const id = value => String(value ?? '');
 const named = territory => nameKey(territory.name) || `ID:${id(territory.id)}`;
