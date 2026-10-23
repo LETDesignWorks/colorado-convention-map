@@ -4,13 +4,15 @@ import {
   signOut, onAuthStateChanged, sendPasswordResetEmail
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import {
-  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc
+  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc, getDocFromServer, getDocsFromServer, runTransaction
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261020-36';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-39';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-37';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-39';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-39';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem } from './backup-merge-model.js?v=territories-20261022-39';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -2623,11 +2625,12 @@ async function persistPlan(options = {}) {
   if (!requireAdmin()) return unavailable('Sign in to save your work.');
   if (!selectedHall || !selectedCongregation) return unavailable('Select the meeting location and congregation before saving your work.');
   if (!houses.length) return unavailable('Load or add addresses before saving your work.');
+  if (options.expectedMergeFingerprint && options.expectedMergeFingerprint !== mergeWorkspaceStamp(backupWorkspaceSnapshot())) return unavailable('The workspace changed before the merged save began. Review it and save again.');
   if (savedRecordsStatus === 'loading' || savedRecordsStatus === 'error') return unavailable('Saved records are not ready. Reconnect or refresh saved records, then save. Your current work has been kept.');
   const key = workKey(selectedHall.id, selectedCongregation);
   const latest = currentWorkFor(savedPlans(), selectedHall.id, selectedCongregation);
   const partialEdit = Boolean(savedTerritoryEditId);
-  const saveAsWork = Boolean(options.saveYourWork || activeSavedWorkKey === key || (partialEdit && latest));
+  const saveAsWork = !options.forceBackup && Boolean(options.saveYourWork || activeSavedWorkKey === key || (partialEdit && latest));
   if (saveAsWork && !partialEdit && latest && latest.id !== currentPlanId &&
     !confirm('Use this entire workspace as the current saved work for this meeting location and congregation? The previous saved work will remain in Backup with its own addresses and territories. Choose Cancel to load the current saved work first.')) return null;
 
@@ -2650,7 +2653,7 @@ async function persistPlan(options = {}) {
   const preserves = base ? Boolean(base.boundaryPreservesAddresses || base.addressSetMode || base.addressOnlyMode) : Boolean(boundaryPreservesAddresses);
   const addressSetMode = Boolean(options.addressSetMode || addressOnlyMode || preserves);
   const defaultName = `${hall.name || markerLabel(hall)} — ${congregation}`;
-  const planName = base?.planName || clean(els.planName.value) || defaultName;
+  const planName = clean(options.backupName) || base?.planName || clean(els.planName.value) || defaultName;
   const button = els.savePlanButton;
   button.disabled = true; button.textContent = 'Saving your work…';
   setPlanSaveMessage('Saving all addresses, avoid information, boundaries, and territories. Keep this page open until saving is confirmed.', 'working');
@@ -2667,6 +2670,7 @@ async function persistPlan(options = {}) {
       savedWorkKey: key, savedWorkSchemaVersion: 1,
       previousWorkId: saveAsWork ? latest?.id || null : null,
       sourcePlanId: currentPlanId || null,
+      mergedFromRecordIds: [...new Set([...(reviewRecords.get(currentPlanId)?.mergedFromRecordIds || []), ...(Array.isArray(options.mergeSourceIds) ? options.mergeSourceIds.map(String) : [])])],
       planName, hallId: hall.id, hallLabel: markerLabel(hall), hallName: hall.name, hallAddress: hall.address || '',
       congregation, territoryPrefix: base?.territoryPrefix ?? clean(els.territoryPrefix.value).toUpperCase(),
       addressOnlyMode, addressSetMode, boundaryPreservesAddresses: preserves,
@@ -2719,7 +2723,7 @@ function subscribeReviews() {
   if (!db || !isAdmin()) return;
   if (reviewsUnsubscribe) reviewsUnsubscribe();
   savedRecordsStatus = 'loading';
-  const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf']));
+  const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf', 'territory-name-choice']));
   reviewsUnsubscribe = onSnapshot(records, { includeMetadataChanges: true }, snapshot => {
     // Firestore emits local writes before the server accepts them. The saved
     // list must not claim an unacknowledged plan can be reopened later.
@@ -2738,8 +2742,8 @@ function subscribeReviews() {
     if (pdfs) pdfs.innerHTML = '<div class="empty">Saved PDFs could not be loaded. Check your connection and administrator sign-in, then refresh.</div>';
   });
 }
-function savedBoundaries() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-boundary').sort((a, b) => clean(a.congregation).localeCompare(clean(b.congregation))); }
-function savedPlans() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan').sort((a, b) => clean(a.planName).localeCompare(clean(b.planName))); }
+function savedBoundaries() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-boundary' && !item.deletedAt).sort((a, b) => clean(a.congregation).localeCompare(clean(b.congregation))); }
+function savedPlans() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan' && !item.deletedAt).sort((a, b) => clean(a.planName).localeCompare(clean(b.planName))); }
 function renderSavedRecords() {
   renderSavedPdfs();
   if (!isAdmin()) {
@@ -2765,6 +2769,7 @@ function restoreHallAndCongregation(hallId, congregation) {
 }
 function loadBoundaryRecord(id) {
   const item = reviewRecords.get(id);
+  if (!item || item.deletedAt) return;
   const savedBoundary = decodeGeometry(item?.boundaryJson, item?.boundary);
   if (!savedBoundary) return;
   if ((houses.length || boundaryGeometry) && !confirm('Replace the current unsaved workspace with this saved boundary?')) return;
@@ -2778,7 +2783,7 @@ function loadBoundaryRecord(id) {
 }
 function loadPlanRecord(id) {
   const plan = reviewRecords.get(id);
-  if (!plan) return false;
+  if (!plan || plan.deletedAt) return false;
   const chunkIds = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === id).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex)).map(item => item.id);
   if (chunkIds.some(chunkId => !decodeHouseChunk(reviewRecords.get(chunkId)))) {
     toast('This saved plan has missing address data. Your current work has been kept. Wait for saved records to finish loading and try again.', true);
@@ -3028,7 +3033,7 @@ function refreshSavedPdfRecord(id, progress = () => {}) {
 }
 async function updateSavedPdfs() {
   if (!requireAdmin() || savedPdfUpdateBusy) return;
-  const records = [...reviewRecords.values()].filter(record => record.recordType === 'territory-pdf' && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION);
+  const records = [...reviewRecords.values()].filter(record => !record.deletedAt && record.recordType === 'territory-pdf' && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION);
   if (!records.length) { savedPdfStatus('All saved PDFs already have street-grouped addresses and the coffee-shop page.', 'success'); return; }
   savedPdfUpdateBusy = true; renderSavedPdfs();
   const failures = []; let updated = 0;
@@ -3099,7 +3104,7 @@ function renderSavedPdfs() {
   if (updateButton) { updateButton.disabled = !isAdmin() || savedPdfUpdateBusy; updateButton.onclick = updateSavedPdfs; }
   if (!isAdmin()) { element.innerHTML = '<div class="empty">Sign in to see saved territory PDFs.</div>'; return; }
   const dateValue = value => value?.toDate ? value.toDate().getTime() : new Date(value || 0).getTime();
-  const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf')
+  const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf' && !item.deletedAt)
     .sort((a, b) => dateValue(b.updatedAt) - dateValue(a.updatedAt));
   element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Edit territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
     : '<div class="empty">New PDF exports will appear here automatically, with a copy of the territory as it was printed.</div>';
@@ -3110,7 +3115,7 @@ function renderSavedPdfs() {
 async function openSavedPdf(id, button, restore, originalCopy = false) {
   if (!requireAdmin()) return;
   let record = reviewRecords.get(id);
-  if (!record) return;
+  if (!record || record.deletedAt) return;
   const generation = workspaceGeneration;
   const original = button.textContent;
   button.disabled = true; button.textContent = 'Loading…';
@@ -3643,6 +3648,7 @@ async function initialize() {
   mountSavedTerritories({
     map, L, turf, isAdmin, getHall: () => selectedHall,
     editTerritory: editSavedTerritory,
+    saveNameChoice: (name, key) => backupTools.saveNameChoice(name, key),
     getRecords: () => new Map(reviewRecords), getStatus: () => savedRecordsStatus,
     readSnapshot: async record => {
       if (!isAdmin()) throw new Error('Sign in to view saved territories.');
@@ -3680,7 +3686,117 @@ async function initialize() {
 }
 
 
+function backupWorkspaceSnapshot() {
+  return { hallId: selectedHall?.id || '', hallName: selectedHall?.name || '', congregation: selectedCongregation,
+    currentPlanId, generation: workspaceGeneration, editId: savedTerritoryEditId,
+    editing: Boolean(activeTerritoryEditId || drawMode || manualHouseMode),
+    houses: JSON.parse(JSON.stringify(houses)), territories: JSON.parse(JSON.stringify(territories)),
+    boundary: boundaryGeometry ? JSON.parse(JSON.stringify(boundaryGeometry)) : null };
+}
+async function readBackupMergeSource(id) {
+  if (!isAdmin() || savedRecordsStatus !== 'ready') throw new Error('Sign in and wait for saved records to connect.');
+  const record = reviewRecords.get(id);
+  if (!record || record.deletedAt) throw new Error('This backup is not available.');
+  if (record.recordType === 'territory-plan') return { id, label: record.planName || 'Saved plan', hallId: record.hallId,
+    congregation: record.congregation, houses: readPlanAddresses(record, reviewRecords), territories: readPlanTerritories(record),
+    boundary: decodeGeometry(record.boundaryJson, record.boundary) };
+  if (record.recordType === 'territory-pdf') {
+    const snapshot = readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
+    if (String(snapshot.hall?.id) !== String(record.hallId) || String(snapshot.territory?.id) !== String(record.territoryId))
+      throw new Error('This PDF snapshot does not match its saved meeting location or territory.');
+    return { id, label: record.territoryName || 'Saved PDF territory', hallId: snapshot.hall.id, congregation: snapshot.congregation,
+      houses: snapshot.houses, territories: [snapshot.territory], boundary: snapshot.territory.geometry || null };
+  }
+  throw new Error('Choose a saved plan or saved territory PDF to merge.');
+}
+function applyBackupMergeDraft(draft, expectedStamp) {
+  if (!isAdmin() || expectedStamp !== mergeWorkspaceStamp(backupWorkspaceSnapshot())) throw new Error('The workspace changed. Preview the backup again.');
+  if (activeTerritoryEditId || drawMode || manualHouseMode) throw new Error('Finish the current drawing or boundary edit before merging.');
+  houses = JSON.parse(JSON.stringify(draft.houses)); territories = JSON.parse(JSON.stringify(draft.territories));
+  selectedHouseIds.clear(); focusedTerritoryId = null; savedTerritoryEditId = null;
+  workspaceGeneration += 1;
+  // The location, current outer boundary and all original saved records stay intact.
+  boundaryPreservesAddresses = true;
+  renderAllPlanningData(); updateBoundaryUi();
+  const points = houses.filter(validMapCoordinates).map(h => [Number(h.lat), Number(h.lng)]);
+  if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 16 });
+  setPlanSaveMessage('Backup added to this location in the editable workspace. Save merged backup to retain this combined set. Original backups are unchanged.', 'waiting');
+}
+function backupComparableTerritory(item) {
+  return { id: String(item.id), name: item.name, colorIndex: item.colorIndex || 0,
+    houseIds: [...(item.houseIds || [])].map(String).sort(),
+    geometry: decodeGeometry(item.geometryJson, item.geometry),
+    bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' };
+}
+async function verifyMergedBackup(id, expected) {
+  const response = await getDocFromServer(doc(db, 'reviews', id));
+  if (!response.exists()) throw new Error('The merged backup could not be verified on the server. Keep the old backups.');
+  const record = { ...response.data(), id: response.id }, parts = new Map();
+  if (record.saveKind !== 'backup' || workKey(record.hallId, record.congregation) !== workKey(expected.hallId, expected.congregation))
+    throw new Error('The backup destination could not be verified. Keep the old backups.');
+  for (const partId of record.chunkIds || []) {
+    const part = await getDocFromServer(doc(db, 'reviews', partId));
+    if (!part.exists() || part.data().planId !== id) throw new Error('A merged backup address part is incomplete or shared. Keep all original backups.');
+    parts.set(part.id, { ...part.data(), id: part.id });
+  }
+  const actualHouses = readPlanAddresses(record, parts).map(serializeHouse);
+  const actualTerritories = readPlanTerritories(record).map(backupComparableTerritory);
+  if (mergeStable(actualHouses) !== mergeStable(expected.houses.map(serializeHouse)) ||
+    mergeStable(actualTerritories) !== mergeStable(expected.territories.map(backupComparableTerritory)) ||
+    mergeStable(decodeGeometry(record.boundaryJson, record.boundary)) !== mergeStable(expected.boundary))
+    throw new Error('The saved copy did not match the complete merged workspace. Keep the originals and check the saved copy before cleanup.');
+  return true;
+}
+async function trashBackupRecord(id, restore, pendingSources) {
+  if (!isAdmin() || savedRecordsStatus !== 'ready') throw new Error('Sign in and reconnect before changing backups.');
+  const before = reviewRecords.get(id);
+  if (!before) throw new Error('This backup is no longer available.');
+  const metadata = await getDocsFromServer(query(collection(db, 'reviews'), where('recordType', 'in', ['territory-plan', 'territory-boundary'])));
+  const scopeRecords = new Map();
+  metadata.forEach(item => {
+    const record = { ...item.data(), id: item.id };
+    if (workKey(record.hallId, record.congregation) === workKey(before.hallId, before.congregation)) scopeRecords.set(item.id, record);
+  });
+  scopeRecords.set(id, before);
+  const userEmail = currentUser?.email;
+  const confirmed = await runTransaction(db, async transaction => {
+    const fresh = new Map();
+    for (const key of scopeRecords.keys()) {
+      const response = await transaction.get(doc(db, 'reviews', key));
+      if (response.exists()) fresh.set(key, { ...response.data(), id: response.id });
+    }
+    const record = fresh.get(id);
+    if (!isAdmin() || currentUser.email !== userEmail || !record) throw new Error('The account or saved backup changed. Try again.');
+    if (mergeStable(record) !== mergeStable(before)) throw new Error('This backup changed after it was shown. Refresh and review it again.');
+    if (!restore) {
+      const problem = backupDeletionProblem(record, fresh, currentPlanId, pendingSources);
+      if (problem) throw new Error(problem);
+    } else if (!record.deletedAt) throw new Error('This backup has already been restored.');
+    transaction.set(doc(db, 'reviews', id), { deletedAt: restore ? null : serverTimestamp(), deletedByEmail: restore ? null : userEmail }, { merge: true });
+    return record;
+  });
+  // Removal is reversible. Never delete shared chunks, original PDF payloads, or current work.
+  reviewRecords.set(id, { ...confirmed, deletedAt: restore ? null : new Date(), deletedByEmail: restore ? null : userEmail });
+  renderSavedRecords(); emitPlannerDataChange();
+}
+async function saveTerritoryNameChoice(hallId, normalizedName, territoryKey) {
+  if (!isAdmin() || String(selectedHall?.id) !== String(hallId)) throw new Error('The selected meeting place changed. Review the territory again.');
+  const ref = doc(collection(db, 'reviews'));
+  const record = { recordType: 'territory-name-choice', hallId, normalizedName, territoryKey, updatedAt: serverTimestamp(), updatedByEmail: currentUser.email };
+  await setDoc(ref, record);
+  reviewRecords.set(ref.id, { ...record, id: ref.id, updatedAt: new Date() });
+  renderSavedRecords(); emitPlannerDataChange();
+  return ref.id;
+}
+const backupTools = createBackupTools({
+  isAdmin, status: () => savedRecordsStatus, capture: backupWorkspaceSnapshot, records: () => new Map(reviewRecords),
+  readSource: readBackupMergeSource, applyDraft: applyBackupMergeDraft, savePlan,
+  verifySaved: verifyMergedBackup, trashRecord: trashBackupRecord, saveNameChoice: saveTerritoryNameChoice
+});
+
+
 globalThis.__denverTerritoryPlannerAPI = Object.freeze({
+  backupTools,
   getMap: () => map,
   getDb: () => db,
   getCurrentUser: () => currentUser,

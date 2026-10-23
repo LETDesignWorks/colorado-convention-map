@@ -1,6 +1,6 @@
-import { workKey } from './saved-work-model.js?v=territories-20261022-37';
+import { workKey } from './saved-work-model.js?v=territories-20261022-39';
 import { chooseMeetingPlan, latestMeetingBoundary, createMeetingBoundaryFlow,
-  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-38';
+  homeFingerprint, mappedHome, outsideHomes } from './meeting-place-model.js?v=territories-20261022-39';
 let api, flow, known = new Set(), lastKey = '', lastGeneration = -1;
 let restorePending = true, restoreQueued = false, flushTimer, preview, uiBusy = false;
 const el = id => document.getElementById(id);
