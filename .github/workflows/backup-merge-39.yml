@@ -1,0 +1,35 @@
+name: Verify backup merging and duplicate-name review
+on:
+  push:
+    branches: [work/backup-merge-and-name-review-39]
+    paths: ['.github/patches/backup-39-*', '.github/scripts/apply-backup-39.py', '.github/workflows/backup-merge-39.yml']
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/backup-merge-and-name-review-39
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply scoped source changes
+        run: python .github/scripts/apply-backup-39.py
+      - name: Install pinned test-only dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0
+      - name: Syntax and behavior tests
+        run: |
+          for file in territories/app-main.js territories/backup-merge-model.js territories/backup-merge-service.js territories/backup-merge-ui.js territories/saved-territories-layer.js territories/saved-territories-model.js territories/saved-work-model.js territories/meeting-place-model.js territories/meeting-place-ui.js territories/bootstrap.js; do node --check "$file"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs
+      - name: Commit tested source to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git diff --cached --stat
+          git commit -m 'Add additive backup merging, independent saved copies, recoverable cleanup and same-name territory choices'
+          git push origin HEAD:refs/heads/work/backup-merge-and-name-review-39
+          git rev-parse HEAD
