@@ -25,12 +25,13 @@ jobs:
               p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
           PY
           python .github/updates45/patch45.py
+          python .github/updates45/followup.py
       - name: Install pinned test dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
       - name: Syntax and PDF access regression tests
         run: |
           for f in territories/*.js; do node --check "$f"; done
-          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs tests/meeting-session.test.mjs tests/address-duplicates.test.mjs tests/address-duplicates-flow.test.mjs tests/directional-duplicates.test.mjs tests/territory-tail-trim.test.mjs tests/territory-pdf-access.test.mjs > /tmp/results.log 2>&1 || { cat /tmp/results.log; exit 1; }
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs tests/meeting-session.test.mjs tests/address-duplicates.test.mjs tests/address-duplicates-flow.test.mjs tests/directional-duplicates.test.mjs tests/territory-tail-trim.test.mjs tests/territory-pdf-access.test.mjs > /tmp/results.log 2>&1 || { grep -A 25 '^not ok' /tmp/results.log; tail -12 /tmp/results.log; exit 1; }
           tail -12 /tmp/results.log
       - name: Commit tested source to review branch only
         run: |
