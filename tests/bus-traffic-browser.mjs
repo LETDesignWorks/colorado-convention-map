@@ -18,7 +18,8 @@ for(const viewport of [{width:1440,height:960},{width:390,height:844}]){
  const page=await browser.newPage({viewport});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>dialog.accept());
  await page.route('https://**/*',route=>route.fulfill({status:200,contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#7e8981"/><path d="M0 64H256M0 192H256M64 0V256M192 0V256" stroke="#b0b9ac" stroke-width="20"/><path d="M70 70h110v110H70Z" fill="#667068" stroke="#dce3c9"/><text x="84" y="128" fill="white" font-size="12">TEST TILE</text></svg>'}));
  await page.goto('http://127.0.0.1:8765/fixture');await page.locator('[data-open]').click();
- await page.waitForSelector('dialog[open] .leaflet-pane');
+ await page.waitForSelector('dialog[open] [data-map]');
+ await page.screenshot({path:`test-results/traffic/${viewport.width}-initial.png`});
  await page.locator('[data-name]').fill('Sample arrival layout');
  await page.locator('[data-tool="route"]').click();
  const map=page.locator('[data-map]');
