@@ -1,9 +1,9 @@
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-43';
-import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-43';
-import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-43';
-import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-43';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261022-44';
+import { datedWorkName, libraryChoice } from './library-management-model.js?v=territories-20261022-44';
+import { paintBeforeWork } from './planner-loading.js?v=territories-20261022-44';
+import { createSavedLayerLoader, savedGeometry } from './saved-territories-model.js?v=territories-20261022-44';
 
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-43';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261022-44';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const date = value => value ? new Date(value).toLocaleString() : 'Date unavailable';
@@ -320,6 +320,19 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
   latest.addEventListener('click', () => { epoch++; selectedVersions.clear(); renderMap(); renderList(); renderDetail(); summary(); });
   window.addEventListener('territory-planner:data', contextChanged);
   window.addEventListener('territory-planner:saved-records', savedRecordsChanged);
+  window.addEventListener('territory-planner:boundary-updated', event => {
+    if (String(event.detail?.hallId) !== String(hallId)) return;
+    const id = String(event.detail.territoryId);
+    const affected = groups.filter(g => g.versions.some(v => String(v.territory.id) === id));
+    const wasSelected = affected.some(g => g.key === selectedKey);
+    for (const group of affected) { selectedVersions.delete(group.key); nameOverrides.delete(group.nameBucket); }
+    epoch++; // Never expose a PDF from a stale boundary preview after an edit.
+    if (active() && !libraryBusy) {
+      regroupNames();
+      if (wasSelected) selectedKey = groups.find(g => g.versions.some(v => v.source === 'session' && String(v.territory.id) === id))?.key || selectedKey;
+      renderMap(); renderList(); renderDetail(); summary();
+    }
+  });
   window.addEventListener('territory-planner:duplicates-cleaned', () => {
     selectedVersions.clear(); nameOverrides.clear();
     if (active() && !libraryBusy) { regroupNames(); renderMap(); renderList(); renderDetail(); summary(); }
