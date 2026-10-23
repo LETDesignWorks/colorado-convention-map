@@ -10,7 +10,7 @@ import {CONVENTION_CENTER, recenterPlanningBoundary} from '../bus-access/plannin
 const read=p=>fs.readFileSync(p,'utf8');
 const audit=JSON.parse(read('bus-access/drive-time/audit.json'));
 test('snapshot is the returned road contour, not a translated radius',()=>{
- const raw=JSON.parse(read('drive-time-audit/auto-45.json')).features.find(f=>f.geometry.type==='Polygon');
+ const raw=JSON.parse(read('tests/fixtures/ccc-drive-time54/auto-45.json')).features.find(f=>f.geometry.type==='Polygon');
  assert.deepEqual(area.geometry,raw.geometry);
  assert.deepEqual(JSON.parse(read('bus-access/drive-time/convention-center-45.geojson')),area);
  assert.equal(area.properties.minutes,45); assert.equal(area.properties.costing,'auto');
@@ -20,7 +20,7 @@ test('snapshot is the returned road contour, not a translated radius',()=>{
  assert.ok(turf.booleanPointInPolygon(turf.point([...CONVENTION_CENTER.point].reverse()),area));
 });
 test('every displayed hall estimate is tied to returned route time and exact public coordinate',()=>{
- const src=JSON.parse(read('drive-time-audit/sites.json')),out=JSON.parse(read('drive-time-audit/auto-outbound.json')).sources_to_targets[0],back=JSON.parse(read('drive-time-audit/auto-inbound.json')).sources_to_targets;
+ const src=JSON.parse(read('tests/fixtures/ccc-drive-time54/sites.json')),out=JSON.parse(read('tests/fixtures/ccc-drive-time54/auto-outbound.json')).sources_to_targets[0],back=JSON.parse(read('tests/fixtures/ccc-drive-time54/auto-inbound.json')).sources_to_targets;
  assert.equal(checks.length,22);
  for(const row of checks){const i=src.findIndex(s=>s.id===row.id);assert.ok(i>=0);assert.equal(row.outboundSeconds,out[i].time);assert.equal(row.returnSeconds,back[i][0].time);assert.equal(row.lat,src[i].lat);assert.equal(row.lng,src[i].lng);assert.ok(turf.booleanPointInPolygon(turf.point([row.lng,row.lat]),area));}
 });
