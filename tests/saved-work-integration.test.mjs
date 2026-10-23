@@ -152,8 +152,8 @@ test('save controls call complete-work saves and modified modules bypass old cac
   assert.match(main, /savePlanButton[\s\S]*saveNamedWork/);
   assert.match(read('territories/hall-address-sets.js'), /saveYourWork: true/);
   const bootstrap = read('territories/bootstrap.js');
-  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-44`));
-  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-44`));
+  for (const name of ['hall-address-sets', 'territory-workflow-ui', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-45`));
+  for (const name of ['app-main', 'address-source-merge', 'bulk-addresses', 'assessor-full-boundary', 'assessor-one-click', 'meeting-place-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-45`));
 });
 
 

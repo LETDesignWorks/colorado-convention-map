@@ -81,7 +81,7 @@ test('snapshot read failures are retryable rather than cached as successful data
 });
 test('PDF button exists for plan-only versions and snapshot generation never loads the editable map',()=>{
  const s=fs.readFileSync('territories/saved-territories-layer.js','utf8');
- assert.match(s,/>View PDF<\/button>/);assert.match(s,/versionPdf\(version, message\)/);
+ assert.match(s,/>View PDF<\/button>/);assert.match(s,/versionPdf\(version, progress, options\)/);assert.match(s,/pdfView.bind/);
  const main=fs.readFileSync('territories/app-main.js','utf8');
  const section=main.slice(main.indexOf('async function libraryVersionPdf('),main.indexOf('let hallSelectionSequence'));
  assert.match(section,/buildTerritoryPdf\(snapshot, progress\)/);assert.doesNotMatch(section,/loadPlanRecord\(|savePlan\(/);

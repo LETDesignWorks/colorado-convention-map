@@ -1,5 +1,5 @@
-import { nameKey, savedTime } from './backup-merge-model.js?v=territories-20261022-44';
-import { mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-44';
+import { nameKey, savedTime } from './backup-merge-model.js?v=territories-20261022-45';
+import { mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-45';
 const copy = value => JSON.parse(JSON.stringify(value));
 function versionHomes(version) {
   const seen = new Set(), target = String(version.territory.id);

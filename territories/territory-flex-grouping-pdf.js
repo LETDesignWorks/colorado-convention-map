@@ -1,4 +1,5 @@
-import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-44';
+import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from './pdf-boundary-scope.js?v=territories-20261022-45';
+import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-45';
 import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
@@ -782,22 +783,23 @@ function triggerDownload(blob, filename) {
 // overwrite, or save the user's currently edited plan.
 export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
   const reviewed = preparePdfAddressSnapshot(sourceSnapshot);
-  if (reviewed.unresolved) throw new Error(`${reviewed.unresolved} possible duplicate address group(s) need review before printing. Use Address duplicate check, then SAVE YOUR WORK. No saved addresses or original PDFs were changed.`);
+  if (reviewed.unresolved && !sourceSnapshot.pdfReviewCopy) throw Object.assign(new Error(`${reviewed.unresolved} possible duplicate address group(s) need review before printing. Use Address duplicate check or Create review PDF. No saved data was changed.`), { code: 'PDF_REVIEW_REQUIRED' });
   const snapshot = reviewed.snapshot;
   const { territory, hall, congregation } = snapshot;
   if (!territory?.id || !hall?.id || !congregation || !Array.isArray(snapshot.houses)) throw new Error('The saved territory information is incomplete.');
-  const houses = sortedByAddress(snapshot.houses.filter(house => !house.avoid));
-  if (!houses.length || houses.some(house => !validCoordinates(house) || house.included === false || String(house.territoryId) !== String(territory.id))) {
-    throw new Error('The saved territory has missing or inconsistent address locations. Load it to review its addresses.');
-  }
-  const missing = houses.filter(house => !pdfHouseNumber(house));
-  if (missing.length) throw new Error('A saved address is missing a street house number. Load the territory to correct it.');
-  const geometry = territoryGeometry(territory, houses);
-  if (!geometry || houses.some(house => !pointInsideGeometry(house, geometry))) throw new Error('Some saved homes are outside the saved boundary. Load the territory to review it.');
-  const mapAvoids = relevantAvoids(snapshot.houses.filter(house => house.avoid), geometry);
-  if (mapAvoids.length !== snapshot.houses.filter(house => house.avoid).length) throw new Error('A saved avoid address needs its location or boundary reviewed.');
+  const mappedHomes = snapshot.houses.filter(house => !house.avoid && validCoordinates(house));
+  const geometry = territoryGeometry(territory, mappedHomes);
+  if (!geometry || !geometryRings(geometry).length) throw new Error('The territory boundary is unavailable. Use an original archived PDF, or load a complete version.');
+  const scope = scopePdfAddresses(snapshot, geometry, { isMapped: validCoordinates, contains: pointInsideGeometry, houseNumber: pdfHouseNumber });
+  const houses = sortedByAddress(scope.homes), mapAvoids = sortedByAddress(scope.avoids);
+  const reviewIssues = [...scope.issues, ...duplicatePdfIssues(reviewed.unresolvedGroups || [])];
+  if (!houses.length) reviewIssues.push({ address: territory.name, reason: 'No printable visitable homes are inside this boundary. Review the saved addresses and assignments.', avoid: false });
+  const reviewCopy = reviewIssues.length > 0;
   snapshot.territory.geometry = geometry;
+  snapshot.territory.houseIds = houses.map(house => house.id);
   snapshot.houses = [...houses, ...mapAvoids];
+  snapshot.pdfReviewIssues = reviewIssues;
+  snapshot.pdfReviewCopy = reviewCopy;
   const jsPDF = globalThis.jspdf?.jsPDF;
   if (!jsPDF) throw new Error('The PDF library did not load. Refresh the page and try again.');
   status.textContent = 'Loading Denver 2027 logo…';
@@ -830,11 +832,13 @@ export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
   doc.addPage('letter', 'landscape');
   pdfHeader(doc, logo, `${territory.name} — Nearby Coffee Shops`, `${congregation} • ${hall?.name || ''}`);
   drawNearbyCoffeePage(doc, coffee, coffeeMap);
+  addPdfReviewPages(doc, reviewIssues, () => pdfHeader(doc, logo, `${territory.name} — Address Review`, `${congregation} • ${hall?.name || ''}`));
   const pageCount = doc.getNumberOfPages();
+  if (reviewCopy) stampPdfReview(doc, pageCount);
   for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
   const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
   snapshot.pdfLayoutVersion = PDF_LAYOUT_VERSION;
-  return { blob: doc.output('blob'), filename, snapshot, duplicatesRemoved: reviewed.removed };
+  return { blob: doc.output('blob'), filename: reviewCopy ? filename.replace(/\.pdf$/i, '-REVIEW.pdf') : filename, snapshot, reviewCopy, reviewIssues, duplicatesRemoved: reviewed.removed };
 }
 
 async function generateTerritoryPdf(territoryId, button) {
