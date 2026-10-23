@@ -373,7 +373,13 @@ function populateHallSelector() {
   if (previous && hallLocations.some(item => item.id === previous)) els.hallSelect.value = previous;
 }
 function populateCongregations(preferred = '') {
-  const congregations = selectedHall?.congregations?.length ? selectedHall.congregations : [selectedHall?.name || 'Planning group'];
+  const listed = selectedHall?.congregations?.length ? selectedHall.congregations : [selectedHall?.name || 'Planning group'];
+  const saved = savedPlans().filter(plan => String(plan.hallId) === String(selectedHall?.id) && clean(plan.congregation));
+  const congregations = [...new Set([...listed, ...saved.map(plan => clean(plan.congregation))])];
+  if (!congregations.includes(preferred)) {
+    const current = latestWork(saved)[0] || saved.find(plan => plan.addressSetMode || plan.addressOnlyMode);
+    if (current) preferred = clean(current.congregation);
+  }
   els.congregationSelect.innerHTML = congregations.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
   selectedCongregation = congregations.includes(preferred) ? preferred : congregations[0] || '';
   els.congregationSelect.value = selectedCongregation;
@@ -862,10 +868,7 @@ conflicts += 1;
     manualHouseMode = false;
     els.addHouseButton.textContent = 'Add House by Map Click';
     const candidate = { lat: event.latlng.lat, lng: event.latlng.lng };
-    if (boundaryGeometry && !pointInsideBoundary(candidate)) {
-      toast('That point is outside the congregation boundary.', true);
-      return;
-    }
+    // Keep outside manual points and ask whether to expand the meeting-place boundary.
     const address = prompt('Enter the house or ministry-stop address:');
     if (address === null) return;
     addHouseRecord({
@@ -1363,7 +1366,7 @@ async function fillAddressGaps() {
 }
 async function addMissingAddress() {
   if (!requireAdmin()) return;
-  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before adding a missing address.', true); return; }
+  if (!selectedHall || !selectedCongregation) { toast('Select the meeting place and congregation first.', true); return; }
   const address = clean(els.missingAddressInput.value);
   if (!address) { toast('Enter the complete missing address.', true); els.missingAddressInput.focus(); return; }
   const button = els.addMissingAddressButton;
@@ -1371,11 +1374,13 @@ async function addMissingAddress() {
   button.textContent = 'Locating…';
   els.missingAddressMessage.textContent = 'Locating the address and checking the current congregation boundary…';
   els.missingAddressMessage.dataset.state = 'working';
+  const requestGeneration = workspaceGeneration;
   try {
     const result = await geocodeAvoidAddress(address);
+    if (requestGeneration !== workspaceGeneration || !isAdmin()) return;
     const candidate = { lat: Number(result.lat), lng: Number(result.lng) };
     if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lng)) throw new Error('The address service returned invalid coordinates.');
-    if (!pointInsideBoundary(candidate)) throw new Error('The matched address is outside the current congregation boundary. Verify the address or enlarge the boundary first.');
+    // Outside addresses are kept for the expansion prompt.
     const matchedAddress = clean(result.matchedAddress || address);
     const probe = { ...candidate, address: matchedAddress, baseAddress: matchedAddress };
     const existing = houses.find(house => addressRecordsMatch(house, probe));
@@ -1675,7 +1680,7 @@ function restoreSelectedAvoid() {
 }
 async function addAvoidAddress() {
   if (!requireAdmin()) return;
-  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before adding an avoid address.', true); return; }
+  if (!selectedHall || !selectedCongregation) { toast('Select the meeting place and congregation first.', true); return; }
   const address = clean(els.avoidAddressInput.value);
   if (!address) { toast('Enter the complete address to avoid.', true); els.avoidAddressInput.focus(); return; }
   const button = els.addAvoidAddressButton;
@@ -1683,13 +1688,13 @@ async function addAvoidAddress() {
   button.textContent = 'Locating…';
   els.avoidAddressMessage.textContent = 'Locating the address and checking the current congregation boundary…';
   els.avoidAddressMessage.dataset.state = 'working';
+  const requestGeneration = workspaceGeneration;
   try {
     const result = await geocodeAvoidAddress(address);
+    if (requestGeneration !== workspaceGeneration || !isAdmin()) return;
     const candidate = { lat: Number(result.lat), lng: Number(result.lng) };
     if (!Number.isFinite(candidate.lat) || !Number.isFinite(candidate.lng)) throw new Error('The address service returned invalid coordinates.');
-    if (!pointInsideBoundary(candidate)) {
-      throw new Error('The matched address is outside the current congregation boundary. Verify the address or enlarge the boundary first.');
-    }
+    // Retain an outside address for the meeting-boundary expansion prompt.
     let house = findExistingHouseForAvoid(result.matchedAddress || address, candidate);
     let added = false;
     if (!house) {
@@ -1786,10 +1791,12 @@ function importedRecord(properties, geometry, index) {
 }
 async function importAddressFile(file) {
   if (!requireAdmin()) return;
-  if (!boundaryGeometry) { toast('Draw or load the congregation boundary before importing addresses.', true); return; }
+  if (!selectedHall || !selectedCongregation) { toast('Select the meeting place and congregation first.', true); return; }
   if (!file) return;
+  const requestGeneration = workspaceGeneration;
   try {
     const text = await file.text();
+    if (requestGeneration !== workspaceGeneration || !isAdmin()) return;
     let records = [];
     if (/\.csv$/i.test(file.name)) {
       records = parseCsv(text).map((row, index) => importedRecord(row, null, index)).filter(Boolean);
@@ -1798,11 +1805,11 @@ async function importAddressFile(file) {
       const features = data.type === 'FeatureCollection' ? data.features : data.type === 'Feature' ? [data] : [];
       records = features.map((feature, index) => importedRecord(feature.properties || {}, feature.geometry, index)).filter(Boolean);
     }
-    const filtered = dedupeAddressRecords(records);
+    const filtered = records.filter(validMapCoordinates);
     let added = 0;
     for (const record of filtered) if (addHouseRecord(record)) added += 1;
     renderAllPlanningData();
-    els.addressMessage.textContent = `${added.toLocaleString()} imported address points added inside the current boundary.`;
+    els.addressMessage.textContent = `${added.toLocaleString()} imported address points added. Outside addresses will prompt a boundary review.`;
     toast(`${added.toLocaleString()} imported points added.`);
   } catch (error) {
     toast(`Could not import the file: ${friendlyError(error)}`, true);
@@ -2550,6 +2557,31 @@ async function saveBoundary() {
   } catch (error) { toast(`Could not save the boundary: ${friendlyError(error)}`, true); }
   finally { button.disabled = false; button.textContent = 'Save Congregation Boundary'; }
 }
+async function saveMeetingPlaceBoundary(geometry, expected) {
+  if (!isAdmin() || !selectedHall || !selectedCongregation) throw new Error('Sign in and select a meeting place first.');
+  if (savedRecordsStatus !== 'ready') throw new Error('Saved records are not ready. Reconnect before adopting a boundary.');
+  const generation = workspaceGeneration, hall = { ...selectedHall }, congregation = selectedCongregation;
+  if (!expected || expected.generation !== generation || workKey(expected.hallId, expected.congregation) !== workKey(hall.id, congregation)) {
+    throw new Error('The selected workspace changed. No meeting-place boundary was saved.');
+  }
+  const shape = JSON.parse(JSON.stringify(geometry?.type === 'Feature' ? geometry.geometry : geometry));
+  if (!['Polygon', 'MultiPolygon'].includes(shape?.type) || !(turf.area(turf.feature(shape)) > 0)) throw new Error('The boundary is not usable.');
+  if (JSON.stringify(shape) !== JSON.stringify(boundaryGeometry)) throw new Error('The search boundary changed before it was confirmed. Review it again.');
+  // Each approval is independent; earlier plans, PDFs and boundaries stay intact.
+  const ref = doc(collection(db, 'reviews'));
+  const record = { recordType: 'territory-boundary', meetingPlaceBoundary: true,
+    name: `${hall.name} — ${congregation} meeting-place boundary`, hallId: hall.id,
+    hallLabel: markerLabel(hall), hallName: hall.name, hallAddress: hall.address || '', congregation,
+    boundaryJson: encodeGeometry(shape), addressSetBoundary: true, sourceHint: currentSourceKey(),
+    updatedByEmail: currentUser.email, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+  await setDoc(ref, record);
+  if (isAdmin()) {
+    reviewRecords.set(ref.id, { ...record, id: ref.id, updatedAt: new Date() });
+    renderSavedRecords();
+  }
+  return ref.id;
+}
+
 function serializeHouse(house) {
   return {
     id: house.id, address: house.address, baseAddress: house.baseAddress || house.address, unit: house.unit || '',
@@ -2786,7 +2818,7 @@ function loadPlanRecord(id) {
     const avoidTerritoryId = avoid ? (item.avoidTerritoryId || item.territoryId || null) : null;
     return { ...item, id: String(item.id), avoid, included: avoid ? false : item.included !== false, territoryId: avoid ? null : item.territoryId || null, avoidTerritoryId };
   });
-  const duplicatesRemovedOnLoad = plan.saveKind === 'work' ? 0 : dedupeHouseRecords();
+  const duplicatesRemovedOnLoad = 0; // Saved units, excluded homes and avoid records stay exactly as saved.
   const savedTerritoriesForPlan = decodeTerritories(plan);
   territories = savedTerritoriesForPlan.map((item, index) => {
     const geometry = decodeGeometry(item.geometryJson, item.geometry);
@@ -2802,6 +2834,8 @@ function loadPlanRecord(id) {
       .map(house => [Number(house.lat), Number(house.lng)]);
     if (mappedPoints.length) map.fitBounds(L.latLngBounds(mappedPoints), { padding: [36, 36], maxZoom: 16 });
   }
+  if (document.getElementById('bulkFocus')) document.getElementById('bulkFocus').checked = false;
+  globalThis.__denverMeetingPlaceFlow?.reset();
   toast(`Saved ${plan.addressSetMode ? 'Kingdom Hall address-set ' : plan.addressOnlyMode ? 'CSV address-only ' : ''}plan loaded with ${houses.length.toLocaleString()} addresses.`);
   setPlanSaveMessage(activeSavedWorkKey ? `Loaded saved work for ${plan.hallName || 'this meeting location'}. Edit addresses or territories, then select SAVE YOUR WORK.` : 'Backup copy loaded for editing. Your main saved work is unchanged. Select SAVE YOUR WORK only when you want to make this workspace the current saved work.', 'success');
   return true;
@@ -3516,15 +3550,24 @@ function startNewPlan() {
   if ((houses.length || boundaryGeometry) && !confirm('Clear the current unsaved territory workspace and start a new plan?')) return;
   clearPlanWorkspace(true);
   if (selectedHall) map.setView([selectedHall.lat, selectedHall.lng], 12, { animate: true });
+  globalThis.__denverMeetingPlaceFlow?.reset();
   toast('New territory workspace ready.');
 }
 
 function wireEvents() {
   els.hallSelect.addEventListener('change', () => selectHall(els.hallSelect.value, true, false));
   els.congregationSelect.addEventListener('change', () => {
-    selectedCongregation = els.congregationSelect.value;
+    const next = els.congregationSelect.value;
+    if (next === selectedCongregation) return;
+    if ((houses.length || territories.length || boundaryGeometry) && !confirm('Change congregation and load its saved addresses? Unsaved changes in the current workspace will be lost. Choose Cancel to SAVE YOUR WORK first.')) {
+      els.congregationSelect.value = selectedCongregation;
+      return;
+    }
+    clearPlanWorkspace(false);
+    selectedCongregation = next;
     if (!clean(els.territoryPrefix.value)) els.territoryPrefix.value = initialPrefix(selectedCongregation);
     updateSummary();
+    emitPlannerDataChange();
   });
   els.sourceSelect.addEventListener('change', () => updateSourceDetail());
   els.targetSize.addEventListener('change', () => { els.customTargetWrap.hidden = els.targetSize.value !== 'custom'; });
@@ -3649,6 +3692,15 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   getBoundaryGeometry: () => boundaryGeometry,
   getBoundaryPreservesAddresses: () => boundaryPreservesAddresses,
   getSavedPlans: () => savedPlans().map(item => ({ ...item })),
+  getSavedRecords: () => new Map(reviewRecords),
+  getSavedRecordsStatus: () => savedRecordsStatus,
+  getWorkspaceGeneration: () => workspaceGeneration,
+  setMeetingSearchBoundary: geometry => {
+    if (!requireAdmin()) return false;
+    setBoundaryGeometry(geometry, true, true);
+    return true;
+  },
+  saveMeetingPlaceBoundary,
   loadPlanRecord,
   createBoundaryAroundAddresses,
   getHouseMarkers: () => houseMarkers,

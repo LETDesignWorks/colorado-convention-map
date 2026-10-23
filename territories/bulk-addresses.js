@@ -116,6 +116,7 @@ async function readList(){if(!requireAdmin()||!requireContext())return;if(useBou
 async function importList(){
   if(!requireAdmin()||!requireContext()||!pending.length)return;
   if(useBoundary()&&!api.getBoundaryGeometry?.())return toast('Draw or load a congregation boundary, or choose CSV address-only map.',true);
+  const requestGeneration=api.getWorkspaceGeneration?.(),requestHall=String(api.getSelectedHall()?.id||''),requestCongregation=api.getSelectedCongregation();
   const batchName=clean(el.name.value)||'Prepared address list';
   const batchId=`bulk-${slug(batchName)}-${Date.now().toString(36)}`;
   const index=indexHouses(),geocode=[];
@@ -141,6 +142,7 @@ async function importList(){
   }
   const handled=pending.length-geocode.length;
   const results=await pool(geocode,async row=>({row,resolved:await census(row.address)}),done=>progress(handled+done,pending.length));
+  if(requestGeneration!==api.getWorkspaceGeneration?.()||requestHall!==String(api.getSelectedHall()?.id||'')||requestCongregation!==api.getSelectedCongregation()||!api.isAdmin()){el.progress.hidden=true;refresh();return;}
   for(const result of results){
     if(result?.resolved){
       const status=addRow(result.row,result.resolved,batchId,batchName,index);

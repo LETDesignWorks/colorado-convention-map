@@ -37,7 +37,7 @@ function updateOneClickUi() {
   const button = document.getElementById('addAssessorAddressesButton');
   if (button && button.getAttribute('aria-busy') !== 'true') {
     setText(button, 'Fill Boundary with All Addresses');
-    button.disabled = !planner?.isAdmin?.() || !(planner?.getHouses?.() || []).some(house => planner?.validMapCoordinates?.(house));
+    button.disabled = !planner?.isAdmin?.() || !planner?.getSelectedHall?.() || !planner?.getSelectedCongregation?.();
   }
 
   const restart = document.getElementById('directAssessorRestart');
