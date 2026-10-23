@@ -22,6 +22,9 @@ jobs:
           assert set(files)=={'bus-access/planning-center.mjs','tests/bus-convention-center.test.mjs','.github/updates53/patch.py'}
           for path,content in files.items():
               p=pathlib.Path(path);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
+          p=pathlib.Path('tests/bus-traffic-ui.test.mjs')
+          s=p.read_text().replace(r'app-v2\.js\?v=traffic-20261023-48',r'app-v2\.js\?v=bus-center-20261023-53').replace(r'app\.js\?v=traffic-20261023-48',r'app\.js\?v=bus-center-20261023-53')
+          p.write_text(s)
           PY
           python .github/updates53/patch.py
       - name: Install pinned regression dependencies
@@ -44,6 +47,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bus-access tests/bus-convention-center.test.mjs
+          git add bus-access tests/bus-convention-center.test.mjs tests/bus-traffic-ui.test.mjs
           git commit -m 'Center Bus Review estimated planning guide on Colorado Convention Center'
           git push origin HEAD:refs/heads/work/bus-convention-center-53
