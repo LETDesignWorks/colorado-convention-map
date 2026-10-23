@@ -1,0 +1,52 @@
+name: Verify Bus Review PDF export
+on:
+  push:
+    branches: [work/bus-traffic-pdf-47]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare PDF export sources
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,base64,zlib,json
+          encoded=pathlib.Path('.github/updates47/source.b64').read_text().strip()
+          assert hashlib.sha256(encoded.encode()).hexdigest()=='d5648a005dc05c19756065cecefc79492bbccba543b259d09a52f373b4d435d8', 'Source transfer checksum mismatch'
+          for name,text in json.loads(zlib.decompress(base64.b64decode(encoded))).items():
+              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          PY
+          python .github/updates47/patch.py
+      - name: Install test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts jsdom@26.1.0 leaflet@1.9.4 playwright@1.51.1
+      - name: Syntax and regression checks
+        run: |
+          for f in bus-access/*.mjs bus-access/*.js; do node --check "$f"; done
+          node --test tests/bus-traffic.test.mjs tests/bus-traffic-ui.test.mjs tests/bus-traffic-pdf.test.mjs > /tmp/results.log 2>&1 || { cat /tmp/results.log; exit 1; }
+          tail -12 /tmp/results.log
+      - name: Real desktop and phone PDF exports
+        run: CHROME_PATH=$(which google-chrome || which chromium) node tests/bus-traffic-pdf-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bus-pdf-review
+          path: |
+            test-results/traffic-pdf
+            bus-access
+            tests/bus-traffic*.mjs
+            assets/denver-2027-territory-logo.png
+            load-tests/vendor/pdf-lib.min.js
+          retention-days: 3
+      - name: Commit tested source to work branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bus-access tests/bus-traffic*.mjs
+          git diff --cached --stat
+          git commit -m 'Add convention-branded full-layout traffic planner PDF export'
+          git push origin HEAD:refs/heads/work/bus-traffic-pdf-47
