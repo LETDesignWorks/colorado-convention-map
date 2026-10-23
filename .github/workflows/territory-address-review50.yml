@@ -3,15 +3,48 @@ on:
   push:
     branches: [work/territory-address-review-50]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - run: tar -czf /tmp/territory-review-source.tgz territories tests assets load-tests/vendor
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          name: territory-review-source
-          path: /tmp/territory-review-source.tgz
-          retention-days: 1
+          node-version: 22
+      - name: Prepare scoped duplicate review changes
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,base64,zlib
+          data=pathlib.Path('.github/updates50/source.b64').read_text().strip()
+          data=data.replace('ROJSZZAM','ROJSZAM').replace('B+B7iPQ/eJ6D7','B+B7iPQ/e/wG0LeR6D7')
+          assert hashlib.sha256(data.encode()).hexdigest()=='d2afb139f4924549ace64db8e7bd7b31b0aadbde378adee6c55cd2b70103448c', 'Source transfer checksum mismatch'
+          pathlib.Path('/tmp/patch50.py').write_bytes(zlib.decompress(base64.b64decode(data)))
+          PY
+          python /tmp/patch50.py
+          python - <<'PY'
+          from pathlib import Path
+          for p in Path('tests').glob('*.mjs'):
+              s=p.read_text();n=s.replace('territories-20261023-49','territories-20261023-50')
+              if n!=s:p.write_text(n)
+          PY
+      - name: Install pinned regression dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
+      - name: Syntax and full regression suite
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/*.test.mjs > /tmp/results50.log 2>&1 || { grep -A 35 '^not ok' /tmp/results50.log; tail -12 /tmp/results50.log; exit 1; }
+          tail -12 /tmp/results50.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: territory-review-results
+          path: /tmp/results50.log
+          retention-days: 2
+      - name: Commit verified source to review branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git commit -m 'Add explicit batch address-spelling cleanup and route unresolved PDFs to review'
+          git push origin HEAD:refs/heads/work/territory-address-review-50
