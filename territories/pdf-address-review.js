@@ -1,4 +1,4 @@
-import { scanDuplicateAddresses, cleanDuplicateAddresses } from './address-duplicates.js?v=territories-20261022-45';
+import { scanDuplicateAddresses, cleanDuplicateAddresses } from './address-duplicates.js?v=territories-20261023-49';
 
 // Operate on a detached print snapshot, never the live map or original archive.
 export function preparePdfAddressSnapshot(sourceSnapshot) {

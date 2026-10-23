@@ -34,3 +34,47 @@ test('untrusted address/source text is escaped in the review',async()=>{const x=
 test('an error leaves the scan controls usable',async()=>{const x=uiHarness();x.api.meetingSessionManager.reviewDuplicates=async()=>{throw Error('connection problem')};document.getElementById('scanAllDuplicates').click();await settle();assert.match(document.getElementById('duplicateScanStatus').textContent,/connection problem/);assert.equal(document.getElementById('scanAllDuplicates').disabled,false);x.dom.window.close();});
 
 test('cleanup signals the saved library to display the cleaned current-session version',async()=>{const x=uiHarness();let signals=0;window.addEventListener('territory-planner:duplicates-cleaned',()=>signals++);document.getElementById('scanAllDuplicates').click();await settle();document.getElementById('applyDuplicateCleanup').click();await settle();assert.equal(signals,1);assert.equal(x.h.current.houses.length,1);x.dom.window.close();});
+
+test('reviewed distant duplicates stay removed through rescan, new uploads and complete saves',async()=>{
+ const h=harness();h.current.territories[0].id='24';h.current.territories[0].name='Territory 24';h.current.houses.forEach(x=>x.territoryId='24');
+ h.current.houses[1].lat+=.001;const older=structuredClone(h.current);h.host.readBase=()=>structuredClone(older);
+ const r=await h.manager.reviewDuplicates();assert.equal(r.report.safe,0);
+ const group=r.report.groups[0];await h.manager.repairDuplicates(r.token,{[group.key]:{keepIndex:group.entries[0].index}});
+ assert.equal(h.current.houses.length,1);assert.equal(h.current.sessionScope,'meeting-place');
+ assert.equal((await h.manager.reviewDuplicates()).report.groups.length,0);
+ h.current.currentPlanId=null;h.current.houses.push(home('new-upload',{address:'200 Test Ct',territoryId:null}));
+ await h.manager.save();assert.equal(h.saved[0].houses.length,2);assert.equal(h.saved[0].territories[0].houseIds.length,1);
+ assert.equal((await h.manager.reviewDuplicates()).report.groups.length,0);assert.equal(older.houses.length,2);
+});
+test('cleanup result survives the library selecting the newly cleaned session version',async()=>{
+ const x=uiHarness();x.ui.selectVersion({id:'older',hallId:'21',territory:x.h.current.territories[0],houses:x.h.current.houses});
+ window.addEventListener('territory-planner:duplicates-cleaned',()=>x.ui.selectVersion({id:'fresh',source:'session',hallId:'21',territory:x.h.current.territories[0],houses:x.h.current.houses}));
+ document.getElementById('scanSelectedDuplicates').click();await settle();document.getElementById('applyDuplicateCleanup').click();await settle();
+ assert.match(document.getElementById('duplicateScanStatus').textContent,/Removed 1/);assert.match(document.getElementById('duplicateScanStatus').textContent,/SAVE YOUR WORK/);x.dom.window.close();
+});
+test('uncertain groups remain visible, can be explicitly chosen, and report what was left',async()=>{
+ const x=uiHarness();x.h.current.houses.push(home('c',{address:'100 Test Dr'}),home('d',{address:'100 Test Dr',lat:39.541}));x.h.current.territories[0].houseIds.push('c','d');
+ document.getElementById('scanAllDuplicates').click();await settle();
+ assert.match(document.getElementById('duplicateChoiceStatus').textContent,/1 repeated record\(s\) selected.*1 group/);
+ assert.equal(document.querySelectorAll('details[open][data-duplicate-group]').length,1);
+ document.getElementById('applyDuplicateCleanup').click();await settle();assert.equal(x.h.current.houses.length,3);
+ assert.equal(document.getElementById('reviewRemainingDuplicates').hidden,false);
+ document.getElementById('reviewRemainingDuplicates').click();await settle();
+ const action=document.querySelector('[data-dup-action]');action.value='merge';action.dispatchEvent(new window.Event('change',{bubbles:true}));
+ assert.match(document.getElementById('duplicateChoiceStatus').textContent,/1 repeated record/);
+ document.getElementById('applyDuplicateCleanup').click();await settle();assert.equal(x.h.current.houses.length,2);assert.equal(document.getElementById('reviewRemainingDuplicates').hidden,true);x.dom.window.close();
+});
+test('leaving every uncertain match separate explains why nothing was removed',async()=>{
+ const x=uiHarness();x.h.current.houses[1].lat+=.01;document.getElementById('scanAllDuplicates').click();await settle();
+ document.getElementById('applyDuplicateCleanup').click();await settle();assert.equal(x.h.current.houses.length,2);
+ assert.match(document.getElementById('duplicateScanStatus').textContent,/No changes were applied.*Combine these copies/);x.dom.window.close();
+});
+
+
+test('review remaining matches uses the cleaned session even without a saved-library refresh listener',async()=>{
+ const x=uiHarness();x.h.current.houses.push(home('c',{address:'100 Test Dr'}),home('d',{address:'100 Test Dr',lat:39.541}));x.h.current.territories[0].houseIds.push('c','d');
+ x.ui.selectVersion({id:'old-pdf',source:'pdf',hallId:'21',territory:structuredClone(x.h.current.territories[0]),houses:structuredClone(x.h.current.houses)});
+ document.getElementById('scanSelectedDuplicates').click();await settle();document.getElementById('applyDuplicateCleanup').click();await settle();
+ assert.equal(x.h.current.houses.length,3);document.getElementById('reviewRemainingDuplicates').click();await settle();
+ assert.equal(document.querySelectorAll('[data-duplicate-group]').length,1);assert.match(document.getElementById('duplicateScanStatus').textContent,/1 repeated/);x.dom.window.close();
+});

@@ -1,4 +1,4 @@
-import { addDirectionIdentity, directionalDuplicateBuckets, directionMatchDetails, preferredDuplicateEntry } from './address-direction-matching.js?v=territories-20261022-45';
+import { addDirectionIdentity, directionalDuplicateBuckets, directionMatchDetails, preferredDuplicateEntry } from './address-direction-matching.js?v=territories-20261023-49';
 // Read-only detection and pure draft cleanup. Never writes to saved records.
 const text = value => String(value ?? '').normalize('NFKC').trim().toUpperCase().replace(/\s+/g, ' ');
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -142,14 +142,23 @@ export function duplicateSummary(report) {
 // Copies appearing in different historical saves are NOT counted as duplicates.
 // Address duplicates within a chosen version remain intact until explicit cleanup.
 export function duplicateReviewWorkspace(workspace, groups, { selected = null, base = null } = {}) {
-  const draft = copy(workspace), sourceHomes = [...(base?.houses || []), ...workspace.houses];
+  if (base && String(base.hallId) !== String(workspace.hallId)) throw new Error('The saved base belongs to another meeting place.');
+  const baseHomes = workspace.sessionScope === 'meeting-place' ? [] : (base?.houses || []);
+  const draft = copy(workspace), sourceHomes = [...baseHomes, ...workspace.houses];
   draft.houses = []; draft.territories = [];
   const used = new Set(), rowsById = new Map(); let serial = 0;
   const makeId = old => { let value = String(old || `address-${++serial}`); while (used.has(value)) value = `duplicate-review-${++serial}-${old}`; used.add(value); return value; };
-  const same = (a,b) => { const key=duplicateAddressIdentity(a)?.key; return Boolean(key && key===duplicateAddressIdentity(b)?.key); };
+  const same = (a,b) => {
+    const left=duplicateAddressIdentity(a), right=duplicateAddressIdentity(b);
+    if (left && right) return left.key===right.key;
+    // An unparseable address with the same record ID is still the same row.
+    // Do not manufacture another copy while building a read-only review.
+    const raw = h => JSON.stringify([text(h.address || h.baseAddress), text(h.unit), text(h.building || h.buildingNumber)]);
+    return Boolean(text(a.address || a.baseAddress) && raw(a)===raw(b));
+  };
   // Base/current repetitions are representations of the same record, not repeated uploads.
   for (const [index,original] of sourceHomes.entries()) {
-    const old = String(original.id || ''), isCurrent = index >= (base?.houses.length || 0);
+    const old = String(original.id || ''), isCurrent = index >= baseHomes.length;
     const prior = rowsById.get(old)?.find(row => same(row,original) && row._baseOnly && isCurrent);
     if (prior) { Object.assign(prior,mergeHome({...original,id:prior.id},[{house:prior},{house:original}],null),{_baseOnly:false}); continue; }
     const row = { ...copy(original), id:makeId(old), _baseOnly:!isCurrent };

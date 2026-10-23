@@ -1,11 +1,11 @@
-import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261022-45';
-import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261022-45';
-import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-45';
-import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-45';
-import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-45';
-import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-45';
-import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-45';
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-45';
+import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-49';
+import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261023-49';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261023-49';
+import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261023-49';
+import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261023-49';
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261023-49';
+import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261023-49';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261023-49';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -16,11 +16,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-45';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261023-49';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-45';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-45';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-45';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-49';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-49';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261023-49';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -83,6 +83,8 @@ let selectedCongregation = '';
 let boundaryGeometry = null;
 let boundaryPreservesAddresses = false;
 let houses = [];
+// Remains complete when uploads clear currentPlanId; reset only on replacement.
+let meetingSessionScope = '';
 let territories = [];
 let selectedHouseIds = new Set();
 let focusedTerritoryId = null;
@@ -975,6 +977,7 @@ function clearAddressesAndTerritoriesForBoundaryChange() {
   if (houses.length || territories.length) {
     houses = [];
     territories = [];
+    meetingSessionScope = '';
     selectedHouseIds.clear();
     currentPlanId = null;
     renderAllPlanningData();
@@ -1490,6 +1493,7 @@ async function loadAddresses() {
   }
   if (!result) throw primaryError || new Error(`${source.label} returned no data.`);
   const refreshedAddresses = dedupeAddressRecords(result.parsed);
+  meetingSessionScope = '';
   houses = mergeAvoidAddresses(refreshedAddresses, retainedAvoids).map(item => ({ ...item, id: String(item.id || uniqueId('address')) }));
   for (const manual of retainedManualGaps) {
     const existing = houses.find(item => addressRecordsMatch(item, manual));
@@ -1769,6 +1773,7 @@ function clearHouses() {
   if (houses.length && !confirm('Clear all loaded addresses and generated territories from this unsaved workspace?')) return;
   houses = [];
   territories = [];
+  meetingSessionScope = '';
   selectedHouseIds.clear();
   currentPlanId = null;
   renderAllPlanningData();
@@ -2693,6 +2698,7 @@ async function persistPlan(options = {}) {
     const record = {
       recordType: 'territory-plan', saveKind: saveAsWork ? 'work' : 'backup',
       savedWorkKey: key, savedWorkSchemaVersion: 1,
+      sessionScope: meetingSessionScope, sessionRemovedTerritoryNames: [...sessionRemovedNames],
       previousWorkId: saveAsWork ? latest?.id || null : null,
       sourcePlanId: currentPlanId || null,
       mergedFromRecordIds: [...new Set([...(reviewRecords.get(currentPlanId)?.mergedFromRecordIds || []), ...(Array.isArray(options.mergeSourceIds) ? options.mergeSourceIds.map(String) : [])])],
@@ -2825,6 +2831,7 @@ function loadPlanRecord(id) {
   clearPlanWorkspace(false);
   restoreHallAndCongregation(plan.hallId, plan.congregation);
   currentPlanId = plan.pdfArchive ? null : plan.id;
+  meetingSessionScope = plan.sessionScope === 'meeting-place' ? 'meeting-place' : '';
   const currentSavedWork = currentWorkFor(savedPlans(), plan.hallId, plan.congregation);
   activeSavedWorkKey = currentSavedWork?.id === plan.id ? workKey(plan.hallId, plan.congregation) : '';
   currentBoundaryId = null;
@@ -2968,7 +2975,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-45');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-49');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3492,7 +3499,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
 }
 
 function clearPlanWorkspace(resetSelection = true) {
-  sessionBaseline = new Map(); sessionRemovedNames = [];
+  sessionBaseline = new Map(); sessionRemovedNames = []; meetingSessionScope = '';
   workspaceGeneration += 1;
   savedTerritoryEditId = null;
   updateSavedTerritoryEditUi();
@@ -3503,6 +3510,7 @@ function clearPlanWorkspace(resetSelection = true) {
   boundaryPreservesAddresses = false;
   houses = [];
   territories = [];
+  meetingSessionScope = '';
   selectedHouseIds.clear();
   currentBoundaryId = null;
   currentPlanId = null;
@@ -3664,7 +3672,7 @@ async function initialize() {
 
 function backupWorkspaceSnapshot() {
   return { hallId: selectedHall?.id || '', hallName: selectedHall?.name || '', congregation: selectedCongregation,
-    currentPlanId, generation: workspaceGeneration, editId: savedTerritoryEditId,
+    currentPlanId, sessionScope: meetingSessionScope, generation: workspaceGeneration, editId: savedTerritoryEditId,
     editing: Boolean(activeTerritoryEditId || drawMode || manualHouseMode),
     houses: JSON.parse(JSON.stringify(houses)), territories: JSON.parse(JSON.stringify(territories)),
     boundary: boundaryGeometry ? JSON.parse(JSON.stringify(boundaryGeometry)) : null };
@@ -3825,7 +3833,7 @@ async function libraryVersionPdf(version, progress, options = {}) {
     allowReviewCopy: Boolean(options.allowReviewCopy),
     readPdf: async record => readArchivePdf(record, await archiveParts(record, 'pdf')),
     buildPdf: async (snapshot, progress) => {
-      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-45');
+      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-49');
       return buildTerritoryPdf(snapshot, progress);
     }
   });
@@ -3867,7 +3875,7 @@ let sessionBaseline = new Map();
 let sessionRemovedNames = [];
 function sessionWorkspace() {
   const value = { hallId: selectedHall?.id || '', hallName: selectedHall?.name || '', congregation: selectedCongregation,
-    currentPlanId, generation: workspaceGeneration, editId: savedTerritoryEditId,
+    currentPlanId, sessionScope: meetingSessionScope, generation: workspaceGeneration, editId: savedTerritoryEditId,
     editing: Boolean(activeTerritoryEditId || drawMode || manualHouseMode), houses, territories, boundary: boundaryGeometry };
   const changes = sessionChanges(value, sessionBaseline);
   changes.removedTerritoryNames = [...new Set([...sessionRemovedNames, ...changes.removedTerritoryNames])];
@@ -3876,6 +3884,7 @@ function sessionWorkspace() {
 function captureMeetingSession() { return JSON.parse(JSON.stringify(sessionWorkspace())); }
 function rememberMeetingSessionBaseline() { sessionBaseline = territoryStamps({ houses, territories }); }
 function readSessionBase(workspace) {
+  if (workspace.sessionScope === 'meeting-place') return null;
   const plan = currentWorkFor(savedPlans(), workspace.hallId, workspace.congregation);
   if (!plan || (!workspace.editId && plan.id === workspace.currentPlanId)) return null;
   return { id: plan.id, hallId: plan.hallId, congregation: plan.congregation,
@@ -3889,6 +3898,7 @@ function applyMeetingSession(draft, expectedStamp, planId = null) {
   boundaryPreservesAddresses = true; savedTerritoryEditId = null; selectedHouseIds.clear(); focusedTerritoryId = null;
   workspaceGeneration += 1;
   sessionRemovedNames = [...(draft.removedTerritoryNames || [])];
+  meetingSessionScope = draft.sessionScope === 'meeting-place' ? 'meeting-place' : '';
   if (planId) { currentPlanId = planId; activeSavedWorkKey = workKey(selectedHall.id, selectedCongregation); els.planName.value = reviewRecords.get(planId)?.planName || ''; }
   boundaryGroup.clearLayers();
   if (boundaryGeometry) L.geoJSON(boundaryGeometry, { style: { color: '#0b5b9f', weight: 2, dashArray: '9 7', fillOpacity: .06 } }).addTo(boundaryGroup);

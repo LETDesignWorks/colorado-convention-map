@@ -1,4 +1,4 @@
-import { previewBackupMerge, nameKey, clone, stable } from './backup-merge-model.js?v=territories-20261022-45';
+import { previewBackupMerge, nameKey, clone, stable } from './backup-merge-model.js?v=territories-20261023-49';
 
 const id = value => String(value ?? '');
 const named = territory => nameKey(territory.name) || `ID:${id(territory.id)}`;
@@ -9,7 +9,7 @@ function geometry(territory) {
 }
 export function sessionContentStamp(workspace) {
   return stable([workspace.hallId, workspace.congregation, workspace.generation,
-    workspace.editId, workspace.editing, workspace.houses, workspace.territories, workspace.boundary]);
+    workspace.editId, workspace.editing, workspace.sessionScope, workspace.houses, workspace.territories, workspace.boundary]);
 }
 
 export function territoryStamps(workspace) {
@@ -70,8 +70,10 @@ export function assembleMeetingSession(workspace, groups, { base = null, selecte
   // A deliberate removal must also suppress matching copies from an older base.
   const liveNamesAtStart = new Set(workspace.territories.map(named));
   const removed = new Set((workspace.removedTerritoryNames || []).filter(name => !liveNamesAtStart.has(name)));
-  if (base) {
-    if (id(base.hallId) !== id(workspace.hallId)) throw new Error('The saved base belongs to another meeting place.');
+  if (base && id(base.hallId) !== id(workspace.hallId)) throw new Error('The saved base belongs to another meeting place.');
+  // A full editable session already contains the base. Replaying it would undo
+  // explicit duplicate removals (especially reviewed, different map pins).
+  if (base && workspace.sessionScope !== 'meeting-place') {
     const retainedBase = clone(base), removedIds = new Set(retainedBase.territories.filter(t => removed.has(named(t))).map(t => id(t.id)));
     retainedBase.territories = retainedBase.territories.filter(t => !removedIds.has(id(t.id)));
     retainedBase.houses.forEach(h => { if (removedIds.has(id(h.territoryId))) h.territoryId = null; if (removedIds.has(id(h.avoidTerritoryId))) h.avoidTerritoryId = null; });

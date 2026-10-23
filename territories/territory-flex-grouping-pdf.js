@@ -1,5 +1,5 @@
-import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from './pdf-boundary-scope.js?v=territories-20261022-45';
-import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-45';
+import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from './pdf-boundary-scope.js?v=territories-20261023-49';
+import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261023-49';
 import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
