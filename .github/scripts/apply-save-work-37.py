@@ -1,39 +1,45 @@
 from pathlib import Path
-import json, gzip, base64, subprocess, hashlib
-root = Path('.')
-encoded = (root/'.github/patches/save-work-37.json.gz.b64').read_text()
-encoded = encoded.replace('I5nuxube6cbCxwIeR49ed0UHWWNuufPV74Y1BH4kftv/bTBg8n37y1E1d4eqUWcvFTBx7w9FQ687FdR++N65gOaN4ePMcfSSiswcB+', 'I5nuxube6MB+')
-if len(encoded) != 19540:
-    raise SystemExit(f'Patch payload length mismatch: {len(encoded)}')
-raw = gzip.decompress(base64.b64decode(encoded))
-if hashlib.sha256(raw).hexdigest() != '858498f804389560b5befcfa57874902f7fc1a709235155184abc9a75e621621':
-    raise SystemExit('Patch payload checksum mismatch')
-bundle = json.loads(raw)
-prepared = {}
-for path, patch in bundle['patches'].items():
-    actual = subprocess.check_output(['git', 'hash-object', path], text=True).strip()
-    if actual != patch['sha']:
-        raise SystemExit(f'Refusing to change {path}: base file changed ({actual}).')
-    source = (root/path).read_text()
-    for op in patch['ops']:
-        if op['kind'] == 'replace':
-            count = source.count(op['old'])
-            if count != op['count']:
-                raise SystemExit(f'{path}: expected {op["count"]} matches, found {count}: {op["old"][:100]!r}')
-            source = source.replace(op['old'], op['new'])
-        elif op['kind'] == 'block':
-            if source.count(op['start']) != 1:
-                raise SystemExit(f'{path}: ambiguous block start')
-            start = source.index(op['start']); end = source.index(op['end'], start)
-            source = source[:start] + op['new'] + source[end:]
-        else:
-            raise SystemExit('Unsupported operation')
-    prepared[path] = source
-for path, source in bundle['files'].items():
-    if (root/path).exists():
-        raise SystemExit(f'Refusing to replace unexpected existing file {path}')
-    prepared[path] = source
-for path, source in prepared.items():
-    (root/path).parent.mkdir(parents=True, exist_ok=True)
-    (root/path).write_text(source)
-print(f'Prepared {len(prepared)} files for {bundle["version"]}. No database records were read or written.')
+
+def change(path, old, new):
+    target = Path(path)
+    source = target.read_text()
+    if source.count(old) != 1:
+        raise SystemExit(f'Unexpected source in {path}: {old[:70]!r}')
+    target.write_text(source.replace(old, new))
+
+# Saving a complete snapshot must not normalize away any of the addresses the
+# user currently sees, including separate units and excluded address records.
+change('territories/app-main.js',
+       "  const duplicatesRemoved = dedupeHouseRecords();\n  if (duplicatesRemoved) renderAllPlanningData();\n  const key = workKey(selectedHall.id, selectedCongregation);",
+       "  const key = workKey(selectedHall.id, selectedCongregation);")
+change('territories/app-main.js',
+       '  const duplicatesRemovedOnLoad = dedupeHouseRecords();',
+       "  const duplicatesRemovedOnLoad = plan.saveKind === 'work' ? 0 : dedupeHouseRecords();")
+path = Path('tests/saved-work-integration.test.mjs')
+source = path.read_text()
+source += '''
+
+test('SAVE YOUR WORK keeps every loaded record without silently deduplicating units', async () => {
+  const h = harness();
+  let dedupeCalls = 0;
+  h.context.dedupeHouseRecords = () => { dedupeCalls++; return 0; };
+  h.context.houses = [house('unit-a', null, { address: '100 Example St Apt 1', unit: '1' }), house('unit-b', null, { address: '100 Example St Apt 2', unit: '2' }), house('excluded', null, { included: false })];
+  const id = await h.save({ saveYourWork: true });
+  const saved = model.readPlanAddresses({ ...h.stored.get(id), id }, h.stored);
+  assert.equal(saved.length, 3); assert.equal(dedupeCalls, 0);
+  assert.equal(saved.find(home => home.id === 'excluded').included, false);
+  assert.equal(saved.find(home => home.id === 'unit-b').unit, '2');
+});
+
+test('loading protected complete saved work preserves its exact address records', () => {
+  assert.match(main, /plan\\.saveKind === 'work' \\? 0 : dedupeHouseRecords\\(\\)/);
+});
+'''
+path.write_text(source)
+# Match the existing repository's line endings so code review shows only the
+# functional edits instead of a whole-file newline change.
+for name in ['app-main.js', 'bootstrap.js', 'template.html', 'index.html']:
+    path = Path('territories')/name
+    text = path.read_text()
+    path.write_bytes(text.replace('\r\n', '\n').replace('\n', '\r\n').encode())
+print('Preserved all loaded address records and retained original file line endings.')
