@@ -1,0 +1,48 @@
+name: Verify territory address duplicate checks
+on:
+  push:
+    branches: [work/duplicate-address-review-42]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/duplicate-address-review-42
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify and prepare source update
+        run: |
+          python - <<'PY'
+          import pathlib,base64,zlib,json,hashlib
+          encoded=''.join(p.read_text().strip() for p in sorted(pathlib.Path('.github/updates42').glob('bundle*.b64')))
+          encoded=encoded.replace('Ueux4kXpXesxUeux4kXpXesxUuov7nz','Ueux4kXpXesxU/uiv7nz').replace('dut/tqbxdxdMQ','dut/tqbxdMQ').replace('4rSTripTCap','4rSTrip6TCap')
+          expected='ff811479471ac45ea1a1df41a3e88aad359288e809015777b332c2df319c73b1'
+          actual=hashlib.sha256(encoded.encode()).hexdigest()
+          print('Transfer:',len(encoded),actual)
+          if actual!=expected:
+              print('First-chunk checks:',','.join(hashlib.sha256(encoded[i:i+1000].encode()).hexdigest()[:12] for i in range(0,14000,1000)))
+          assert actual==expected,'Source transfer checksum mismatch; no source deployed'
+          for name,text in json.loads(zlib.decompress(base64.b64decode(encoded))).items():
+              p=pathlib.Path(name); p.parent.mkdir(parents=True,exist_ok=True); p.write_text(text)
+          PY
+          python .github/updates42/patch.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4
+      - name: Syntax and regression checks
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs tests/meeting-session.test.mjs tests/address-duplicates.test.mjs tests/address-duplicates-flow.test.mjs
+      - name: Commit tested source to review branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests
+          git diff --cached --stat
+          git commit -m 'Check selected and all meeting-place territories for duplicate addresses'
+          git push origin HEAD:refs/heads/work/duplicate-address-review-42
+          git rev-parse HEAD
