@@ -1,0 +1,35 @@
+name: Verify saved-work layout update
+on:
+  push:
+    branches: ['work/save-your-work-20261022']
+    paths:
+      - '.github/patches/save-work-37.json.gz.b64'
+      - '.github/scripts/apply-save-work-37.py'
+      - '.github/workflows/apply-save-work-37.yml'
+permissions:
+  contents: write
+jobs:
+  prepare-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/save-your-work-20261022
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply checked source changes
+        run: python .github/scripts/apply-save-work-37.py
+      - name: Check syntax and saved-work regressions
+        run: |
+          for source in territories/app-main.js territories/hall-address-sets.js territories/territory-workflow-ui.js territories/address-source-merge.js territories/assessor-one-click.js territories/bootstrap.js territories/saved-work-model.js territories/saved-work-ui.js; do node --check "$source"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs
+      - name: Commit tested source on the review branch only
+        run: |
+          git config user.name 'LETDesignWorks'
+          git config user.email 'michael@letdw.com'
+          git add territories tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs
+          git commit -m 'Simplify address-list workflow and protect complete saved work with independent backups'
+          git push origin HEAD:refs/heads/work/save-your-work-20261022
+          git rev-parse HEAD
