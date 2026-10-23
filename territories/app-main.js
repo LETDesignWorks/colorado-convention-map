@@ -1,3 +1,4 @@
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-40';
 import { datedWorkName, createLibraryManager } from './library-management-model.js?v=territories-20261022-40';
 import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-40';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
@@ -2727,19 +2728,15 @@ function subscribeReviews() {
   savedRecordsStatus = 'loading';
   reviewRecords.clear();
   const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf', 'territory-name-choice']));
+  const applyConfirmedRecords = createConfirmedRecordBuffer(reviewRecords);
   reviewsUnsubscribe = onSnapshot(records, { includeMetadataChanges: true }, snapshot => {
     // Firestore emits local writes before the server accepts them. The saved
     // list must not claim an unacknowledged plan can be reopened later.
-    if (snapshot.metadata?.hasPendingWrites) return;
+    const updates = applyConfirmedRecords(snapshot);
+    if (updates.pending) return;
     const previousStatus = savedRecordsStatus;
     savedRecordsStatus = snapshot.metadata?.fromCache ? 'cached' : 'ready';
-    let changed = previousStatus !== savedRecordsStatus;
-    for (const change of snapshot.docChanges()) {
-      const item = change.doc, data = item.data();
-      if (change.type === 'removed') reviewRecords.delete(item.id);
-      else reviewRecords.set(item.id, { id: item.id, ...data });
-      if (data.recordType !== 'territory-plan-chunk') changed = true;
-    }
+    const changed = updates.changed || previousStatus !== savedRecordsStatus;
     if (changed) { renderSavedRecords(); emitPlannerDataChange(); }
   }, error => {
     savedRecordsStatus = 'error';

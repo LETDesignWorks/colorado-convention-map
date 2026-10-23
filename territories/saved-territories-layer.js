@@ -193,7 +193,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
       ${!layers.has(group.key) ? '<p>This version has no usable boundary to display. Other saved versions remain available above.</p>' : ''}
       <div class="button-row"><button type="button" class="btn outline" id="zoomSavedTerritory"${layers.has(group.key) ? '' : ' disabled'}>Zoom to this version</button><button type="button" class="btn outline" id="openSavedTerritoryPdf"${version.error && !version.pdfRecord ? ' disabled' : ''}>View PDF</button></div>
       ${editTerritory ? `<button type="button" class="btn primary full" id="editSavedTerritory"${version.error || !version.territory.id || !version.houses.some(h => !h.avoid) ? ' disabled' : ''}>Edit this territory</button><p class="section-copy">Open this version's boundary and addresses for editing. Saving creates an updated plan and PDF; the earlier PDF stays available. You will be asked before replacing work already on the map.</p><p id="savedTerritoryEditMessage" role="status"></p>` : ''}
-      ${libraryManager ? `<div class="button-row"><button class="btn save" id="keepExactVersion" type="button"${version.error ? ' disabled' : ''}>Save this version to keep</button><button class="btn outline" id="deleteOtherVersions" type="button"${group.keptVersionId && group.versions.length > 1 ? '' : ' disabled'}>Delete other versions</button>${group.hiddenVersionCount ? '<button class="btn outline" id="restoreLibraryVersions" type="button">Restore removed versions</button>' : ''}</div><p id="libraryVersionStatus" role="status">${group.keptVersionId ? 'Your exact kept version is saved independently. Removing older versions does not delete other territories or the full location plan.' : 'Save the version you want to keep before removing alternatives.'}</p>` : ''}
+      ${libraryManager ? `<div class="button-row"><button class="btn save" id="keepExactVersion" type="button"${version.error ? ' disabled' : ''}>Save this version to keep</button><button class="btn outline" id="deleteOtherVersions" type="button"${group.keptVersionId && group.versions.length > 1 ? '' : ' disabled'}>Delete other versions</button><button class="btn outline" id="deletePreviewVersion" type="button"${group.keptVersionId && group.keptVersionId !== version.id ? '' : ' disabled'}>Delete this previewed version</button>${group.hiddenVersionCount ? '<button class="btn outline" id="restoreLibraryVersions" type="button">Restore removed versions</button>' : ''}</div><p id="libraryVersionStatus" role="status">${group.keptVersionId ? 'Your exact kept version is saved independently. Removing older versions does not delete other territories or the full location plan.' : 'Save the version you want to keep before removing alternatives.'}</p>` : ''}
       <p id="savedTerritoryPdfStatus" role="status"></p><div id="savedTerritoryPdfLinks"></div>
       ${!version.pdfRecord ? '<p>View PDF creates a PDF from this exact saved version without changing the editable map.</p>' : ''}
       <details id="savedVersionAddresses"><summary>Saved addresses (${version.houses.length})</summary><ul class="saved-addresses"></ul></details>`;
@@ -206,26 +206,32 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     });
     const versionAction = async action => {
       if (libraryBusy || !active()) return;
+      const actionHall = hallId;
       libraryBusy = true;
       const message = el('libraryVersionStatus');
-      detail.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      const priorControls = [...detail.querySelectorAll('button,select')].map(control => [control, control.disabled]);
+      priorControls.forEach(([control]) => { control.disabled = true; });
       if (message) message.textContent = 'Saving your selection…';
       try {
         await action();
-        if (!active()) return;
+        if (!active() || hallId !== actionHall) return;
         selectedVersions.clear(); nameOverrides.clear();
         libraryBusy = false; await load();
       } catch (error) {
         if (message?.isConnected) message.textContent = `The operation was not completed: ${error.message}`;
       } finally {
         libraryBusy = false;
-        detail.querySelectorAll('#keepExactVersion,#deleteOtherVersions,#restoreLibraryVersions').forEach(button => { button.disabled = false; });
+        priorControls.forEach(([control, disabled]) => { if (control.isConnected) control.disabled = disabled; });
       }
     };
     el('keepExactVersion')?.addEventListener('click', () => versionAction(() => libraryManager.keep(version)));
     el('deleteOtherVersions')?.addEventListener('click', () => {
       if (!confirm(`Remove the ${Math.max(0, group.versions.length - 1)} other saved version(s) of ${version.territory.name} from this library? Your kept version has its own saved addresses. Full location backups and unrelated territories are unchanged. Removed versions can be restored.`)) return;
       void versionAction(() => libraryManager.removeOthers(group));
+    });
+    el('deletePreviewVersion')?.addEventListener('click', () => {
+      if (!confirm('Remove this previewed version from the library? The kept version and full backups stay unchanged.')) return;
+      void versionAction(() => libraryManager.removeVersion(group, version.id));
     });
     el('restoreLibraryVersions')?.addEventListener('click', () => versionAction(() => libraryManager.removeOthers(group, true)));
 
@@ -248,7 +254,7 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
     });
     el('openSavedTerritoryPdf')?.addEventListener('click', async event => {
       const button = event.currentTarget, message = el('savedTerritoryPdfStatus'), requestEpoch = epoch;
-      button.disabled = true; message.textContent = 'Reading the stored PDF…';
+      button.disabled = true; message.textContent = version.pdfRecord ? 'Reading the stored PDF…' : 'Generating a PDF from the selected saved version…';
       try {
         const built = versionPdf ? await versionPdf(version, message) : { blob: await readPdf(version.pdfRecord), filename: version.pdfRecord.filename };
         const blob = built.blob;
@@ -297,10 +303,11 @@ export function mountSavedTerritories({ map, getHall, isAdmin, getRecords, getSt
       }
       const name = prompt(`Save a new current set for ${getHall()?.name} — ${congregation}. It will contain these ${chosen.length} chosen territories plus your other current territories and unassigned addresses. Earlier location saves remain in Backup.`, datedWorkName(getHall()?.name));
       if (name === null || !name.trim()) return;
+      const savingHall = hallId;
       libraryBusy = true; saveSetButton.disabled = true; setStatus.textContent = 'Saving the complete named set…';
       try {
         const id = await libraryManager.saveSet(chosen.map(x => x.version), name.trim());
-        if (!active()) return;
+        if (!active() || hallId !== savingHall) return;
         setStatus.textContent = `Saved “${name.trim()}”. It is available under Return to your territories. Your current map has not been replaced. `;
         const open = document.createElement('button'); open.type = 'button'; open.className = 'btn outline'; open.textContent = 'Load this saved set';
         open.onclick = () => loadSavedSet?.(id); setStatus.appendChild(open);

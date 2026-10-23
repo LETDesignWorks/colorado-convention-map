@@ -1,6 +1,17 @@
 import { nameKey, savedTime } from './backup-merge-model.js?v=territories-20261022-40';
 import { mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-40';
 const copy = value => JSON.parse(JSON.stringify(value));
+function versionHomes(version) {
+  const seen = new Set(), target = String(version.territory.id);
+  return copy(version.houses).map(home => {
+    const id = String(home.id || '');
+    if (!id || seen.has(id)) throw new Error('This version has missing or repeated address IDs. Review its addresses first.');
+    seen.add(id); home.id = id;
+    if (home.avoid) { home.included = false; home.territoryId = null; home.avoidTerritoryId = target; }
+    else if (home.included !== false) home.territoryId = target;
+    return home;
+  });
+}
 export function datedWorkName(hallName, now = new Date()) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Denver', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(now).map(p => [p.type, p.value]));
   return `${String(hallName || 'Meeting location').trim()} — ${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} MT`;
@@ -28,7 +39,7 @@ export function combineChosenLocation(workspace, versions) {
     if (replaced.has(String(h.avoidTerritoryId || ''))) h.avoidTerritoryId = null;
   });
   for (const v of versions) {
-    const incoming = copy(v.houses);
+    const incoming = versionHomes(v);
     // Retain restrictive flags already in the location set. Restoring an older
     // territory must never silently turn a do-not-visit address into a ministry home.
     for (const h of incoming) {
@@ -57,7 +68,7 @@ export function createLibraryManager(host) {
       const old = libraryChoice(host.records(), version.hallId, version.territory.name);
       if (old?.versionId === version.id) return old;
       const snapshot = { hallId: version.hallId, congregation: version.congregation,
-        houses: copy(version.houses), territories: [copy(version.territory)], boundary: copy(version.territory.geometry || null) };
+        houses: versionHomes(version), territories: [copy(version.territory)], boundary: copy(version.territory.geometry || null) };
       const id = await host.saveSnapshot(snapshot, { kind: 'backup', libraryKept: true,
         name: `${datedWorkName(host.hall().name)} — KEEP ${version.territory.name}`, fromVersion: version.id });
       guard(version.hallId);
@@ -87,5 +98,18 @@ export function createLibraryManager(host) {
       return await host.saveSnapshot(combined, { kind: 'work', name: String(name || '').trim() || datedWorkName(host.hall().name), sourceVersionIds: versions.map(v => v.id) });
     } finally { busy = false; }
   }
-  return { keep, removeOthers, saveSet, isBusy: () => busy };
+  async function removeVersion(group, versionId) {
+    const version = group.versions[0]; guard(version.hallId);
+    if (busy) throw new Error('Finish the current library operation first.');
+    const choice = libraryChoice(host.records(), version.hallId, version.territory.name);
+    if (!choice?.versionId || !group.versions.some(v => v.id === choice.versionId)) throw new Error('Save the exact version to keep first.');
+    if (versionId === choice.versionId) throw new Error('The kept version is protected. Choose another version first.');
+    if (!group.versions.some(v => v.id === versionId)) throw new Error('That version is no longer in this review.');
+    busy = true;
+    try {
+      return await host.writeChoice(version.hallId, version.territory.name, choice.territoryKey,
+        { versionId: choice.versionId, hiddenVersionIds: [...new Set([...(choice.hiddenVersionIds || []), versionId])] });
+    } finally { busy = false; }
+  }
+  return { keep, removeOthers, removeVersion, saveSet, isBusy: () => busy };
 }

@@ -1,5 +1,5 @@
 import { deletionProblem } from './backup-merge-model.js?v=territories-20261022-40';
-import { datedWorkName } from './library-management-model.js?v=territories-20261022-40';
+// Backup deletion uses the same recoverable Trash as individual cleanup.
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 let api, busy = false;
 const selected = new Set();
@@ -20,7 +20,10 @@ function candidates() {
 }
 function render() {
   mount(); const box = document.getElementById('bulkBackupCleanup'); if (!box?.open || busy) return;
-  const rows = api.isAdmin() ? candidates() : [];
+  const ready = api.isAdmin() && api.getSavedRecordsStatus() === 'ready';
+  box.querySelector('#selectRemovableBackups').disabled = !ready;
+  box.querySelector('#clearBackupSelection').disabled = !ready;
+  const rows = ready ? candidates() : [];
   const removable = new Set(rows.filter(x => !x.problem).map(x => x.record.id));
   for (const id of selected) if (!removable.has(id)) selected.delete(id);
   box.querySelector('#bulkBackupCleanupList').innerHTML = rows.map(({record:r, problem}) => `<label style="display:flex;gap:10px;padding:10px;border-bottom:1px solid #ddd"><input type="checkbox" data-backup-check="${esc(r.id)}" ${selected.has(r.id)?'checked':''} ${problem?'disabled':''}><span><strong>${esc(r.planName || r.territoryName || r.name || 'Backup')}</strong><small style="display:block">${Number(r.houseCount || 0)} addresses • ${Number(r.territoryCount || (r.territoryId ? 1 : 0))} territories${problem ? ` • Protected: ${esc(problem)}` : ''}</small></span></label>`).join('') || '<p>No backups for this location.</p>';
