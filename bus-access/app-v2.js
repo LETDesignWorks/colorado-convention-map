@@ -6,6 +6,7 @@ import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction
 import { HALLS } from './data.js';
 import { CONVENTION_CENTER } from './planning-center.mjs?v=bus-center-20261023-53';
 import { DRIVE_TIME_AREA, driveTimeEstimateFor } from './drive-time-area.mjs?v=bus-drive-time-20261023-54';
+import { mountPlanningBoundary } from './rounded-boundary.mjs?v=bus-boundary-20261023-55';
 
 const firebaseConfig={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',storageBucket:'convention-fs.firebasestorage.app',messagingSenderId:'29365992209',appId:'1:29365992209:web:0bd35e723688b37d776ab0',measurementId:'G-054BLBBE0F'};
 const ADMIN_EMAIL='michaeltarin@hotmail.com';
@@ -87,9 +88,9 @@ function initMap(){
   if(!window.L){document.getElementById('map').innerHTML='<div style="padding:25px">The map library could not load. The location directory and review forms remain available.</div>';return;}
   map=L.map('map',{zoomControl:true,attributionControl:true}).setView(CONVENTION_CENTER.point,10);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
-  boundaryLayer=L.geoJSON(DRIVE_TIME_AREA,{style:{color:'#0b4da2',weight:2,dashArray:'9 7',fillColor:'#4d9cdb',fillOpacity:.06},interactive:false}).addTo(map);
+  boundaryLayer=mountPlanningBoundary(L,map,DRIVE_TIME_AREA,CONVENTION_CENTER.point,{selector:document.getElementById('boundaryDisplay'),note:document.getElementById('boundaryDisplayNote')});
   map.attributionControl?.addAttribution('Drive-time estimate: Valhalla / FOSSGIS');
-  L.marker(CONVENTION_CENTER.point,{title:'Colorado Convention Center — 45-minute planning center',icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup(`<div class="pop-title">${CONVENTION_CENTER.name}</div><div class="pop-address">${CONVENTION_CENTER.address}</div><div>45-minute road-network driving estimate; no live traffic</div>`);
+  L.marker(CONVENTION_CENTER.point,{title:'Colorado Convention Center — 45-minute planning center',icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup(`<div class="pop-title">${CONVENTION_CENTER.name}</div><div class="pop-address">${CONVENTION_CENTER.address}</div><div>45-minute reference point; rounded planning guide or detailed driving estimate available. No live traffic.</div>`);
   syncMarkers();
   map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
 }
