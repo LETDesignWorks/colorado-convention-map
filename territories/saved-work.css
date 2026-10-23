@@ -29,3 +29,5 @@ body[data-territory-workflow="upload"] .hall-work-boundary-tools{display:none}
 #savedWorkBackup .saved-list{max-height:350px;overflow:auto}
 @media(max-width:1000px){.address-workflow-pair{grid-template-columns:1fr}}
 @media print{.address-workflow-pair,.saved-work-backup{display:none!important}}
+
+.territory-list-card[hidden]{display:none!important}.territory-point-controls{display:flex;flex-wrap:wrap;gap:6px;width:100%;padding-top:6px}.territory-point-controls small{display:block;width:100%;font-size:11px;line-height:1.4}.territory-point-controls button{white-space:normal}.territory-remove-points .leaflet-editing-icon{background:#fff1ef;border:2px solid #bd3c31;cursor:crosshair}.territory-edit-actions{flex-wrap:wrap}#meetingSessionSummary{margin:8px 0;font-size:12px;line-height:1.5}

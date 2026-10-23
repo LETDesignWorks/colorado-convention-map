@@ -1,6 +1,9 @@
-import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-40';
-import { datedWorkName, createLibraryManager } from './library-management-model.js?v=territories-20261022-40';
-import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-40';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261022-41';
+import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261022-41';
+import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261022-41';
+import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261022-41';
+import { datedWorkName, createLibraryManager, libraryChoice } from './library-management-model.js?v=territories-20261022-41';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-41';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -11,11 +14,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-40';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-41';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-40';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-40';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-40';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-41';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-41';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-41';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -59,6 +62,7 @@ let territoryGroup;
 let territoryEditGroup;
 let territoryEditToolbar = null;
 let activeTerritoryEditId = null;
+let disposeVertexRemoval = null;
 let pendingTerritoryName = '';
 let liveTerritoryCountTimer = null;
 let pendingLiveTerritoryCount = null;
@@ -689,6 +693,7 @@ function showTerritoryEditActions(territory) {
   els.territoryEditActions.closest('.map-card')?.classList.add('territory-edit-active');
 }
 function hideTerritoryEditActions() {
+  disposeVertexRemoval?.(); disposeVertexRemoval = null;
   if (!els.territoryEditActions) return;
   els.territoryEditActions.hidden = true;
   els.territoryEditActions.closest('.map-card')?.classList.remove('territory-edit-active');
@@ -723,14 +728,7 @@ async function saveActiveTerritoryBoundaryEdit() {
   renderAllPlanningData();
   selectTerritoryHouses(result.territory.id);
 
-  const summary = boundaryChangeSummary(result);
-  if (currentPlanId) {
-    await savePlan({
-      successMessage: `${result.territory.name} saved with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}.`
-    });
-  } else {
-    toast(`${result.territory.name} boundary and homes updated in the workspace with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}. Select Save Territory Plan to retain the changes.`);
-  }
+  toast(`${result.territory.name} boundary and address assignments updated in this session. Select SAVE YOUR WORK to save all territories and addresses together.`);
 }
 
 function initMap() {
@@ -823,13 +821,7 @@ conflicts += 1;
       renderAllPlanningData();
       selectTerritoryHouses(result.territory.id);
       const summary = boundaryChangeSummary(result);
-      if (currentPlanId) {
-        await savePlan({
-          successMessage: `${result.territory.name} saved with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}.`
-        });
-      } else {
-        toast(`${result.territory.name} boundary and homes updated in the workspace with ${result.total} address${result.total === 1 ? '' : 'es'}. ${summary}. Select Save Territory Plan to retain the changes.`);
-      }
+      toast(`${result.territory.name} updated in this session. ${summary}. Select SAVE YOUR WORK to save the complete session.`);
       return;
     }
     const layer = boundaryGroup.getLayers()[0];
@@ -1996,7 +1988,7 @@ function editTerritoryBoundary(id) {
   territoryGroup.clearLayers();
   territoryEditGroup.clearLayers();
   const color = TERRITORY_COLORS[territory.colorIndex % TERRITORY_COLORS.length];
-  const editableGeoJson = L.geoJSON(geometry, {
+  const editableGeoJson = L.geoJSON(editablePolygonFeatures(geometry), {
     style: { color, weight: 4, fillColor: color, fillOpacity: .16 }
   });
   editableGeoJson.eachLayer(layer => {
@@ -2009,6 +2001,9 @@ function editTerritoryBoundary(id) {
   territoryEditToolbar.enable();
   updateLiveTerritoryBoundaryCount({ mode: 'edit', geometry: geometry.geometry || geometry, territoryId: id });
   showTerritoryEditActions(territory);
+  disposeVertexRemoval = mountVertexRemoval({ L, turf, map, group: territoryEditGroup,
+    container: els.territoryEditActions, notify: toast,
+    onChange: () => scheduleLiveTerritoryBoundaryCount({ mode: 'edit', geometry: combinedGeometryFromFeatureGroup(territoryEditGroup), territoryId: id }, true) });
   toast(`Editing ${territory.name}. Move the white handles, then select Save Boundary & Update Homes at the bottom of the map.`);
 }
 function resetTerritoryBoundary(id) {
@@ -2446,6 +2441,7 @@ function zoomTerritory(id) {
   renderHouseMarkers();
 }
 function renderTerritoryList() {
+  if (els.territoryList.closest('.territory-list-card')?.hidden) return;
   if (!territories.length) {
     els.territoryList.innerHTML = '<div class="empty">No territories have been created.</div>';
     return;
@@ -2687,7 +2683,7 @@ async function persistPlan(options = {}) {
       avoidHouseCount: savedHouses.filter(house => house.avoid).length,
       territoriesJson: JSON.stringify(savedTerritories.map(item => ({ id: item.id, name: item.name, colorIndex: item.colorIndex || 0,
         houseIds: [...(item.houseIds || [])], geometryJson: encodeGeometry(decodeGeometry(item.geometryJson, item.geometry)),
-        manualBoundary: Boolean(item.geometryJson || item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
+        congregation: item.congregation || congregation, manualBoundary: Boolean(item.geometryJson || item.geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' }))),
       territoryCount: savedTerritories.length, chunkIds, chunkCount: chunkIds.length,
       updatedByEmail: currentUser.email, createdAt: serverTimestamp(), updatedAt: serverTimestamp()
     };
@@ -2832,9 +2828,11 @@ function loadPlanRecord(id) {
   const savedTerritoriesForPlan = decodeTerritories(plan);
   territories = savedTerritoriesForPlan.map((item, index) => {
     const geometry = decodeGeometry(item.geometryJson, item.geometry);
-    return { id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry, manualBoundary: Boolean(geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '' };
+    return { id: String(item.id || uniqueId('territory')), name: item.name || nextTerritoryName(index), colorIndex: Number(item.colorIndex) || index, houseIds: [...(item.houseIds || [])], geometry, manualBoundary: Boolean(geometry), bulkBatchId: item.bulkBatchId || '', bulkBatchName: item.bulkBatchName || '', congregation: item.congregation || plan.congregation };
   });
   recalculateTerritoryHouseIds();
+  sessionRemovedNames = [...(plan.sessionRemovedTerritoryNames || [])];
+  rememberMeetingSessionBaseline();
   selectedHouseIds.clear();
   updateBoundaryUi();
   renderAllPlanningData();
@@ -2861,67 +2859,11 @@ function updateSavedTerritoryEditUi() {
   document.getElementById('saveEditedTerritoryPdfButton').dataset.territoryPdf = territory.id;
 }
 
-function editSavedTerritory(version) {
+async function editSavedTerritory(version) {
   if (!requireAdmin()) return false;
-  if (version.error) throw new Error('This saved version is incomplete. Refresh saved records and try again.');
-  const territory = JSON.parse(JSON.stringify(version.territory || {}));
-  const restoredHouses = JSON.parse(JSON.stringify(version.houses || []));
-  const hallId = String(version.hallId || ''), congregation = clean(version.congregation);
-  if (!hallId || !congregation || !territory.id || !Array.isArray(restoredHouses) || !restoredHouses.some(h => !h.avoid)) {
-    throw new Error('The saved territory is missing its meeting place, congregation, or addresses.');
-  }
-  if (String(selectedHall?.id) !== hallId && !hallLocations.some(hall => String(hall.id) === hallId)) {
-    throw new Error('This saved meeting place is not available. Your current work has been kept.');
-  }
-  const ids = new Set();
-  if (territory.geometry) {
-    const polygons = territory.geometry.type === 'Polygon' ? [territory.geometry.coordinates]
-      : territory.geometry.type === 'MultiPolygon' ? territory.geometry.coordinates : [];
-    if (!Array.isArray(polygons) || !polygons.length || !polygons.every(polygon => Array.isArray(polygon) && polygon.length && polygon.every(ring =>
-      Array.isArray(ring) && ring.length >= 4 && ring.every(point => Array.isArray(point) && point.length >= 2 &&
-        Number.isFinite(point[0]) && Number.isFinite(point[1]) && Math.abs(point[0]) <= 180 && Math.abs(point[1]) <= 90) &&
-      ring[0][0] === ring.at(-1)[0] && ring[0][1] === ring.at(-1)[1]))) {
-      throw new Error('The saved territory boundary is incomplete. Your current work has been kept.');
-    }
-  }
-  territory.id = String(territory.id);
-  for (const house of restoredHouses) {
-    if (!house.id || ids.has(String(house.id)) || house.lat == null || house.lng == null || !validMapCoordinates(house)) {
-      throw new Error('This saved territory contains incomplete or repeated address locations. Your current work has been kept.');
-    }
-    house.id = String(house.id); ids.add(house.id);
-    house.avoid = Boolean(house.avoid);
-    house.included = !house.avoid && house.included !== false;
-    house.territoryId = house.avoid ? null : territory.id;
-    if (house.avoid) house.avoidTerritoryId = territory.id;
-  }
-  territory.houseIds = restoredHouses.filter(h => h.included).map(h => h.id);
-  // A temporary, separate record reuses the validated loader without ever
-  // replacing an archive or attaching a single-territory edit to a full plan.
-  const id = uniqueId('saved-territory-edit'), chunkId = `${id}__houses`;
-  const plan = { id, pdfArchive: true, hallId, congregation,
-    planName: `${territory.name || 'Territory'} - revised territory`,
-    boundaryJson: encodeGeometry(territory.geometry), boundaryPreservesAddresses: true,
-    houseCount: restoredHouses.length, chunkIds: [chunkId], sourceKey: 'manual',
-    territoriesJson: JSON.stringify([{ ...territory, geometryJson: encodeGeometry(territory.geometry) }]) };
-  reviewRecords.set(id, plan); reviewRecords.set(chunkId, { houses: restoredHouses });
-  let opened;
-  try { opened = loadPlanRecord(id); }
-  finally { reviewRecords.delete(id); reviewRecords.delete(chunkId); }
-  if (!opened) return false;
-  savedTerritoryEditId = territory.id;
-  window.dispatchEvent(new CustomEvent('territory-planner:edit-saved'));
-  els.pdfTerritorySelect.value = territory.id;
-  zoomTerritory(territory.id);
-  updateSavedTerritoryEditUi();
-  const message = 'Ready to edit. Use Edit Boundary or the address tools, then Save Updated Territory & PDF. The earlier PDF will be kept.';
-  document.getElementById('savedTerritoryEditStatus').textContent = message;
-  document.getElementById('savedTerritoryEditStatus').dataset.state = 'waiting';
-  setPlanSaveMessage(message);
-  document.getElementById('savedTerritoryEditCard')?.focus?.();
-  toast(`${territory.name || 'Saved territory'} opened for editing.`);
-  return true;
+  return meetingSessionManager.edit(version);
 }
+
 async function deleteBoundaryRecord(id) {
   const item = reviewRecords.get(id);
   if (!item || !confirm(`Delete the saved boundary “${item.name || item.congregation || 'Boundary'}”?`)) return;
@@ -3000,7 +2942,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-40');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-41');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3138,7 +3080,7 @@ async function openSavedPdf(id, button, restore, originalCopy = false) {
       if (String(snapshot.hall.id) !== String(record.hallId) || String(snapshot.territory.id) !== String(record.territoryId)) {
         throw new Error('The saved PDF does not match its meeting place or territory.');
       }
-      editSavedTerritory({ ...snapshot, hallId: snapshot.hall.id });
+      await editSavedTerritory({ ...snapshot, hallId: snapshot.hall.id, source: 'pdf' });
     } else {
       const blob = readArchivePdf(record, parts), url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -3524,6 +3466,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
 }
 
 function clearPlanWorkspace(resetSelection = true) {
+  sessionBaseline = new Map(); sessionRemovedNames = [];
   workspaceGeneration += 1;
   savedTerritoryEditId = null;
   updateSavedTerritoryEditUi();
@@ -3653,6 +3596,7 @@ async function initialize() {
   mountSavedTerritories({
     map, L, turf, isAdmin, getHall: () => selectedHall,
     editTerritory: editSavedTerritory,
+    getWorkspace: sessionWorkspace, sessionManager: meetingSessionManager,
     libraryManager, versionPdf: libraryVersionPdf, getCongregation: () => selectedCongregation, loadSavedSet: loadPlanRecord,
     saveNameChoice: (name, key) => backupTools.saveNameChoice(name, key),
     getRecords: () => reviewRecords, getStatus: () => savedRecordsStatus,
@@ -3796,7 +3740,8 @@ async function saveTerritoryNameChoice(hallId, normalizedName, territoryKey, det
 }
 async function saveLibrarySnapshot(snapshot, options = {}) {
   if (!isAdmin() || savedRecordsStatus !== 'ready' || String(selectedHall?.id) !== String(snapshot.hallId)) throw new Error('Sign in and keep the intended meeting place selected.');
-  const hall = { ...selectedHall }, email = currentUser.email;
+  const hall = { ...selectedHall }, email = currentUser.email, scopeCongregation = selectedCongregation;
+  if (options.sessionScope && snapshot.territories.length > 400) throw new Error('This session has more than 400 territories. Divide it before saving.');
   const savedHouses = snapshot.houses.map(serializeHouse);
   const savedTerritories = JSON.parse(JSON.stringify(snapshot.territories));
   const ref = doc(collection(db, 'reviews')), id = ref.id;
@@ -3805,6 +3750,8 @@ async function saveLibrarySnapshot(snapshot, options = {}) {
   const chunkIds = chunks.map((_, index) => `${id}__library_${String(index).padStart(4, '0')}`);
   const record = { recordType: 'territory-plan', saveKind: options.kind || 'backup', savedWorkSchemaVersion: 1,
     savedWorkKey: workKey(hall.id, snapshot.congregation), libraryKept: Boolean(options.libraryKept),
+    sessionScope: options.sessionScope || '',
+    sessionRemovedTerritoryNames: snapshot.removedTerritoryNames || [],
     keptFromVersion: options.fromVersion || '', sourceVersionIds: options.sourceVersionIds || [],
     planName: options.name || datedWorkName(hall.name), hallId: hall.id, hallName: hall.name,
     hallLabel: markerLabel(hall), hallAddress: hall.address || '', congregation: snapshot.congregation,
@@ -3819,14 +3766,27 @@ async function saveLibrarySnapshot(snapshot, options = {}) {
     avoidHouseCount: savedHouses.filter(h => h.avoid).length, chunkIds, chunkCount: chunkIds.length,
     updatedByEmail: email, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
   for (const [index, chunk] of chunks.entries()) {
-    if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id)) throw new Error('The meeting place or account changed. The new set was not published.');
+    if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id) || selectedCongregation !== scopeCongregation) throw new Error('The meeting place or account changed. The new set was not published.');
     const batch = writeBatch(db);
     batch.set(doc(db, 'reviews', chunkIds[index]), { recordType: 'territory-plan-chunk', planId: id,
       chunkIndex: index, housesJson: JSON.stringify(chunk), houseCount: chunk.length, updatedAt: serverTimestamp(), updatedByEmail: email });
     await batch.commit();
   }
-  if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id)) throw new Error('The meeting place or account changed. The new set was not published.');
-  await setDoc(ref, record);
+  if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id) || selectedCongregation !== scopeCongregation) throw new Error('The meeting place or account changed. The new set was not published.');
+  const publish = writeBatch(db), choices = [];
+  publish.set(ref, record);
+  if (options.sessionScope === 'meeting-place') {
+    savedTerritories.forEach((territory, index) => {
+      const old = libraryChoice(reviewRecords, hall.id, territory.name), choiceRef = doc(collection(db, 'reviews'));
+      const choice = { recordType: 'territory-name-choice', hallId: hall.id,
+        normalizedName: libraryNameKey(territory.name), territoryKey: JSON.stringify([String(hall.id), String(territory.id)]),
+        versionId: JSON.stringify(['plan', id, index]), hiddenVersionIds: old?.hiddenVersionIds || [],
+        updatedAt: serverTimestamp(), updatedByEmail: email };
+      publish.set(choiceRef, choice); choices.push({ ...choice, id: choiceRef.id });
+    });
+  }
+  await publish.commit();
+  choices.forEach(choice => reviewRecords.set(choice.id, { ...choice, updatedAt: new Date() }));
   reviewRecords.set(id, { ...record, id, updatedAt: new Date() });
   chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], { id: chunkIds[index], recordType: 'territory-plan-chunk', planId: id, houses: chunk }));
   renderSavedRecords(); emitPlannerDataChange();
@@ -3839,7 +3799,7 @@ async function libraryVersionPdf(version, progress) {
   const snapshot = { hall: { ...selectedHall }, congregation: version.congregation,
     territory: JSON.parse(JSON.stringify(version.territory)), houses: JSON.parse(JSON.stringify(version.houses)) };
   snapshot.houses.forEach(h => { if (!h.avoid && !h.territoryId) h.territoryId = snapshot.territory.id; });
-  const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-40');
+  const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-41');
   return buildTerritoryPdf(snapshot, progress);
 }
 let hallSelectionSequence = 0;
@@ -3859,12 +3819,12 @@ const backupTools = createBackupTools({
   verifySaved: verifyMergedBackup, trashRecord: trashBackupRecord, saveNameChoice: saveTerritoryNameChoice
 });
 
-function saveNamedWork() {
-  if (!requireAdmin()) return;
-  const name = prompt('Name this complete location set (addresses, territories and boundary):', datedWorkName(selectedHall?.name));
-  if (name === null || !clean(name)) return null;
-  return savePlan({ saveYourWork: true, namedSave: clean(name) });
+async function saveNamedWork() {
+  if (!requireAdmin()) return null;
+  try { return await meetingSessionManager.save(); }
+  catch (error) { setPlanSaveMessage(`The complete session was not saved: ${friendlyError(error)}`, 'error'); toast(friendlyError(error), true); return null; }
 }
+
 const libraryManager = createLibraryManager({
   isAdmin, status: () => savedRecordsStatus, hall: () => selectedHall,
   records: () => reviewRecords, capture: backupWorkspaceSnapshot, saveSnapshot: saveLibrarySnapshot,
@@ -3872,7 +3832,67 @@ const libraryManager = createLibraryManager({
 });
 
 
+// One editable meeting-place session, with saved-library versions folded in at
+// explicit edit/keep/save actions. Previewing alone never changes the workspace.
+let sessionBaseline = new Map();
+let sessionRemovedNames = [];
+function sessionWorkspace() {
+  const value = { hallId: selectedHall?.id || '', hallName: selectedHall?.name || '', congregation: selectedCongregation,
+    currentPlanId, generation: workspaceGeneration, editId: savedTerritoryEditId,
+    editing: Boolean(activeTerritoryEditId || drawMode || manualHouseMode), houses, territories, boundary: boundaryGeometry };
+  const changes = sessionChanges(value, sessionBaseline);
+  changes.removedTerritoryNames = [...new Set([...sessionRemovedNames, ...changes.removedTerritoryNames])];
+  return { ...value, ...changes };
+}
+function captureMeetingSession() { return JSON.parse(JSON.stringify(sessionWorkspace())); }
+function rememberMeetingSessionBaseline() { sessionBaseline = territoryStamps({ houses, territories }); }
+function readSessionBase(workspace) {
+  const plan = currentWorkFor(savedPlans(), workspace.hallId, workspace.congregation);
+  if (!plan || (!workspace.editId && plan.id === workspace.currentPlanId)) return null;
+  return { id: plan.id, hallId: plan.hallId, congregation: plan.congregation,
+    houses: readPlanAddresses(plan, reviewRecords), territories: readPlanTerritories(plan),
+    boundary: decodeGeometry(plan.boundaryJson, plan.boundary) };
+}
+function applyMeetingSession(draft, expectedStamp, planId = null) {
+  if (!isAdmin() || sessionContentStamp(captureMeetingSession()) !== expectedStamp || String(selectedHall?.id) !== String(draft.hallId)) throw new Error('Your session changed. Nothing was replaced; retry the action.');
+  houses = JSON.parse(JSON.stringify(draft.houses)); territories = JSON.parse(JSON.stringify(draft.territories));
+  boundaryGeometry = draft.boundary ? JSON.parse(JSON.stringify(draft.boundary)) : null;
+  boundaryPreservesAddresses = true; savedTerritoryEditId = null; selectedHouseIds.clear(); focusedTerritoryId = null;
+  workspaceGeneration += 1;
+  sessionRemovedNames = [...(draft.removedTerritoryNames || [])];
+  if (planId) { currentPlanId = planId; activeSavedWorkKey = workKey(selectedHall.id, selectedCongregation); els.planName.value = reviewRecords.get(planId)?.planName || ''; }
+  boundaryGroup.clearLayers();
+  if (boundaryGeometry) L.geoJSON(boundaryGeometry, { style: { color: '#0b5b9f', weight: 2, dashArray: '9 7', fillOpacity: .06 } }).addTo(boundaryGroup);
+  recalculateTerritoryHouseIds();
+  if (planId) rememberMeetingSessionBaseline();
+  if (document.getElementById('bulkFocus')) document.getElementById('bulkFocus').checked = false;
+  globalThis.__denverMeetingPlaceFlow?.reset();
+  updateSavedTerritoryEditUi(); updateBoundaryUi(); renderAllPlanningData();
+}
+const meetingSessionManager = createMeetingSessionManager({
+  turf, isAdmin, status: () => savedRecordsStatus, capture: captureMeetingSession,
+  context: () => [selectedHall?.id, selectedCongregation, workspaceGeneration],
+  records: () => new Map(reviewRecords), hall: () => selectedHall, readBase: readSessionBase,
+  readSnapshot: async record => readArchiveSnapshot(record, await archiveParts(record, 'snapshot')),
+  saveSnapshot: saveLibrarySnapshot, apply: applyMeetingSession, editBoundary: editTerritoryBoundary,
+  finishEdit: async () => { if (activeTerritoryEditId) await saveActiveTerritoryBoundaryEdit(); return !activeTerritoryEditId && !drawMode; },
+  askName: (suggestion, draft) => prompt(`Save this complete meeting-place session: ${draft.territories.length} territories and ${draft.houses.length.toLocaleString()} addresses, including avoid and unassigned addresses. Name:`, suggestion),
+  confirmVersion: version => confirm(`Use this version of ${version.territory.name} in the current meeting-place session? Only that territory is replaced; other territories, new uploads and avoid records are kept. SAVE YOUR WORK saves the complete session.`),
+  confirm: message => confirm(message), keepVersion: version => libraryManager.keep(version),
+  scanTerritory: async geometry => {
+    const scanner = globalThis.__denverFullBoundaryAssessor;
+    if (!scanner) throw new Error('The assessor/GIS scanner is not ready. Retry after loading completes.');
+    return scanner.run({ managed: true, searchGeometry: geometry });
+  },
+  loading: busy => busy ? startLoading('meeting-session', 'Preparing the complete meeting-place session…') : stopLoading('meeting-session'),
+  paint: paintBeforeWork,
+  message: message => { setPlanSaveMessage(message, 'success'); toast(message); }
+});
+
+
 globalThis.__denverTerritoryPlannerAPI = Object.freeze({
+  meetingSessionManager,
+  getSessionWorkspace: sessionWorkspace,
   backupTools,
   libraryManager,
   getMap: () => map,

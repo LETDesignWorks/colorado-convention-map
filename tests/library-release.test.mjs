@@ -84,10 +84,10 @@ test('failed keep restores usable PDF and selection controls without enabling pr
 function writeHarness(failPart=0) {
  const source=read('territories/app-main.js'),code=source.slice(source.indexOf('async function saveLibrarySnapshot('),source.indexOf('\nasync function libraryVersionPdf('));
  const stored=new Map(),reviews=new Map(),writes=[],hall={id:'a',name:'Hall'};let counter=0,commits=0;
- const context={isAdmin:()=>true,savedRecordsStatus:'ready',selectedHall:hall,currentUser:{email:'test@example.invalid'},serializeHouse:h=>({...h}),FIRESTORE_HOUSE_CHUNK_SIZE:1,
+ const context={isAdmin:()=>true,savedRecordsStatus:'ready',selectedHall:hall,selectedCongregation:'A',libraryChoice:()=>null,libraryNameKey:n=>String(n).toUpperCase(),currentUser:{email:'test@example.invalid'},serializeHouse:h=>({...h}),FIRESTORE_HOUSE_CHUNK_SIZE:1,
   db:{},collection:()=>({collection:true}),doc:(parent,...path)=>({id:parent.collection?'copy'+(++counter):path.at(-1)}),workKey:(h,c)=>JSON.stringify([h,c]),datedWorkName:()=> 'Named',
   markerLabel:()=> 'A',encodeGeometry:g=>g?JSON.stringify(g):null,decodeGeometry:(j,g)=>j?JSON.parse(j):g||null,els:{territoryPrefix:{value:'A'}},clean:s=>String(s||'').trim(),targetSizeValue:()=>30,
-  serverTimestamp:()=>1,writeBatch:()=>{let entry;return{set:(ref,record)=>{entry=[ref.id,record]},commit:async()=>{commits++;if(failPart===commits)throw Error('chunk failed');writes.push(entry[0]);stored.set(...entry)}}},
+  serverTimestamp:()=>1,writeBatch:()=>{const entries=[];return{set:(ref,record)=>{entries.push([ref.id,record])},commit:async()=>{commits++;if(failPart===commits)throw Error('chunk failed');for(const entry of entries){writes.push(entry[1].recordType==='territory-plan'?'manifest':entry[0]);stored.set(...entry)}}}},
   setDoc:async(ref,record)=>{writes.push('manifest');stored.set(ref.id,record)},reviewRecords:reviews,renderSavedRecords(){},emitPlannerDataChange(){},console,Map,Date,JSON};
  vm.createContext(context);vm.runInContext(code+'\nthis.save=saveLibrarySnapshot;',context);return{context,stored,reviews,writes};
 }
@@ -99,4 +99,16 @@ test('independent kept copy publishes only after all owned address parts succeed
 test('a failed kept-copy part never exposes a loadable partial plan',async()=>{
  const h=writeHarness(2);await assert.rejects(h.context.save({hallId:'a',congregation:'A',boundary:null,houses:[{id:'1'},{id:'2'}],territories:[]}),/chunk failed/);
  assert.equal(h.writes.includes('manifest'),false);assert.equal(h.reviews.size,0);assert.equal([...h.stored.values()].some(r=>r.recordType==='territory-plan'),false);
+});
+
+
+test('complete session atomically publishes manifest and all exact kept-version choices',async()=>{
+ const h=writeHarness(),snapshot={hallId:'a',congregation:'A',boundary:null,houses:[{id:'1'},{id:'2'}],territories:[{id:'t',name:'T1'},{id:'u',name:'T2',congregation:'B'}]};
+ const id=await h.context.save(snapshot,{kind:'work',sessionScope:'meeting-place'});
+ const record=h.stored.get(id),choices=[...h.stored.values()].filter(r=>r.recordType==='territory-name-choice');
+ assert.equal(record.sessionScope,'meeting-place');assert.equal(choices.length,2);
+ assert.ok(choices.every((c,i)=>JSON.parse(c.versionId)[1]===id));
+ assert.equal(JSON.parse(record.territoriesJson)[1].congregation,'B');
+ const failed=writeHarness(3);await assert.rejects(failed.context.save(snapshot,{kind:'work',sessionScope:'meeting-place'}),/chunk failed/);
+ assert.equal([...failed.stored.values()].filter(r=>['territory-plan','territory-name-choice'].includes(r.recordType)).length,0);
 });

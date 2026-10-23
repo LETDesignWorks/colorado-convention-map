@@ -53,7 +53,7 @@ function makeVersion(record, territory, houses, index, source, error = '') {
     key: identity(record.hallId, territory, record.id, index),
     id: JSON.stringify([source, record.id, index]), source, recordId: record.id, hallId: text(record.hallId),
     territory: { ...copy(territory), geometry: error ? null : geometry(territory) },
-    houses: copy(houses), error, congregation: text(record.congregation),
+    houses: copy(houses), error, congregation: text(territory.congregation || record.congregation),
     planId: isPdf ? text(record.planId) : record.id,
     sourceName: isPdf ? record.filename || 'Saved PDF' : record.planName || 'Saved plan',
     time: savedTime(isPdf ? record.territorySavedAt || record.createdAt || record.updatedAt : record.updatedAt || record.createdAt),

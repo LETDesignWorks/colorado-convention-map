@@ -381,7 +381,10 @@ async function mergeFeatures(planner, sourceKey, features, scope) {
     const record = parseSourceFeature(sourceKey, features[index]);
     if (!record || !validCoordinates(record) || !clean(record.address)) { unusable++; continue; }
     if (document.getElementById('residentialOnly')?.checked !== false && record.residential === false) { nonResidential++; continue; }
-    if (!planner.pointInsideBoundary(record)) { outside++; continue; }
+    const inside = scope.searchGeometry
+      ? turf.booleanPointInPolygon(turf.point([Number(record.lng), Number(record.lat)]), turf.feature(scope.searchGeometry))
+      : planner.pointInsideBoundary(record);
+    if (!inside) { outside++; continue; }
     const key = addressKey(record, true);
     if (!key || addressIndex.has(key)) { duplicates++; continue; }
     let id = String(record.id || planner.uniqueId('assessor'));
@@ -429,10 +432,11 @@ async function runEveryAddressInsideBoundary(options = {}) {
   document.getElementById('directAssessorCancel')?.removeAttribute('hidden');
   try {
     removeLegacyControls();
-    const geometry = await ensureBoundary(planner);
+    const geometry = options.searchGeometry ? geometryObject(JSON.parse(JSON.stringify(options.searchGeometry))) : await ensureBoundary(planner);
     if (startGeneration !== planner.getWorkspaceGeneration?.() || startHall !== String(planner.getSelectedHall()?.id)
       || startCongregation !== planner.getSelectedCongregation() || !planner.isAdmin()) return { status: 'stale' };
     scope = captureScanScope(planner);
+    if (options.searchGeometry) scope.searchGeometry = geometry;
     changedHandler = () => { if (!scanScopeIsCurrent(planner, scope)) cancelActiveRequests(); };
     window.addEventListener('territory-planner:data', changedHandler);
     const envelope = geometryBounds(geometry);

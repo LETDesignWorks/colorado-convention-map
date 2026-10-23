@@ -18,12 +18,18 @@ export function latestWork(plans) {
     if (!previous || workTime(plan) > workTime(previous)
       || (workTime(plan) === workTime(previous) && String(plan.id).localeCompare(String(previous.id)) > 0)) byKey.set(key, plan);
   }
-  return [...byKey.values()].sort((a, b) => clean(a.hallName).localeCompare(clean(b.hallName), undefined, { numeric: true })
+  const byHall = new Map();
+  for (const plan of plans) if (!plan.deletedAt && plan.saveKind === 'work' && plan.sessionScope === 'meeting-place') {
+    const old = byHall.get(String(plan.hallId));
+    if (!old || workTime(plan) > workTime(old) || (workTime(plan) === workTime(old) && String(plan.id).localeCompare(String(old.id)) > 0)) byHall.set(String(plan.hallId), plan);
+  }
+  return [...byHall.values(), ...[...byKey.values()].filter(plan => !byHall.has(String(plan.hallId)))].sort((a, b) => clean(a.hallName).localeCompare(clean(b.hallName), undefined, { numeric: true })
     || clean(a.congregation).localeCompare(clean(b.congregation)));
 }
 export function currentWorkFor(plans, hallId, congregation) {
   const key = workKey(hallId, congregation);
-  return latestWork(plans).find(plan => workKey(plan.hallId, plan.congregation) === key) || null;
+  const current = latestWork(plans);
+  return current.find(plan => String(plan.hallId) === clean(hallId) && plan.sessionScope === 'meeting-place') || current.find(plan => workKey(plan.hallId, plan.congregation) === key) || null;
 }
 export function readPlanAddresses(plan, records) {
   const ids = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...records.values()]
