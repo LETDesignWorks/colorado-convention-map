@@ -1,4 +1,4 @@
-const version = 'territories-20261023-50';
+const version = 'checkout-20261023-51';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -18,7 +18,7 @@ try {
   document.head.appendChild(style);
   document.body.innerHTML = template;
   await import('../assets/branding.js?v=bus-status-sync-20260927-1');
-  await import('./app-main.js?v=territories-20261023-50');
+  await import('./app-main.js?v=checkout-20261023-51');
   await import('./address-duplicates-ui.js?v=territories-20261023-50');
   await import('./directions.js?v=territories-20261023-50');
   await import('./bulk-addresses.js?v=territories-20261023-50');
@@ -36,6 +36,8 @@ try {
   await import('./meeting-place-ui.js?v=territories-20261023-50');
   await import('./backup-merge-ui.js?v=territories-20261023-50');
   await import('./library-bulk-cleanup.js?v=territories-20261023-50');
+  const checkoutSheet = await import('./territory-checkout-ui.js?v=checkout-20261023-51');
+  checkoutSheet.initializeCheckoutSheet().catch(error => console.warn('Check-in sheet unavailable', error));
 } catch (error) {
   console.error(error);
   document.body.innerHTML = `<div style="margin:18px;padding:16px;border:1px solid #d89b96;border-radius:12px;background:#fff2f1;color:#7f2d28;font:600 14px/1.5 system-ui,sans-serif">The Ministry Territory Planner could not start: ${String(error?.message || error)}</div>`;
