@@ -1,0 +1,53 @@
+name: Audit Convention Center drive-time area
+on:
+  push:
+    branches: [work/bus-drive-time-check-54]
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Fetch bounded public road-network estimates
+        run: |
+          python - <<'PY'
+          import urllib.request,urllib.parse,json,pathlib,re,time,datetime
+          root=pathlib.Path('drive-time-audit');root.mkdir(exist_ok=True)
+          endpoint='https://valhalla1.openstreetmap.de'
+          headers={'User-Agent':'ColoradoConventionPlannerAudit/1.0 (+https://github.com/LETDesignWorks/colorado-convention-map)','X-Client-Id':'letdesignworks.github.io/colorado-convention-map-audit','Accept':'application/json'}
+          source=pathlib.Path('bus-access/data.js').read_text()
+          halls=json.loads(re.search(r'export const HALLS=(\[.*?\]);',source,re.S).group(1))
+          origin={'lat':39.74248,'lon':-104.99567}
+          extras=[{'id':'sample-longmont','name':'Longmont center (reference point)','lat':40.1672,'lng':-105.1019},{'id':'sample-evergreen','name':'Evergreen center (reference point)','lat':39.6333,'lng':-105.3172},{'id':'sample-bennett','name':'Bennett center (reference point)','lat':39.7589,'lng':-104.4283},{'id':'sample-centralcity','name':'Central City center (reference point)','lat':39.8019,'lng':-105.5142}]
+          sites=halls+extras
+          def query(action,payload,name):
+              url=endpoint+'/'+action+('?' + urllib.parse.urlencode({'json':json.dumps(payload,separators=(',',':'))}) if payload else '')
+              request=urllib.request.Request(url,headers=headers)
+              with urllib.request.urlopen(request,timeout=75) as response: data=json.load(response)
+              (root/(name+'.json')).write_text(json.dumps(data,indent=2))
+              (root/(name+'-request.json')).write_text(json.dumps({'url':url,'payload':payload},indent=2))
+              print(name, 'saved',flush=True);time.sleep(1.2);return data
+          errors=[]
+          tasks=[('status',None,'status')]
+          for profile in ['auto','bus']:
+              options={profile:{'speed_types':['freeflow','constrained']}}
+              tasks.append(('isochrone',{'locations':[origin],'costing':profile,'costing_options':options,'contours':[{'time':45}],'polygons':True,'denoise':1,'generalize':100,'show_locations':True},profile+'-45'))
+              tasks.append(('sources_to_targets',{'sources':[origin],'targets':[{'lat':s['lat'],'lon':s['lng']} for s in sites],'costing':profile,'costing_options':options,'units':'miles'},profile+'-outbound'))
+              tasks.append(('sources_to_targets',{'sources':[{'lat':s['lat'],'lon':s['lng']} for s in sites],'targets':[origin],'costing':profile,'costing_options':options,'units':'miles'},profile+'-inbound'))
+          for action,payload,name in tasks:
+              try:query(action,payload,name)
+              except Exception as e:
+                  print(name,type(e).__name__,str(e),flush=True);errors.append({'name':name,'error':str(e)});time.sleep(2)
+          (root/'sites.json').write_text(json.dumps(sites,indent=2))
+          (root/'metadata.json').write_text(json.dumps({'origin':origin,'queriedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'endpoint':endpoint,'errors':errors,'note':'One-time static road-network estimates; no live/predictive traffic or coach-clearance validation. Reference towns are sample coordinates, not approved venues.'},indent=2))
+          PY
+      - name: Bundle current source for review
+        run: tar -czf drive-time-audit/current-source.tgz bus-access tests assets load-tests/vendor
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: convention-center-drive-time-audit
+          path: drive-time-audit
+          retention-days: 3
