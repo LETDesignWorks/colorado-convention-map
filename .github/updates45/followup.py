@@ -11,8 +11,8 @@ change('tests/library-release.test.mjs',
     "vm.runInNewContext(read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories')+'\\nmountSavedTerritories(host);',ctx);",
     "vm.runInNewContext(read('territories/saved-pdf-view.js').replace(/^export /gm,'')+'\\n'+read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories')+'\\nmountSavedTerritories(host);',ctx);")
 change('tests/library-management.test.mjs',
-    r'assert.match(layer,/versionPdf\(version, message\)/);',
-    r'assert.match(layer,/versionPdf\(version, progress, options\)/);assert.match(layer,/pdfView.bind/);')
+    r'assert.match(s,/versionPdf\(version, message\)/);',
+    r'assert.match(s,/versionPdf\(version, progress, options\)/);assert.match(s,/pdfView.bind/);')
 p=Path('tests/territory-pdf-access.test.mjs');s=p.read_text()
 s="import { inflateSync } from 'node:zlib';\n"+s
 old='assert.match(bytes.toString(),/REVIEW COPY/);'
