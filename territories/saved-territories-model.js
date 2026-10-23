@@ -23,6 +23,11 @@ function identity(hallId, territory, sourceId, index) {
   // Never use a display name as identity. ID-less legacy entries stay separate.
   return JSON.stringify([text(hallId), text(territory.id) || `legacy:${sourceId}:${index}`]);
 }
+const chunkArrays = new WeakMap();
+function decodedChunk(chunk) {
+  if (!chunkArrays.has(chunk)) chunkArrays.set(chunk, array(chunk.housesJson ?? chunk.houses));
+  return chunkArrays.get(chunk);
+}
 function planHouses(plan, records) {
   const ids = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...records.values()]
     .filter(item => item.recordType === 'territory-plan-chunk' && item.planId === plan.id)
@@ -32,7 +37,7 @@ function planHouses(plan, records) {
     if (!chunk || (chunk.planId && chunk.planId !== plan.id)) throw new Error('Saved addresses are incomplete. Refresh to retry.');
     const data = chunk.housesJson ?? chunk.houses;
     if (data == null) throw new Error('Saved addresses are incomplete. Refresh to retry.');
-    return array(data);
+    return decodedChunk(chunk);
   });
   if (Number.isFinite(plan.houseCount) && plan.houseCount !== houses.length) throw new Error('Saved address count does not match this plan.');
   return houses;
@@ -66,8 +71,16 @@ export async function collectSavedTerritories({ records, hallId, readSnapshot, i
     let houses = [], addressError = '';
     try { houses = planHouses(plan, records); }
     catch (error) { addressError = error.message; issues.push(`${plan.planName || 'Saved plan'}: ${addressError}`); }
+    const byTerritory = new Map(), byId = new Map();
+    for (const house of houses) {
+      byId.set(String(house.id), house);
+      const id = text(house.avoid ? house.avoidTerritoryId : house.territoryId);
+      if (id && (house.avoid || house.included !== false)) { if (!byTerritory.has(id)) byTerritory.set(id, []); byTerritory.get(id).push(house); }
+    }
     for (const [index, territory] of saved.entries()) {
-      try { versions.push(makeVersion(plan, territory, assignedHouses(territory, houses), index, 'plan', addressError)); }
+      const assigned = [...(byTerritory.get(text(territory.id)) || [])];
+      for (const id of territory.houseIds || []) { const house = byId.get(String(id)); if (house && !house.avoid && house.included !== false && !text(house.territoryId)) assigned.push(house); }
+      try { versions.push(makeVersion(plan, territory, assigned, index, 'plan', addressError)); }
       catch (error) { issues.push(`${territory.name || 'Territory'}: ${error.message}`); }
     }
   }
@@ -124,12 +137,21 @@ export function savedGeometry(version, turf) {
 
 // Latest-request-wins also cancels in-flight reads on hide, Hall change or sign-out.
 export function createSavedLayerLoader(collect = collectSavedTerritories) {
-  let generation = 0;
+  let generation = 0; const snapshots = new Map(); let cacheHall = '';
   return {
+    clearCache() { snapshots.clear(); cacheHall = ''; },
     cancel() { generation++; },
     async load(options) {
       const token = ++generation;
-      const result = await collect({ ...options, isCurrent: () => generation === token });
+      if (cacheHall !== String(options.hallId)) { snapshots.clear(); cacheHall = String(options.hallId); }
+      const readSnapshot = record => {
+        const key = JSON.stringify([record.id, record.snapshotChunkIds, record.snapshot, record.originalPdf, savedTime(record.updatedAt)]);
+        if (snapshots.has(key)) { const value = snapshots.get(key); snapshots.delete(key); snapshots.set(key, value); return value; }
+        const value = Promise.resolve().then(() => options.readSnapshot(record)).catch(error => { snapshots.delete(key); throw error; });
+        snapshots.set(key, value); while (snapshots.size > 64) snapshots.delete(snapshots.keys().next().value);
+        return value;
+      };
+      const result = await collect({ ...options, readSnapshot, isCurrent: () => generation === token });
       return generation === token ? result : null;
     }
   };

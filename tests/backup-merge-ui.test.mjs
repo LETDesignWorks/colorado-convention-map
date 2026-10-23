@@ -7,7 +7,7 @@ import * as model from '../territories/backup-merge-model.js';
 const settle = () => new Promise(resolve => setTimeout(resolve, 10));
 const read = path => fs.readFileSync(new URL('../'+path,import.meta.url),'utf8').replace(/\r\n/g,'\n');
 function uiHarness() {
-  const dom = new JSDOM('<details id="savedWorkBackup"><summary>Backup</summary><div id="savedPlans"><div><button data-load-plan="old">Load backup copy</button></div></div></details>',{url:'https://example.invalid/territories/'});
+  const dom = new JSDOM('<details id="savedWorkBackup" open><summary>Backup</summary><div id="savedPlans"><div><button data-load-plan="old">Load backup copy</button></div></div></details>',{url:'https://example.invalid/territories/'});
   dom.window.HTMLElement.prototype.scrollIntoView=function(){};
   const records = new Map([['old',{id:'old',recordType:'territory-plan',hallId:'21',hallName:'Example Hall',congregation:'Highlands Ranch',planName:'Old backup',houseCount:1,updatedAt:1}]]);
   const calls=[], homes=[{id:'1',address:'1 Example St'}];
@@ -42,11 +42,11 @@ function layerHarness() {
   const records=new Map(),calls=[],map={panes:new Map(),getPane(name){return this.panes.get(name);},createPane(name){const p={style:{}};this.panes.set(name,p);return p;},removeLayer(){},fitBounds(){}};
   const groups=['a','b'].map((id,i)=>({key:id,versions:[{id:'v'+id,source:'plan',sourceName:'Source '+id,recordId:id,hallId:'21',congregation:i?'Southpark':'Highlands Ranch',time:i+1,territory:{id,name:'HR-01',geometry:{type:'Polygon',coordinates:[]}},houses:[{id:'h'+id,address:`${i+1} Example St`}]}]}));
   let savedLayer;
-  const L={featureGroup:()=>savedLayer={items:[],clearLayers(){this.items=[];},addTo(){return this;},getBounds:()=>({isValid:()=>true})},geoJSON:()=>({eachLayer(fn){fn({bindTooltip(){},on(){}});},addTo(layer){layer.items.push(this);return this;},getBounds:()=>({isValid:()=>true})}),DomEvent:{stopPropagation(){}}};
+  const L={featureGroup:()=>savedLayer={items:[],clearLayers(){this.items=[];},removeLayer(item){this.items=this.items.filter(x=>x!==item);},addTo(){return this;},getBounds:()=>({isValid:()=>true})},geoJSON:()=>({eachLayer(fn){fn({bindTooltip(){},on(){}});},addTo(layer){layer.items.push(this);return this;},getBounds:()=>({isValid:()=>true})}),DomEvent:{stopPropagation(){}}};
   const host={map,L,turf:{},getHall:()=>({id:'21',name:'Example Hall'}),isAdmin:()=>true,getRecords:()=>records,getStatus:()=> 'ready',readSnapshot:async()=>{},readPdf:async()=>{},
     saveNameChoice:async(name,key)=>{calls.push([name,key]);records.set('choice',{id:'choice',recordType:'territory-name-choice',hallId:'21',normalizedName:model.nameKey(name),territoryKey:key,updatedAt:Date.now()});}};
   const context={document:dom.window.document,window:dom.window,URL,console,queueMicrotask,setTimeout,clearTimeout,host,
-    groupTerritoriesByName:model.groupTerritoriesByName,createSavedLayerLoader:()=>({cancel(){},load:async()=>({groups,issues:[],planCount:2,pdfCount:0})}),savedGeometry:v=>v.territory.geometry};
+    paintBeforeWork:()=>Promise.resolve(), groupTerritoriesByName:model.groupTerritoriesByName,createSavedLayerLoader:()=>({cancel(){},load:async()=>({groups,issues:[],planCount:2,pdfCount:0})}),savedGeometry:v=>v.territory.geometry};
   const code=read('territories/saved-territories-layer.js').replace(/^import .*;$/gm,'').replace('export function mountSavedTerritories','function mountSavedTerritories');
   vm.runInNewContext(code+'\nmountSavedTerritories(host);',context);
   return{dom,calls,records,get layer(){return savedLayer;}};

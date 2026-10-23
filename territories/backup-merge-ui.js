@@ -1,4 +1,4 @@
-import { locationKey, savedTime, deletionProblem } from './backup-merge-model.js?v=territories-20261022-39';
+import { locationKey, savedTime, deletionProblem } from './backup-merge-model.js?v=territories-20261022-40';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const el = id => document.getElementById(id);
 let api, tools, prepared = null, decisions = {}, previewLayer = null, working = false, refreshQueued = false;
@@ -37,6 +37,7 @@ function mount() {
   const style = document.createElement('style');
   style.textContent = '.backup-merge-card{margin:14px 0;padding:14px;border:1px solid #a9c9dd;border-radius:12px;background:#f5fafe;min-width:0}.backup-merge-card p,.backup-trash p{font-size:12px;line-height:1.5}.backup-merge-card label{display:block;margin:12px 0 5px;font-size:12px;font-weight:700}.backup-merge-card input:not([type=checkbox]),.backup-merge-card select{width:100%;min-width:0;box-sizing:border-box}.backup-check{display:flex!important;align-items:flex-start;gap:7px;font-weight:500!important}.backup-check input{width:auto!important;flex:none}.backup-conflict{margin:12px 0;padding:10px;background:#fff;border:1px solid #d4dce5;border-radius:9px}.backup-conflict select{margin:8px 0}.backup-conflict li{font-size:11px}.backup-trash{margin-top:16px}.backup-merge-actions{display:flex;flex-wrap:wrap;gap:6px}.backup-merge-card button{white-space:normal}.backup-merge-note{color:#536578}.same-name-review{padding:9px;border:1px solid #d3b9e6;border-radius:9px;background:#faf6ff;margin-bottom:12px}.same-name-option{padding:9px 0;border-top:1px solid #dfd5e6}.same-name-option small{display:block;overflow-wrap:anywhere}.same-name-option button{margin:5px 4px 0 0}';
   document.head.appendChild(style);
+  backup.addEventListener('toggle', () => { if (backup.open) refresh(); });
   el('previewBackupMerge').addEventListener('click', () => prepare(el('backupMergeSource').value));
   el('backupMergeOtherLocations').addEventListener('change', refresh);
   el('applyBackupMerge').addEventListener('click', apply);
@@ -50,9 +51,10 @@ function mount() {
   });
 }
 function rowButtons() {
+  const rowRecords = records(), rowState = tools.state();
   for (const [selector, attribute, mergeable] of [['[data-load-plan]', 'loadPlan', true], ['[data-load-territory-pdf]', 'loadTerritoryPdf', true], ['[data-load-boundary]', 'loadBoundary', false]]) {
     document.querySelectorAll(selector).forEach(load => {
-      const record = records().get(load.dataset[attribute]), actions = load.parentElement;
+      const record = rowRecords.get(load.dataset[attribute]), actions = load.parentElement;
       if (!record || record.deletedAt) return;
       if (mergeable && !actions.querySelector('[data-add-backup]')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'row-action';
@@ -62,7 +64,7 @@ function rowButtons() {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'row-action danger';
         button.dataset.trashBackup = record.id; button.textContent = 'Delete backup'; actions.appendChild(button);
       }
-      const state = tools.state(), problem = deletionProblem(record, records(), api.getCurrentPlanId(), state.pendingSourceIds);
+      const problem = deletionProblem(record, rowRecords, api.getCurrentPlanId(), rowState.pendingSourceIds);
       const remove = actions.querySelector('[data-trash-backup]'); remove.disabled = working || !api.isAdmin() || Boolean(problem); remove.title = problem || 'Move this old backup to recoverable Trash';
       const add = actions.querySelector('[data-add-backup]'); if (add) add.disabled = working || !api.isAdmin() || !api.getSelectedHall();
     });
@@ -82,7 +84,7 @@ function refresh() {
   el('previewBackupMerge').disabled = working || !ready || !source.value;
   el('saveMergedBackup').disabled = working || !ready || !api.getHouses().length;
   if (!ready) { prepared = null; clearMapPreview(); el('backupMergeReview').hidden = true; el('backupMergeApplyWrap').hidden = true; }
-  rowButtons();
+  if (el('savedWorkBackup')?.open) rowButtons();
   const deleted = [...records().values()].filter(r => r.deletedAt && ['territory-plan', 'territory-pdf', 'territory-boundary'].includes(r.recordType));
   el('backupTrashTitle').textContent = `Deleted backups (${deleted.length}) — restore`;
   el('backupTrashList').innerHTML = deleted.map(r => `<article class="saved-row"><div><strong>${esc(label(r))}</strong><small>${esc(r.hallName)} • ${esc(r.congregation)}</small></div><button class="row-action" type="button" data-restore-backup="${esc(r.id)}"${working || !ready ? ' disabled' : ''}>Restore backup</button></article>`).join('') || '<p>No deleted backups.</p>';

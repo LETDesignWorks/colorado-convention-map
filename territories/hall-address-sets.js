@@ -230,7 +230,7 @@ async function saveAddressSet() {
   el.save.disabled = true;
   el.save.textContent = 'Saving Address Set…';
   try {
-    const savedId = await api.savePlan?.({
+    const savedId = api.saveYourWork ? await api.saveYourWork() : await api.savePlan?.({
       addressSetMode: true,
       saveYourWork: true,
       successMessage: `${hallLabel(data.hall)} — ${data.congregation} address set saved with ${data.houses.length.toLocaleString()} mapped addresses, including ${data.houses.filter(house => house.avoid).length.toLocaleString()} avoid address${data.houses.filter(house => house.avoid).length === 1 ? '' : 'es'}.`

@@ -123,7 +123,8 @@ function ensureFlexibleOptions() {
     if (bulk.dataset.flexUserChanged !== 'true' && (!bulk.value || bulk.value === 'radius')) bulk.value = FLEX_METHOD;
   }
 }
-function injectLeftoverCard() {
+function injectLeftoverCard() { return; // Panel retired; no address records are removed.
+
   if (document.getElementById('territoryLeftoverCard')) return;
   const grouping = document.querySelector('.grouping-card');
   if (!grouping) return;
@@ -160,7 +161,8 @@ function currentLeftovers() {
     return true;
   }).sort((a, b) => clean(a.address).localeCompare(clean(b.address), undefined, { numeric: true }));
 }
-function renderLeftovers() {
+function renderLeftovers() { return; // No automatic leftover calculations on each map refresh.
+
   const card = document.getElementById('territoryLeftoverCard');
   if (!card) return;
   const all = currentLeftovers();
@@ -919,8 +921,7 @@ window.addEventListener('click', captureActions, true);
 
 function refreshUi() {
   ensureFlexibleOptions();
-  injectLeftoverCard();
-  renderLeftovers();
+  document.getElementById('flexLeftoverCard')?.remove(); // Removed by request; unassigned homes remain in the address directory.
 }
 async function initialize() {
   for (let index = 0; index < 300; index += 1) {

@@ -1,3 +1,5 @@
+import { datedWorkName, createLibraryManager } from './library-management-model.js?v=territories-20261022-40';
+import { startLoading, stopLoading, paintBeforeWork } from './planner-loading.js?v=territories-20261022-40';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -8,11 +10,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-39';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261022-40';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
-import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-39';
-import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-39';
-import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem } from './backup-merge-model.js?v=territories-20261022-39';
+import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261022-40';
+import { createBackupTools } from './backup-merge-service.js?v=territories-20261022-40';
+import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261022-40';
 import { HALLS } from './halls.js';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
@@ -889,7 +891,7 @@ function renderHallMarkers() {
   for (const location of hallLocations) {
     const marker = L.marker([location.lat, location.lng], { icon: hallIcon(location, location.id === selectedHall?.id) }).addTo(hallGroup);
     marker.bindPopup(`<strong>${escapeHtml(markerLabel(location))} — ${escapeHtml(location.name)}</strong><br>${escapeHtml(location.address || 'Saved map location')}<br><small>${escapeHtml((location.congregations || []).join(' • '))}</small>`);
-    marker.on('click', () => selectHall(location.id, false, false));
+    marker.on('click', () => { void selectHallWithFeedback(location.id, false); });
     hallMarkers.set(location.id, marker);
   }
 }
@@ -2653,7 +2655,7 @@ async function persistPlan(options = {}) {
   const preserves = base ? Boolean(base.boundaryPreservesAddresses || base.addressSetMode || base.addressOnlyMode) : Boolean(boundaryPreservesAddresses);
   const addressSetMode = Boolean(options.addressSetMode || addressOnlyMode || preserves);
   const defaultName = `${hall.name || markerLabel(hall)} — ${congregation}`;
-  const planName = clean(options.backupName) || base?.planName || clean(els.planName.value) || defaultName;
+  const planName = clean(options.namedSave) || clean(options.backupName) || base?.planName || clean(els.planName.value) || defaultName;
   const button = els.savePlanButton;
   button.disabled = true; button.textContent = 'Saving your work…';
   setPlanSaveMessage('Saving all addresses, avoid information, boundaries, and territories. Keep this page open until saving is confirmed.', 'working');
@@ -2723,16 +2725,22 @@ function subscribeReviews() {
   if (!db || !isAdmin()) return;
   if (reviewsUnsubscribe) reviewsUnsubscribe();
   savedRecordsStatus = 'loading';
+  reviewRecords.clear();
   const records = query(collection(db, 'reviews'), where('recordType', 'in', ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf', 'territory-name-choice']));
   reviewsUnsubscribe = onSnapshot(records, { includeMetadataChanges: true }, snapshot => {
     // Firestore emits local writes before the server accepts them. The saved
     // list must not claim an unacknowledged plan can be reopened later.
     if (snapshot.metadata?.hasPendingWrites) return;
+    const previousStatus = savedRecordsStatus;
     savedRecordsStatus = snapshot.metadata?.fromCache ? 'cached' : 'ready';
-    reviewRecords.clear();
-    snapshot.forEach(item => reviewRecords.set(item.id, { id: item.id, ...item.data() }));
-    renderSavedRecords();
-    emitPlannerDataChange();
+    let changed = previousStatus !== savedRecordsStatus;
+    for (const change of snapshot.docChanges()) {
+      const item = change.doc, data = item.data();
+      if (change.type === 'removed') reviewRecords.delete(item.id);
+      else reviewRecords.set(item.id, { id: item.id, ...data });
+      if (data.recordType !== 'territory-plan-chunk') changed = true;
+    }
+    if (changed) { renderSavedRecords(); emitPlannerDataChange(); }
   }, error => {
     savedRecordsStatus = 'error';
     window.dispatchEvent(new CustomEvent('territory-planner:saved-records'));
@@ -2995,7 +3003,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261017-33');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-40');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3560,7 +3568,7 @@ function startNewPlan() {
 }
 
 function wireEvents() {
-  els.hallSelect.addEventListener('change', () => selectHall(els.hallSelect.value, true, false));
+  els.hallSelect.addEventListener('change', () => { void selectHallWithFeedback(els.hallSelect.value, true); });
   els.congregationSelect.addEventListener('change', () => {
     const next = els.congregationSelect.value;
     if (next === selectedCongregation) return;
@@ -3607,7 +3615,7 @@ function wireEvents() {
   els.saveTerritoryBoundaryEditButton?.addEventListener('click', saveActiveTerritoryBoundaryEdit);
   els.cancelTerritoryBoundaryEditButton?.addEventListener('click', () => cancelTerritoryBoundaryEdit(true));
   els.houseSearch.addEventListener('input', renderHouseList);
-  els.savePlanButton.addEventListener('click', () => savePlan({ saveYourWork: true }));
+  els.savePlanButton.addEventListener('click', () => saveNamedWork());
   document.getElementById('editSavedTerritoryBoundaryButton')?.addEventListener('click', () => editTerritoryBoundary(savedTerritoryEditId));
   document.getElementById('selectSavedTerritoryHomesButton')?.addEventListener('click', () => selectTerritoryHouses(savedTerritoryEditId));
   // The current PDF renderer intercepts this data-territory-pdf button and saves
@@ -3648,8 +3656,9 @@ async function initialize() {
   mountSavedTerritories({
     map, L, turf, isAdmin, getHall: () => selectedHall,
     editTerritory: editSavedTerritory,
+    libraryManager, versionPdf: libraryVersionPdf, getCongregation: () => selectedCongregation, loadSavedSet: loadPlanRecord,
     saveNameChoice: (name, key) => backupTools.saveNameChoice(name, key),
-    getRecords: () => new Map(reviewRecords), getStatus: () => savedRecordsStatus,
+    getRecords: () => reviewRecords, getStatus: () => savedRecordsStatus,
     readSnapshot: async record => {
       if (!isAdmin()) throw new Error('Sign in to view saved territories.');
       return readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
@@ -3751,11 +3760,11 @@ async function trashBackupRecord(id, restore, pendingSources) {
   if (!isAdmin() || savedRecordsStatus !== 'ready') throw new Error('Sign in and reconnect before changing backups.');
   const before = reviewRecords.get(id);
   if (!before) throw new Error('This backup is no longer available.');
-  const metadata = await getDocsFromServer(query(collection(db, 'reviews'), where('recordType', 'in', ['territory-plan', 'territory-boundary'])));
+  const metadata = await getDocsFromServer(query(collection(db, 'reviews'), where('recordType', 'in', ['territory-plan', 'territory-boundary', 'territory-name-choice'])));
   const scopeRecords = new Map();
   metadata.forEach(item => {
     const record = { ...item.data(), id: item.id };
-    if (workKey(record.hallId, record.congregation) === workKey(before.hallId, before.congregation)) scopeRecords.set(item.id, record);
+    if (workKey(record.hallId, record.congregation) === workKey(before.hallId, before.congregation) || (record.recordType === 'territory-name-choice' && String(record.hallId) === String(before.hallId))) scopeRecords.set(item.id, record);
   });
   scopeRecords.set(id, before);
   const userEmail = currentUser?.email;
@@ -3779,24 +3788,96 @@ async function trashBackupRecord(id, restore, pendingSources) {
   reviewRecords.set(id, { ...confirmed, deletedAt: restore ? null : new Date(), deletedByEmail: restore ? null : userEmail });
   renderSavedRecords(); emitPlannerDataChange();
 }
-async function saveTerritoryNameChoice(hallId, normalizedName, territoryKey) {
+async function saveTerritoryNameChoice(hallId, normalizedName, territoryKey, details = {}) {
   if (!isAdmin() || String(selectedHall?.id) !== String(hallId)) throw new Error('The selected meeting place changed. Review the territory again.');
   const ref = doc(collection(db, 'reviews'));
-  const record = { recordType: 'territory-name-choice', hallId, normalizedName, territoryKey, updatedAt: serverTimestamp(), updatedByEmail: currentUser.email };
+  const record = { ...details, recordType: 'territory-name-choice', hallId, normalizedName, territoryKey, updatedAt: serverTimestamp(), updatedByEmail: currentUser.email };
   await setDoc(ref, record);
   reviewRecords.set(ref.id, { ...record, id: ref.id, updatedAt: new Date() });
   renderSavedRecords(); emitPlannerDataChange();
   return ref.id;
 }
+async function saveLibrarySnapshot(snapshot, options = {}) {
+  if (!isAdmin() || savedRecordsStatus !== 'ready' || String(selectedHall?.id) !== String(snapshot.hallId)) throw new Error('Sign in and keep the intended meeting place selected.');
+  const hall = { ...selectedHall }, email = currentUser.email;
+  const savedHouses = snapshot.houses.map(serializeHouse);
+  const savedTerritories = JSON.parse(JSON.stringify(snapshot.territories));
+  const ref = doc(collection(db, 'reviews')), id = ref.id;
+  const chunks = [];
+  for (let start = 0; start < savedHouses.length; start += FIRESTORE_HOUSE_CHUNK_SIZE) chunks.push(savedHouses.slice(start, start + FIRESTORE_HOUSE_CHUNK_SIZE));
+  const chunkIds = chunks.map((_, index) => `${id}__library_${String(index).padStart(4, '0')}`);
+  const record = { recordType: 'territory-plan', saveKind: options.kind || 'backup', savedWorkSchemaVersion: 1,
+    savedWorkKey: workKey(hall.id, snapshot.congregation), libraryKept: Boolean(options.libraryKept),
+    keptFromVersion: options.fromVersion || '', sourceVersionIds: options.sourceVersionIds || [],
+    planName: options.name || datedWorkName(hall.name), hallId: hall.id, hallName: hall.name,
+    hallLabel: markerLabel(hall), hallAddress: hall.address || '', congregation: snapshot.congregation,
+    addressSetMode: true, addressOnlyMode: !snapshot.boundary, boundaryPreservesAddresses: true,
+    boundaryJson: encodeGeometry(snapshot.boundary), boundaryName: `${hall.name} — ${snapshot.congregation}`,
+    territoryPrefix: clean(els.territoryPrefix.value), sourceKey: 'manual', targetSize: targetSizeValue(),
+    residentialOnly: true, separateUnits: true, groupingMethod: 'street',
+    territoriesJson: JSON.stringify(savedTerritories.map(t => ({ ...t, geometry: null,
+      geometryJson: encodeGeometry(decodeGeometry(t.geometryJson, t.geometry)) }))),
+    houseCount: savedHouses.length, territoryCount: savedTerritories.length,
+    includedHouseCount: savedHouses.filter(h => !h.avoid && h.included).length,
+    avoidHouseCount: savedHouses.filter(h => h.avoid).length, chunkIds, chunkCount: chunkIds.length,
+    updatedByEmail: email, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+  for (const [index, chunk] of chunks.entries()) {
+    if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id)) throw new Error('The meeting place or account changed. The new set was not published.');
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'reviews', chunkIds[index]), { recordType: 'territory-plan-chunk', planId: id,
+      chunkIndex: index, housesJson: JSON.stringify(chunk), houseCount: chunk.length, updatedAt: serverTimestamp(), updatedByEmail: email });
+    await batch.commit();
+  }
+  if (!isAdmin() || currentUser.email !== email || String(selectedHall?.id) !== String(hall.id)) throw new Error('The meeting place or account changed. The new set was not published.');
+  await setDoc(ref, record);
+  reviewRecords.set(id, { ...record, id, updatedAt: new Date() });
+  chunks.forEach((chunk, index) => reviewRecords.set(chunkIds[index], { id: chunkIds[index], recordType: 'territory-plan-chunk', planId: id, houses: chunk }));
+  renderSavedRecords(); emitPlannerDataChange();
+  return id;
+}
+async function libraryVersionPdf(version, progress) {
+  if (!isAdmin() || String(selectedHall?.id) !== String(version.hallId)) throw new Error('Select the saved territory\'s meeting place first.');
+  if (version.pdfRecord) return { blob: readArchivePdf(version.pdfRecord, await archiveParts(version.pdfRecord, 'pdf')), filename: version.pdfRecord.filename || 'territory.pdf' };
+  if (version.error || !version.houses.length) throw new Error('This saved version is incomplete. Review its address data first.');
+  const snapshot = { hall: { ...selectedHall }, congregation: version.congregation,
+    territory: JSON.parse(JSON.stringify(version.territory)), houses: JSON.parse(JSON.stringify(version.houses)) };
+  snapshot.houses.forEach(h => { if (!h.avoid && !h.territoryId) h.territoryId = snapshot.territory.id; });
+  const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261022-40');
+  return buildTerritoryPdf(snapshot, progress);
+}
+let hallSelectionSequence = 0;
+async function selectHallWithFeedback(id, pan = true) {
+  const token = ++hallSelectionSequence;
+  const name = hallLocations.find(h => h.id === String(id))?.name || 'meeting place';
+  startLoading('hall-selection', `Loading ${name}…`);
+  await paintBeforeWork();
+  if (token !== hallSelectionSequence) return;
+  try { selectHall(id, pan, false); }
+  finally { if (token === hallSelectionSequence) stopLoading('hall-selection'); }
+}
+
 const backupTools = createBackupTools({
-  isAdmin, status: () => savedRecordsStatus, capture: backupWorkspaceSnapshot, records: () => new Map(reviewRecords),
+  isAdmin, status: () => savedRecordsStatus, capture: backupWorkspaceSnapshot, context: () => ({ hallId: selectedHall?.id, congregation: selectedCongregation, generation: workspaceGeneration, currentPlanId }), records: () => new Map(reviewRecords),
   readSource: readBackupMergeSource, applyDraft: applyBackupMergeDraft, savePlan,
   verifySaved: verifyMergedBackup, trashRecord: trashBackupRecord, saveNameChoice: saveTerritoryNameChoice
+});
+
+function saveNamedWork() {
+  if (!requireAdmin()) return;
+  const name = prompt('Name this complete location set (addresses, territories and boundary):', datedWorkName(selectedHall?.name));
+  if (name === null || !clean(name)) return null;
+  return savePlan({ saveYourWork: true, namedSave: clean(name) });
+}
+const libraryManager = createLibraryManager({
+  isAdmin, status: () => savedRecordsStatus, hall: () => selectedHall,
+  records: () => reviewRecords, capture: backupWorkspaceSnapshot, saveSnapshot: saveLibrarySnapshot,
+  writeChoice: (hallId, name, key, details) => saveTerritoryNameChoice(hallId, libraryNameKey(name), key, details)
 });
 
 
 globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   backupTools,
+  libraryManager,
   getMap: () => map,
   getDb: () => db,
   getCurrentUser: () => currentUser,
@@ -3828,7 +3909,7 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   recalculateTerritoryHouseIds,
   render: renderAllPlanningData,
   savePlan,
-  saveYourWork: () => savePlan({ saveYourWork: true }),
+  saveYourWork: saveNamedWork,
   saveTerritoryPdf,
   finishTerritoryBoundaryEdit: async id => {
     if (activeTerritoryEditId !== id) return true;
