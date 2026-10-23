@@ -1,0 +1,31 @@
+/* Keep the address imports near the map, rather than squeezing two forms into a sidebar. */
+.address-workflow-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;align-items:start;margin-top:14px;min-width:0}
+.address-workflow-pair>.card{min-width:0;margin:0;overflow-wrap:anywhere}
+.address-workflow-pair input,.address-workflow-pair select{max-width:100%;min-width:0}
+body[data-territory-workflow="boundary"] .address-workflow-pair{grid-template-columns:1fr}
+#addressSourceMergeCard{margin-top:14px;min-width:0}
+.hall-work-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.hall-work-actions #hallAddressSaveButton{grid-column:1/-1;white-space:normal;font-weight:850;min-height:44px}
+#hallAddressSetCard .hall-saved-set{display:none}
+#hallAddressSetCard .hall-address-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+#hallAddressSetCard .hall-address-context{min-width:0;overflow-wrap:anywhere}
+#hallAddressSetCard input,#hallAddressSetCard select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.hall-work-boundary-tools{margin-top:12px;border-top:1px solid #d5e0e9;padding-top:10px}
+.hall-work-boundary-tools summary,.saved-work-backup>summary{cursor:pointer;font-weight:800;color:#29456b;min-height:32px}
+.hall-work-boundary-tools .field{margin-top:10px}
+body[data-territory-workflow="upload"] .hall-work-boundary-tools{display:none}
+.work-add-address{padding-top:12px;margin-top:12px;border-top:1px solid #d5e0e9;display:grid;gap:8px}
+.work-add-address label{font-weight:750;font-size:11px}
+.work-add-address small{line-height:1.5;color:#52677d}
+.work-add-address .btn{white-space:normal}
+.saved-work-location{border:1px solid #c7d9e4;border-radius:12px;padding:12px;margin:10px 0;background:#f8fbff}
+.saved-work-location>h3{margin:0 0 10px;font-size:14px}
+.saved-work-plan{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:9px 0;border-top:1px solid #dde6ef}
+.saved-work-plan>div{flex:1 1 180px;min-width:0}
+.saved-work-plan small{display:block;color:#617388;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.saved-work-plan .btn{white-space:normal;flex:0 1 auto}
+.saved-work-backup{margin-top:16px;padding:12px;border:1px solid #d7e0e9;border-radius:12px;background:#fafbfd}
+.saved-work-backup>summary{font-size:14px}
+#savedWorkBackup .saved-list{max-height:350px;overflow:auto}
+@media(max-width:1000px){.address-workflow-pair{grid-template-columns:1fr}}
+@media print{.address-workflow-pair,.saved-work-backup{display:none!important}}

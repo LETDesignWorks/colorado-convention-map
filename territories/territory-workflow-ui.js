@@ -99,8 +99,8 @@ function moveAvoidSection() {
   }
   if (panel.parentElement !== card) card.appendChild(panel);
   const hallEyebrow = document.querySelector('#hallAddressSetCard .eyebrow');
-  if (hallEyebrow && hallEyebrow.textContent !== '3D — KINGDOM HALL ADDRESS SET') {
-    hallEyebrow.textContent = '3D — KINGDOM HALL ADDRESS SET';
+  if (hallEyebrow && hallEyebrow.textContent !== '3D — SAVE YOUR WORK') {
+    hallEyebrow.textContent = '3D — SAVE YOUR WORK';
   }
 }
 
@@ -117,14 +117,14 @@ function toggleHidden(element, hidden) {
 }
 function applyWorkflowMode() {
   const targets = workflowTargets();
-  const hasBoundary = Boolean(api?.getBoundaryGeometry?.());
+  document.body.dataset.territoryWorkflow = activeMode;
   if (activeMode === MODE_BOUNDARY) {
     toggleHidden(targets.boundary, false);
     toggleHidden(targets.addresses, false);
     toggleHidden(targets.source, false);
     toggleHidden(targets.bulk, true);
   } else if (activeMode === MODE_UPLOAD) {
-    toggleHidden(targets.boundary, !hasBoundary);
+    toggleHidden(targets.boundary, true);
     toggleHidden(targets.addresses, true);
     toggleHidden(targets.source, true);
     toggleHidden(targets.bulk, false);
