@@ -22,6 +22,7 @@ jobs:
               p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
           PY
           python .github/updates49/patch49.py
+          python .github/updates49/followup.py
       - name: Install pinned test dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
       - name: Syntax and regression tests
