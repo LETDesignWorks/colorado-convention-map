@@ -25,6 +25,15 @@ jobs:
               p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
           PY
           python .github/updates43/patch43.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('territories/app-main.js');s=p.read_text()
+          assert s.count('buildPdf: async (snapshot, status) => {')==1
+          assert s.count('return buildTerritoryPdf(snapshot, status);')==1
+          s=s.replace('buildPdf: async (snapshot, status) => {','buildPdf: async (snapshot, progress) => {').replace('return buildTerritoryPdf(snapshot, status);','return buildTerritoryPdf(snapshot, progress);')
+          p.write_text(s)
+          p=Path('tests/directional-duplicates.test.mjs');s=p.read_text();p.write_text(s.replace("45-row historical PDF is regenerated", "historical PDF is regenerated"))
+          PY
       - name: Install pinned test dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4
       - name: Syntax and regression tests
