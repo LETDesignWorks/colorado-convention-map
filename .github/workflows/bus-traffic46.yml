@@ -3,29 +3,17 @@ on:
   push:
     branches: [work/bus-traffic-layouts-46]
 permissions:
-  contents: write
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: work/bus-traffic-layouts-46
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prepare scoped traffic planner changes
-        run: |
-          python - <<'PY'
-          import pathlib,hashlib,base64,zlib,json
-          encoded=''.join(p.read_text().strip() for p in sorted(pathlib.Path('.github/updates46').glob('part*.b64')))
-          assert hashlib.sha256(encoded.encode()).hexdigest()=='b97752bef5848f2c002c2d668bb6adb97a5404ea1661263595b3ade11ff1f5a8', 'Source transfer checksum mismatch'
-          for name,text in json.loads(zlib.decompress(base64.b64decode(encoded))).items():
-              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
-          PY
-          python .github/updates46/patch46.py
       - name: Install pinned test dependencies
-        run: npm install --no-save --package-lock=false --ignore-scripts jsdom@26.1.0 leaflet@1.9.4
+        run: npm install --no-save --package-lock=false --ignore-scripts jsdom@26.1.0 leaflet@1.9.4 playwright@1.51.1
       - name: Syntax and traffic drawing regression tests
         run: |
           node --check bus-access/app-v2.js
@@ -33,11 +21,11 @@ jobs:
           node --check bus-access/traffic-planner.mjs
           node --test tests/bus-traffic.test.mjs tests/bus-traffic-ui.test.mjs > /tmp/results.log 2>&1 || { grep -A 35 '^not ok' /tmp/results.log; tail -12 /tmp/results.log; exit 1; }
           tail -12 /tmp/results.log
-      - name: Commit tested source to review branch only
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bus-access tests/bus-traffic*.mjs
-          git diff --cached --stat
-          git commit -m 'Add location-linked parking-lot traffic patterns and cone layout editor'
-          git push origin HEAD:refs/heads/work/bus-traffic-layouts-46
+      - name: Desktop and phone browser drawing checks
+        run: CHROME_PATH=$(which google-chrome || which chromium) node tests/bus-traffic-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: traffic-layout-preview
+          path: test-results/traffic
+          retention-days: 3
