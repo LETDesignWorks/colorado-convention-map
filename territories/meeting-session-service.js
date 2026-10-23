@@ -1,10 +1,10 @@
-import { scanDuplicateAddresses, cleanDuplicateAddresses, duplicateSummary, duplicateReviewWorkspace } from './address-duplicates.js?v=territories-20261023-49';
-import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-49';
-import { boundaryMembership, fillBoundaryMembership } from './territory-membership.js?v=territories-20261023-49';
-import { assembleMeetingSession, sessionContentStamp } from './meeting-session-model.js?v=territories-20261023-49';
-import { collectSavedTerritories } from './saved-territories-model.js?v=territories-20261023-49';
-import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261023-49';
-import { datedWorkName } from './library-management-model.js?v=territories-20261023-49';
+import { scanDuplicateAddresses, cleanDuplicateAddresses, duplicateSummary, duplicateReviewWorkspace } from './address-duplicates.js?v=territories-20261023-50';
+import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-50';
+import { boundaryMembership, fillBoundaryMembership } from './territory-membership.js?v=territories-20261023-50';
+import { assembleMeetingSession, sessionContentStamp } from './meeting-session-model.js?v=territories-20261023-50';
+import { collectSavedTerritories } from './saved-territories-model.js?v=territories-20261023-50';
+import { groupTerritoriesByName } from './backup-merge-model.js?v=territories-20261023-50';
+import { datedWorkName } from './library-management-model.js?v=territories-20261023-50';
 
 export function createMeetingSessionManager(host) {
   let busy = false, duplicateTicket = null, duplicateSequence = 0;
@@ -71,7 +71,11 @@ export function createMeetingSessionManager(host) {
       if(ticket.stamp!==sessionContentStamp(host.capture())||!duplicateRecordsUnchanged(ticket.records)) throw new Error('The session or saved records changed after the preview. Scan again so no edits are overwritten.');
       const cleaned=cleanDuplicateAddresses(ticket.draft,{territoryId:ticket.territoryId,decisions});
       if(!cleaned.removed) { host.message?.('No duplicate groups were selected for cleanup. Nothing was changed.'); return null; }
-      if(!await host.confirm(`Remove ${cleaned.removed} repeated address record(s) from the reviewed meeting-place session, using the address locations and territory choices shown? Avoid/excluded status and separate units are preserved. This changes the editable session only; earlier saved plans and PDFs stay unchanged. Select SAVE YOUR WORK afterward.`)) return null;
+      const chosenGroups=cleaned.report.groups.filter(g=>!decisions[g.key]?.separate && (g.safe || decisions[g.key]));
+      const names=chosenGroups.map(g=>{const keep=g.entries.find(e=>e.index===Number(decisions[g.key]?.keepIndex??g.preferredIndex));return `${g.label} (${g.entries.length} copies) -> KEEP ${keep?.house.address || g.label}`;});
+      const manual=chosenGroups.some(g=>!g.safe);
+      const detail=`\n\n${names.slice(0,20).join('\n')}${names.length>20?`\n...and ${names.length-20} more reviewed groups`:''}${manual?'\n\nSome map positions or source details differ. Confirm these are the same homes. The KEEP address and its map position will be used; avoid/excluded restrictions are retained.':''}`;
+      if(!await host.confirm(`Remove ${cleaned.removed} repeated address record(s) from the reviewed meeting-place session, using the address locations and territory choices shown? Avoid/excluded status and separate units are preserved. This changes the editable session only; earlier saved plans and PDFs stay unchanged. Select SAVE YOUR WORK afterward.${detail}`)) return null;
       if(ticket.stamp!==sessionContentStamp(host.capture())||!duplicateRecordsUnchanged(ticket.records)) throw new Error('The session changed during confirmation. Scan again.');
       host.apply(cleaned.draft,ticket.stamp,null); duplicateTicket=null;
       host.message?.(`Removed ${cleaned.removed} repeated address record(s). ${duplicateSummary(cleaned.remaining)} Select SAVE YOUR WORK to retain the cleaned complete session.`);

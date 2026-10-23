@@ -98,3 +98,14 @@ test('production renderer builds a review PDF for a clipped tail without alterin
 test('saved viewer is mounted and no longer discards links at every detail render',()=>{
  const source=fs.readFileSync('territories/saved-territories-layer.js','utf8');assert.match(source,/createSavedPdfView/);assert.match(source,/pdfView.bind/);const detail=source.slice(source.indexOf('  function renderDetail()'),source.indexOf('  function fit(target)'));assert.doesNotMatch(detail,/^\s*revokeUrls\(\);/m);assert.match(source,/openOriginalTerritoryPdf/);assert.match(source,/createReviewTerritoryPdf/);
 });
+
+test('PDF duplicate failure offers a direct read-only route into the selected version checker',async()=>{
+ const dom=new JSDOM('<button id="view"></button><button id="review"></button><button id="resolve"></button><p id="status"></p><div id="links"></div>'),d=dom.window.document;let checked=null,reads=0;
+ const viewer=createSavedPdfView({document:d,isActive:()=>true,reviewDuplicates:async v=>checked=v,readPdf:async()=>{reads++;},buildPdf:async()=>{throw Object.assign(Error('14 duplicates'),{code:'PDF_REVIEW_REQUIRED'});},urlApi:{revokeObjectURL(){},createObjectURL(){return 'blob:test'}}});
+ const v=version(),nodes={button:d.getElementById('view'),reviewButton:d.getElementById('review'),resolveButton:d.getElementById('resolve'),status:d.getElementById('status'),links:d.getElementById('links')};viewer.bind(v,nodes);assert.equal(nodes.resolveButton.hidden,true);nodes.button.click();await tick();assert.equal(nodes.resolveButton.hidden,false);assert.match(nodes.status.textContent,/Review and clean duplicates/);nodes.resolveButton.click();await tick();assert.equal(checked,v);assert.equal(reads,0);assert.equal(nodes.links.children.length,0);dom.window.close();
+});
+test('review-copy success explicitly warns that duplicates remain and retains cleanup action',async()=>{
+ const dom=new JSDOM('<button id="view"></button><button id="review"></button><button id="resolve"></button><p id="status"></p><div id="links"></div>'),d=dom.window.document;
+ const viewer=createSavedPdfView({document:d,isActive:()=>true,reviewDuplicates:async()=>{},readPdf:async()=>{},buildPdf:async(v,p,o)=>{if(!o.allowReviewCopy)throw Object.assign(Error('14 duplicates'),{code:'PDF_REVIEW_REQUIRED'});return{blob:new Blob(['review']),filename:'review.pdf',reviewCopy:true};},urlApi:{revokeObjectURL(){},createObjectURL(){return 'blob:test'}}});
+ const nodes={button:d.getElementById('view'),reviewButton:d.getElementById('review'),resolveButton:d.getElementById('resolve'),status:d.getElementById('status'),links:d.getElementById('links')};viewer.bind(version(),nodes);nodes.button.click();await tick();nodes.reviewButton.click();await tick();assert.equal(nodes.resolveButton.hidden,false);assert.match(nodes.status.textContent,/unresolved duplicate rows may still be included/);dom.window.close();
+});
