@@ -1,0 +1,47 @@
+name: Verify resilient territory PDF access
+on:
+  push:
+    branches: [work/territory-pdf-access-45]
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/territory-pdf-access-45
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare reviewed PDF changes
+        run: |
+          python - <<'PY'
+          import pathlib,hashlib,base64,zlib,json
+          encoded=pathlib.Path('.github/updates45/source.b64').read_text().strip()
+          assert hashlib.sha256(encoded.encode()).hexdigest()=='3fabf7b6cfc80fcaf45c6cfea165c085da4c928cac47d7bb3cdc05648bcbe1c7', 'Source transfer checksum mismatch'
+          for name,text in json.loads(zlib.decompress(base64.b64decode(encoded))).items():
+              p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          PY
+          python .github/updates45/patch45.py
+      - name: Install pinned test dependencies
+        run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2
+      - name: Syntax and PDF access regression tests
+        run: |
+          for f in territories/*.js; do node --check "$f"; done
+          node --test tests/saved-work-model.test.mjs tests/saved-work-integration.test.mjs tests/meeting-place-flow.test.mjs tests/meeting-place-scanner.test.mjs tests/meeting-place-ui.test.mjs tests/backup-merge-model.test.mjs tests/backup-merge-service.test.mjs tests/backup-merge-ui.test.mjs tests/library-management.test.mjs tests/library-release.test.mjs tests/meeting-session.test.mjs tests/address-duplicates.test.mjs tests/address-duplicates-flow.test.mjs tests/directional-duplicates.test.mjs tests/territory-tail-trim.test.mjs tests/territory-pdf-access.test.mjs > /tmp/results.log 2>&1 || { cat /tmp/results.log; exit 1; }
+          tail -12 /tmp/results.log
+      - name: Commit tested source to review branch only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          Path('.github/updates45/review-fixture.b64').write_text(base64.b64encode(Path('test-results/territory24-review-fixture.pdf').read_bytes()).decode())
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add territories tests .github/updates45/review-fixture.b64
+          git diff --cached --stat
+          git commit -m 'Keep territory PDFs available during refresh and flag trimmed-boundary address issues'
+          git push origin HEAD:refs/heads/work/territory-pdf-access-45
