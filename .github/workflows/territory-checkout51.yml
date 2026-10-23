@@ -25,6 +25,15 @@ jobs:
               p=pathlib.Path(name);p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
           PY
           python .github/updates51/patch.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tests/saved-work-integration.test.mjs')
+          s=p.read_text()
+          old='bootstrap.includes(`${name}.js?v=territories-20261023-50`)'
+          assert old in s
+          s=s.replace(old,"bootstrap.includes(`${name}.js?v=${name === 'app-main' ? 'checkout-20261023-51' : 'territories-20261023-50'}`)")
+          p.write_text(s)
+          PY
       - name: Install pinned regression dependencies
         run: npm install --no-save --package-lock=false --ignore-scripts @turf/turf@7.2.0 jsdom@26.1.0 leaflet@1.9.4 leaflet-draw@1.0.4 jspdf@2.5.2 playwright@1.51.1
       - name: Syntax and full regression suite
