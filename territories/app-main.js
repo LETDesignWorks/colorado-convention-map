@@ -2592,8 +2592,6 @@ async function persistPlan(options = {}) {
   if (!selectedHall || !selectedCongregation) return unavailable('Select the meeting location and congregation before saving your work.');
   if (!houses.length) return unavailable('Load or add addresses before saving your work.');
   if (savedRecordsStatus === 'loading' || savedRecordsStatus === 'error') return unavailable('Saved records are not ready. Reconnect or refresh saved records, then save. Your current work has been kept.');
-  const duplicatesRemoved = dedupeHouseRecords();
-  if (duplicatesRemoved) renderAllPlanningData();
   const key = workKey(selectedHall.id, selectedCongregation);
   const latest = currentWorkFor(savedPlans(), selectedHall.id, selectedCongregation);
   const partialEdit = Boolean(savedTerritoryEditId);
@@ -2788,7 +2786,7 @@ function loadPlanRecord(id) {
     const avoidTerritoryId = avoid ? (item.avoidTerritoryId || item.territoryId || null) : null;
     return { ...item, id: String(item.id), avoid, included: avoid ? false : item.included !== false, territoryId: avoid ? null : item.territoryId || null, avoidTerritoryId };
   });
-  const duplicatesRemovedOnLoad = dedupeHouseRecords();
+  const duplicatesRemovedOnLoad = plan.saveKind === 'work' ? 0 : dedupeHouseRecords();
   const savedTerritoriesForPlan = decodeTerritories(plan);
   territories = savedTerritoriesForPlan.map((item, index) => {
     const geometry = decodeGeometry(item.geometryJson, item.geometry);

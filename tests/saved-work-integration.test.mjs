@@ -155,3 +155,20 @@ test('save controls call complete-work saves and modified modules bypass old cac
   const bootstrap = read('territories/bootstrap.js');
   for (const name of ['app-main', 'hall-address-sets', 'territory-workflow-ui', 'address-source-merge', 'assessor-one-click', 'saved-work-ui']) assert.ok(bootstrap.includes(`${name}.js?v=territories-20261022-37`));
 });
+
+
+test('SAVE YOUR WORK keeps every loaded record without silently deduplicating units', async () => {
+  const h = harness();
+  let dedupeCalls = 0;
+  h.context.dedupeHouseRecords = () => { dedupeCalls++; return 0; };
+  h.context.houses = [house('unit-a', null, { address: '100 Example St Apt 1', unit: '1' }), house('unit-b', null, { address: '100 Example St Apt 2', unit: '2' }), house('excluded', null, { included: false })];
+  const id = await h.save({ saveYourWork: true });
+  const saved = model.readPlanAddresses({ ...h.stored.get(id), id }, h.stored);
+  assert.equal(saved.length, 3); assert.equal(dedupeCalls, 0);
+  assert.equal(saved.find(home => home.id === 'excluded').included, false);
+  assert.equal(saved.find(home => home.id === 'unit-b').unit, '2');
+});
+
+test('loading protected complete saved work preserves its exact address records', () => {
+  assert.match(main, /plan\.saveKind === 'work' \? 0 : dedupeHouseRecords\(\)/);
+});
