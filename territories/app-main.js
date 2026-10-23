@@ -1,6 +1,6 @@
 import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-50';
 import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261023-50';
-import { createMeetingSessionManager } from './meeting-session-service.js?v=territories-20261023-50';
+import { createMeetingSessionManager } from './meeting-session-service.js?v=checkout-20261023-51';
 import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261023-50';
 import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261023-50';
 import { createConfirmedRecordBuffer } from './planner-records-cache.js?v=territories-20261023-50';

@@ -1,3 +1,4 @@
+import {checkoutRoster} from './territory-checkout-model.js?v=checkout-20261023-51';
 import { scanDuplicateAddresses, cleanDuplicateAddresses, duplicateSummary, duplicateReviewWorkspace } from './address-duplicates.js?v=territories-20261023-50';
 import { withSessionTerritories } from './meeting-session-model.js?v=territories-20261023-50';
 import { boundaryMembership, fillBoundaryMembership } from './territory-membership.js?v=territories-20261023-50';
@@ -29,6 +30,23 @@ export function createMeetingSessionManager(host) {
     busy = true; host.loading?.(true);
     try { await host.paint?.(); return await action(); }
     finally { busy = false; host.loading?.(false); }
+  }
+
+  // Read-only register: use library keep choices plus current edits, not every backup.
+  async function registerSnapshot(options = {}) {
+    return run(async () => {
+      guard();
+      const workspace = host.capture(), stamp = sessionContentStamp(workspace), records = host.records();
+      if (!workspace.hallId) throw Error('Select a meeting place first.');
+      if (workspace.editing) throw Error('Finish or cancel the current boundary edit before printing the register.');
+      const hall = { ...host.hall() };
+      const current = () => host.isAdmin() && stamp === sessionContentStamp(host.capture()) && duplicateRecordsUnchanged(records);
+      const library = await collectSavedTerritories({records, hallId:workspace.hallId, readSnapshot:host.readSnapshot, isCurrent:current});
+      if (!current()) throw Error('The session or saved records changed while loading. Create the sheet again.');
+      if (library.issues.length) throw Error('Some saved territory records could not be read. Refresh the saved territory library before printing a complete register.');
+      const groups = withSessionTerritories(groupTerritoriesByName(library.groups, records, workspace.hallId), workspace, host.turf);
+      return checkoutRoster(hall, groups, options);
+    });
   }
 
   async function preflightDuplicates(draft) {
@@ -163,6 +181,6 @@ ${review.conflicts.slice(0, 8).map(h => h.address).join('\n')}`) : false;
       return filled;
     });
   }
-  return { save, edit, keep, prepare, checkAddresses, reviewDuplicates, repairDuplicates, isBusy: () => busy };
+  return { registerSnapshot, save, edit, keep, prepare, checkAddresses, reviewDuplicates, repairDuplicates, isBusy: () => busy };
 
 }
