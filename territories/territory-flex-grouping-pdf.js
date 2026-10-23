@@ -1,3 +1,4 @@
+import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261022-43';
 import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
@@ -780,7 +781,9 @@ function triggerDownload(blob, filename) {
 // Render only the supplied snapshot. Rebuilding an archive must never load,
 // overwrite, or save the user's currently edited plan.
 export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
-  const snapshot = JSON.parse(JSON.stringify(sourceSnapshot));
+  const reviewed = preparePdfAddressSnapshot(sourceSnapshot);
+  if (reviewed.unresolved) throw new Error(`${reviewed.unresolved} possible duplicate address group(s) need review before printing. Use Address duplicate check, then SAVE YOUR WORK. No saved addresses or original PDFs were changed.`);
+  const snapshot = reviewed.snapshot;
   const { territory, hall, congregation } = snapshot;
   if (!territory?.id || !hall?.id || !congregation || !Array.isArray(snapshot.houses)) throw new Error('The saved territory information is incomplete.');
   const houses = sortedByAddress(snapshot.houses.filter(house => !house.avoid));
@@ -831,7 +834,7 @@ export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
   for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
   const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
   snapshot.pdfLayoutVersion = PDF_LAYOUT_VERSION;
-  return { blob: doc.output('blob'), filename, snapshot };
+  return { blob: doc.output('blob'), filename, snapshot, duplicatesRemoved: reviewed.removed };
 }
 
 async function generateTerritoryPdf(territoryId, button) {
