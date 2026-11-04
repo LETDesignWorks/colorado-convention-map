@@ -25,15 +25,22 @@ hides the library and revokes its display/PDF blob URLs; saved device data stays
 available when the same administrator signs back in. Downloaded PDFs remain on
 the device and should only be shared with the intended recipients.
 
-## Shared storage is pending
+## Shared storage configuration
 
-On November 4, 2026, the owner approved Blaze pay-as-you-go with a $5 monthly
-budget alert and access through the existing administrator account only. Google
-Cloud billing-account setup is still pending. No production bucket, rule change,
-budget alert, or shared photo upload has been completed by this feature.
-`photos-config.mjs` therefore keeps `SHARED_PHOTOS_ENABLED = false`. The prepared
-rules use the existing administrator UID verified in Firebase Authentication;
-the emulator suite verifies access and preserves existing map/review behavior.
+On November 4, 2026, the owner approved and activated Blaze pay-as-you-go with
+a $5 monthly project budget alert. Email alerts to billing admins and users
+trigger at 50%, 90%, and 100% of actual spend. The account was upgraded from
+trial-only to full pay-as-you-go so the service can continue after trial credits
+expire. The alert does not cap spending.
+
+The `convention-fs.firebasestorage.app` bucket is provisioned in `us-central1`,
+with public access prevention enabled and the origin-specific CORS policy
+published. Storage and Firestore rules are published using the existing
+administrator UID verified in Firebase Authentication. The emulator suite
+verifies access and preserves existing map/review behavior.
+`photos-config.mjs` enables shared photos in this release. Shared storage is
+the default after administrator sign-in; device-only photos remain available
+through the library selector and can be copied to shared storage.
 
 Recommended architecture:
 
@@ -49,7 +56,7 @@ Recommended architecture:
    Do not publish Firebase download-token URLs, Drive share URLs, or image files
    in the public repository. PDFs are produced locally in the browser.
 
-Activation sequence for the project owner:
+Deployment and verification sequence (also use for future reprovisioning):
 
 1. Approve/link Firebase Blaze billing and choose budget alerts. Alerts are not
    a spending cap. Review current prices and storage location before provisioning.
@@ -117,10 +124,11 @@ usage, and the free download allowance excludes Australia and China. Existing
 project/account usage, retained deleted versions, and repeated downloads also
 count. Firestore metadata has separate quotas and charges.
 
-Use a project-scoped $5 monthly budget alert with actual-spend notifications at
-50%, 90%, and 100%. A budget alert does not stop usage or cap charges. This
-alert must be created after billing setup; merely documenting it does not
-configure it. Review all project services when enabling Blaze.
+A project-scoped $5 monthly budget alert is configured with actual-spend
+notifications at 50%, 90%, and 100%. It covers all services in this project and
+applies selected credits before comparing spend to the budget. A budget alert
+does not stop usage or cap charges. Review all project services when enabling
+or changing Blaze billing.
 
 References (reviewed November 4, 2026):
 

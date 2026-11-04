@@ -1,6 +1,6 @@
 import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-48';
-import { mountLocationPhotos } from './photos.mjs?v=photos-20261103-1';
-import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261103-1';
+import { mountLocationPhotos } from './photos.mjs?v=photos-20261104-1';
+import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-48';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
