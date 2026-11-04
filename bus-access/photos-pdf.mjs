@@ -54,8 +54,12 @@ export async function buildPhotoPdf({report, photos, loadImage, source = 'device
     const top = i%2===0 ? 654 : 360;
     page.drawText(`${photo.category === 'interior' ? 'Interior' : 'Exterior'} - Photo ${i+1}`, {x:48,y:top,size:11,font:bold,color:navy});
     const blob = await loadImage(photo);
-    if (!blob || blob.type !== 'image/jpeg') throw Error('A selected photo could not be loaded. No incomplete PDF was created.');
-    const embedded = await pdf.embedJpg(await blob.arrayBuffer());
+    if (!blob || typeof blob.arrayBuffer !== 'function') throw Error('A selected photo could not be loaded. No incomplete PDF was created.');
+    // Downloads can carry a generic/empty MIME type or MIME parameters. Verify
+    // the actual JPEG bytes instead of rejecting a valid image by its label.
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw Error('A selected photo is not a valid JPEG. No incomplete PDF was created.');
+    const embedded = await pdf.embedJpg(bytes);
     const scale = Math.min(516/embedded.width,210/embedded.height), width = embedded.width*scale, height = embedded.height*scale;
     page.drawRectangle({x:48,y:top-226,width:516,height:214,color:rgb(.96,.97,.98)});
     page.drawImage(embedded,{x:48+(516-width)/2,y:top-224+(210-height)/2,width,height});

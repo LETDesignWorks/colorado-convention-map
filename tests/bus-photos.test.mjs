@@ -71,3 +71,12 @@ test('missing selected imagery stops PDF creation; zero selection still makes a 
   await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>{throw Error('offline');}},{PDFLib}),/offline/);
   const result=await buildPhotoPdf({report,photos:[],loadImage:()=>assert.fail('no image expected')},{PDFLib});assert.equal(result.pages,1);
 });
+
+test('PDF embeds JPEG download bytes with generic or parameterized MIME types and rejects mislabeled data',async()=>{
+  const report=publicPhotoReport({id:'1',name:'Shared download'}),bytes=await jpeg().arrayBuffer();
+  const types=['','application/octet-stream','image/jpeg; charset=utf-8'];
+  const photos=types.map((type,index)=>({...photo('download-'+index),image:new Blob([bytes],{type})}));
+  const result=await buildPhotoPdf({report,photos,loadImage:async p=>p.image},{PDFLib});
+  const pdf=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(pdf.getPageCount(),3);
+  await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>new Blob(['not a JPEG'],{type:'image/jpeg'})},{PDFLib}),/not a valid JPEG/);
+});
