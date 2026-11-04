@@ -1,0 +1,126 @@
+import {PHOTO_LIMIT, createDevicePhotoStore, photoError} from './photos-model.mjs';
+import {preparePhoto} from './photos-images.mjs';
+import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs';
+
+const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin, createSharedStore,
+  createDeviceStore=createDevicePhotoStore, prepare=preparePhoto, exportPdf=buildPhotoPdf,
+  document:d=globalThis.document, window:w=globalThis.window}) {
+  const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
+  d.getElementById('detail').after(host);
+  const style=d.createElement('link'); style.rel='stylesheet'; style.href=new URL('./photos.css?v=photos-20261103-1',import.meta.url).href; d.head.append(style);
+  let epoch=0, identity='', mode='device', store, photos=[], urls=[], pdfUrl, busy=false, currentLocation;
+  const active=token=>token===epoch && (!identity.includes('|admin:') || isAdmin());
+  const message=(value,error=false)=>{const node=host.querySelector('[data-photo-status]');if(node){node.textContent=value;node.classList.toggle('photo-error',error);}};
+  function clearPdf(){if(pdfUrl){w.URL.revokeObjectURL(pdfUrl);pdfUrl=null;}host.querySelector('[data-photo-pdf-links]')?.replaceChildren();}
+  function clearUrls(){urls.forEach(url=>w.URL.revokeObjectURL(url));urls=[];clearPdf();}
+  function setBusy(value){busy=value;host.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=value || el.dataset.unavailable==='true');}
+  const selected=()=>photos.filter(p=>p.selected!==false);
+  function updateCount(){const node=host.querySelector('[data-photo-count]');if(node)node.textContent=`${photos.length} saved · ${selected().length} selected for PDF`;}
+  function template(location,admin){return `
+    <h3 class="section-title">Location photos &amp; PDF ${admin?'<span class="private-chip">Administrator only</span>':''}</h3>
+    <p class="photo-location">${escape(location.name)}</p>
+    ${admin?`<div class="photo-toolbar"><label>Photo library <select data-photo-library aria-label="Photo library"><option value="device" ${mode==='device'?'selected':''}>This device</option><option value="shared" ${mode==='shared'?'selected':''} ${createSharedStore?'':'disabled'}>Shared storage${createSharedStore?'':' — setup pending'}</option></select></label><button type="button" class="btn light" data-photo-refresh>Refresh photos</button></div>
+    <p class="photo-help">${mode==='device'?'Saved in this browser on this device. Clearing site data removes these copies. Keep your originals; download a PDF for a portable copy.':'Private shared photos are available to the signed-in administrator on other devices.'}</p>
+    ${!createSharedStore?'<p class="photo-pending">Shared storage is not enabled yet. Device saving and PDF downloads work now.</p>':''}
+    <div class="photo-add"><label>Photo type <select data-photo-category aria-label="Photo type"><option value="interior">Interior</option><option value="exterior">Exterior</option></select></label><label class="photo-file-label">Add &amp; save photos <input data-photo-files type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Add and save photos"></label></div>
+    <p class="photo-help">Choose several JPG, PNG, or WebP files. Up to ${PHOTO_LIMIT} per location per library, 20 MB per original. Photos are resized and location metadata is removed.</p>
+    <p data-photo-count class="photo-count"></p><div data-photo-gallery></div>
+    ${mode==='device'&&createSharedStore?'<button class="btn light" type="button" data-photo-copy>Copy selected photos to shared storage</button>':''}`:'<p class="photo-help">Sign in as the administrator to add, view, and select private location photos.</p>'}
+    <div class="photo-export"><button type="button" class="btn blue" data-photo-pdf>Create location PDF</button><span class="photo-help">Saved location details${admin?' + selected photos':''}. Private contacts and inspection notes are excluded.</span></div>
+    <div data-photo-pdf-links class="photo-pdf-links"></div><p data-photo-status role="status" aria-live="polite"></p>`;}
+  async function showGallery(token){
+    if(!active(token))return;
+    urls.forEach(url=>w.URL.revokeObjectURL(url));urls=[];
+    const gallery=host.querySelector('[data-photo-gallery]'); if(!gallery)return;
+    gallery.innerHTML=['interior','exterior'].map(category=>`<h4>${category==='interior'?'Interior':'Exterior'}</h4><div class="photo-grid">${photos.filter(p=>p.category===category).map(p=>`<article class="photo-item" data-photo-id="${escape(p.id)}"><div class="photo-thumbnail" data-photo-thumbnail><span>Loading preview…</span></div><label class="photo-selection"><input type="checkbox" data-photo-select ${p.selected!==false?'checked':''}> Include in PDF</label><label>Caption <input type="text" maxlength="180" data-photo-caption value="${escape(p.caption)}" aria-label="${escape(category)} photo caption"></label><button type="button" class="btn light" data-photo-remove>Remove photo</button></article>`).join('')||'<p class="photo-help">No '+category+' photos saved.</p>'}</div>`).join('');
+    updateCount();
+    const locationId=currentLocation.id, readingStore=store;
+    for(const photo of photos){
+      const tile=gallery.querySelector(`[data-photo-id="${photo.id}"]`),box=tile.querySelector('[data-photo-thumbnail]');
+      tile.querySelector('[data-photo-select]').addEventListener('change',event=>saveMetadata(photo,{selected:event.target.checked},token));
+      const caption=tile.querySelector('[data-photo-caption]');
+      caption.addEventListener('input',()=>{clearPdf();message('Caption edited. Choose Save caption to keep the change.');});
+      const saveCaption=d.createElement('button');saveCaption.type='button';saveCaption.className='btn light';saveCaption.dataset.photoSaveCaption='';saveCaption.textContent='Save caption';
+      saveCaption.addEventListener('click',()=>saveMetadata(photo,{caption:caption.value},token));
+      caption.parentElement.after(saveCaption);
+      tile.querySelector('[data-photo-remove]').addEventListener('click',()=>remove(photo,token));
+      try{
+        const blob=await readingStore.thumbnail(locationId,photo);if(!active(token))return;
+        const url=w.URL.createObjectURL(blob);urls.push(url);
+        const img=d.createElement('img');img.src=url;img.alt=photo.caption||`${photo.category} photo`;box.replaceChildren(img);
+      }catch(error){if(active(token))box.textContent='Preview unavailable. Refresh to retry.';}
+    }
+  }
+  async function load(token){
+    setBusy(true);message('Loading saved photos…');
+    try{const records=await store.list(currentLocation.id);if(!active(token))return;photos=records;await showGallery(token);if(active(token))message(photos.length?'Photos loaded.':'Add interior or exterior photos to this location.');}
+    catch(error){if(active(token))message('Could not load photos: '+photoError(error),true);}
+    finally{if(active(token))setBusy(false);}
+  }
+  async function saveMetadata(photo,patch,token){
+    if(busy||!active(token))return;setBusy(true);clearPdf();
+    const next={...photo,...patch};
+    try{await store.update(currentLocation.id,next);if(active(token)){Object.assign(photo,next);updateCount();message('Photo details saved.');}}
+    catch(error){if(active(token)){const tile=host.querySelector(`[data-photo-id="${photo.id}"]`);tile.querySelector('[data-photo-select]').checked=photo.selected;tile.querySelector('[data-photo-caption]').value=photo.caption;message('Could not save: '+photoError(error),true);}}
+    finally{if(active(token))setBusy(false);}
+  }
+  async function add(files,category,token){
+    if(busy||!active(token)||!files.length)return;clearPdf();
+    if(files.length+photos.length>PHOTO_LIMIT){message(`Choose fewer files. This library has room for ${PHOTO_LIMIT-photos.length} more photos.`,true);return;}
+    setBusy(true);const locationId=currentLocation.id,savingStore=store;let saved=0,failed=[];
+    for(const file of files){
+      if(!active(token))break;message(`Saving photo ${saved+failed.length+1} of ${files.length}…`);
+      try{const photo=await prepare(file,category,{window:w,document:d});if(!active(token))break;await savingStore.add(locationId,photo);saved++;}
+      catch(error){failed.push(`${file.name}: ${photoError(error)}`);}
+    }
+    if(active(token)){await load(token);message(`${saved} photo${saved===1?'':'s'} saved${mode==='device'?' on this device':' to shared storage'}.${failed.length?' '+failed.join(' '):''}`,failed.length>0);}
+  }
+  async function remove(photo,token){
+    if(busy||!active(token)||!w.confirm(`Remove this ${photo.category} photo from the ${mode==='device'?'device':'shared'} library? Keep the original file if you may need it again.`))return;
+    setBusy(true);clearPdf();
+    try{const warning=await store.remove(currentLocation.id,photo.id);if(active(token)){await load(token);message(warning||'Photo removed.',Boolean(warning));}}
+    catch(error){if(active(token))message('Could not remove photo: '+photoError(error),true);}
+    finally{if(active(token))setBusy(false);}
+  }
+  async function copy(token){
+    if(busy||!active(token))return;if(!selected().length){message('Select at least one photo to copy.',true);return;}
+    setBusy(true);const locationId=currentLocation.id,shared=createSharedStore();let count=0;
+    try{for(const photo of selected()){if(!active(token))return;message(`Copying photo ${count+1}…`);await shared.add(locationId,photo);count++;}if(active(token))message(`${count} photos copied. Choose Shared storage to view them. Device copies were kept.`);}
+    catch(error){if(active(token))message(`${count} photos copied. ${photoError(error)}`,true);}
+    finally{if(active(token))setBusy(false);}
+  }
+  async function pdf(token){
+    if(busy||!active(token))return;
+    const unsaved=photos.some(photo=>host.querySelector(`[data-photo-id="${photo.id}"] [data-photo-caption]`)?.value!==photo.caption);
+    if(unsaved){message('Save the edited captions before creating the PDF.',true);return;}
+    setBusy(true);clearPdf();message('Preparing a print-ready PDF…');
+    const locationId=currentLocation.id,readingStore=store,report=publicPhotoReport(currentLocation,getSummary());
+    const snapshot=photos.map(p=>({...p}));
+    try{
+      const result=await exportPdf({report,photos:snapshot,source:mode,loadImage:async photo=>{if(!active(token))throw Error('Location or sign-in changed.');return readingStore.image(locationId,photo);}});
+      if(!active(token))return;pdfUrl=w.URL.createObjectURL(result.blob);
+      const download=d.createElement('a');download.href=pdfUrl;download.download=result.filename;download.className='btn blue';download.textContent='Download PDF';
+      const view=d.createElement('a');view.href=pdfUrl;view.target='_blank';view.rel='noopener';view.className='btn light';view.textContent='Open / print PDF';
+      host.querySelector('[data-photo-pdf-links]').append(download,view);message(`${result.pages} page PDF ready. Download it or open it to print.`);
+    }catch(error){if(active(token))message('PDF was not created: '+photoError(error),true);}
+    finally{if(active(token))setBusy(false);}
+  }
+  function contextChanged(force=false){
+    const location=getLocation(),admin=isAdmin(),owner=admin?getOwner():'';
+    const next=location?`${location.id}|${admin?'admin:'+owner:'public'}`:'';
+    if(!force&&next===identity){currentLocation=location?{...location}:null;return;}
+    identity=next;const token=++epoch;clearUrls();photos=[];store=null;busy=false;currentLocation=location?{...location}:null;
+    if(!location){host.hidden=true;host.replaceChildren();return;}host.hidden=false;
+    if(!admin)mode='device';host.innerHTML=template(location,admin);
+    host.querySelector('[data-photo-pdf]').addEventListener('click',()=>pdf(token));
+    if(!admin)return;
+    store=mode==='shared'?createSharedStore():createDeviceStore({indexedDB:w.indexedDB,owner});
+    host.querySelector('[data-photo-refresh]').addEventListener('click',()=>contextChanged(true));
+    host.querySelector('[data-photo-library]').addEventListener('change',event=>{mode=event.target.value;contextChanged(true);});
+    host.querySelector('[data-photo-files]').addEventListener('change',event=>{const files=Array.from(event.target.files);event.target.value='';add(files,host.querySelector('[data-photo-category]').value,token);});
+    host.querySelector('[data-photo-copy]')?.addEventListener('click',()=>copy(token));
+    load(token);
+  }
+  return {contextChanged,dispose(){epoch++;clearUrls();host.remove();style.remove();}};
+}

@@ -1,0 +1,21 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Replace this placeholder with the EXISTING approved Firebase Auth user's
+    // UID before deployment. A UID binds access to an account, not a UI label.
+    function photoAdmin() {
+      return request.auth != null && request.auth.uid == 'REPLACE_WITH_EXISTING_ADMIN_UID';
+    }
+    match /bus-location-photos/{locationId}/{photoId}/{fileName} {
+      allow read, delete: if photoAdmin();
+      allow create, update: if photoAdmin()
+        && photoId.matches('[a-zA-Z0-9-]{1,80}')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size > 0
+        && ((fileName == 'photo.jpg' && request.resource.size <= 2 * 1024 * 1024)
+          || (fileName == 'thumb.jpg' && request.resource.size <= 200 * 1024));
+    }
+    // No public read or write grant. Merge only this prefix into an existing
+    // ruleset; review overlapping wildcard grants, which can bypass restrictions.
+  }
+}

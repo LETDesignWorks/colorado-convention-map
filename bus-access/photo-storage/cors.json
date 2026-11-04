@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://letdesignworks.github.io"],
+    "method": ["GET"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

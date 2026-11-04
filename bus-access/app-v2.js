@@ -1,4 +1,6 @@
 import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-48';
+import { mountLocationPhotos } from './photos.mjs?v=photos-20261103-1';
+import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261103-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-48';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
@@ -21,7 +23,7 @@ const BUS_SIZE_LABELS={'passenger-van':'Passenger van',shuttle:'Shuttle bus','sc
 const TYPE_LABELS={'kingdom-hall':'Kingdom Hall','meeting-area':'Other meeting area'};
 const BASE_LOCATIONS=HALLS.map(h=>({...h,id:String(h.id),markerLabel:String(h.number),locationType:'kingdom-hall',planningArea:'dtc-45',customLocation:false}));
 
-let trafficPlanner=null;
+let trafficPlanner=null,locationPhotos=null,detailRevision=0;
 let app,auth,db,map,boundaryLayer,currentUser=null,selectedId=null,locations=[...BASE_LOCATIONS],pendingSelectId=null;
 const publicData=new Map();
 const markers=new Map();
@@ -120,6 +122,7 @@ function renderList(){
 async function selectLocation(id,pan=false){
   selectedId=String(id);const location=findLocation(selectedId);if(!location)return;
   trafficPlanner?.contextChanged();
+  locationPhotos?.contextChanged();
   if(pan&&map){map.setView([location.lat,location.lng],Math.max(map.getZoom(),13),{animate:true});markers.get(location.id)?.openTooltip();}
   history.replaceState(null,'',`#location-${encodeURIComponent(location.id)}`);updateMarkers();await renderDetail(location);
   if(window.innerWidth<851)document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'start'});
@@ -139,10 +142,16 @@ function adminForm(location,data,review){
   return`<form class="card" id="reviewForm" data-id="${escapeHtml(location.id)}"><h3 class="section-title"><span>Administrator Bus Review</span><span class="admin-chip">Signed in</span></h3>${location.customLocation?`<div class="edit-location-row"><span>This is an administrator-added location.</span><button class="btn light" id="editLocationButton" type="button">Edit Location Details</button></div>`:''}<div class="form-grid"><div class="field"><label>Public bus-access status</label><select name="busStatus" required>${options(data.busStatus||'not-reviewed',statusOptions)}</select></div><div class="field"><label>Largest bus reviewed</label><select name="busSize">${options(data.busSize||'',[['','Not selected'],['passenger-van','Passenger van'],['shuttle','Shuttle bus'],['school-bus','School bus'],['40-foot-motorcoach','40-foot motorcoach'],['45-foot-motorcoach','45-foot motorcoach']])}</select></div><div class="field"><label>Entrance suitable</label><select name="entrance">${options(review.entrance||'',ynr)}</select></div><div class="field"><label>Exit suitable</label><select name="exit">${options(review.exit||'',ynr)}</select></div><div class="field"><label>Turnaround available</label><select name="turnaround">${options(review.turnaround||'',ynr)}</select></div><div class="field"><label>Passenger loading area</label><select name="loadingArea">${options(review.loadingArea||'',ynr)}</select></div><div class="field"><label>Bus parking available</label><select name="busParking">${options(review.busParking||'',ynr)}</select></div><div class="field"><label>Overhead clearance</label><select name="overhead">${options(review.overhead||'',ynr)}</select></div><div class="field"><label>Property permission</label><select name="propertyPermission">${options(review.propertyPermission||'',[['','Select…'],['confirmed','Confirmed'],['needed','Needed'],['not-required','Not required'],['unknown','Unknown']])}</select></div><div class="field"><label>Onsite verification</label><select name="onsiteVerification">${options(review.onsiteVerification||'',[['','Select…'],['complete','Complete'],['scheduled','Scheduled'],['needed','Needed']])}</select></div><div class="field full"><label>Public summary (visible to everyone)</label><textarea maxlength="600" name="publicSummary" placeholder="Example: Suitable for a 45-foot motorcoach using the east entrance. Loading only; no overnight parking.">${escapeHtml(data.publicSummary||'')}</textarea></div></div>${contactSection(review)}<div class="form-grid"><div class="field full"><label>Internal inspection notes (administrator only)</label><textarea maxlength="2500" name="internalNotes" placeholder="Measurements, follow-up items, access concerns, or other private planning notes.">${escapeHtml(review.internalNotes||'')}</textarea></div><div class="field"><label>Reviewer name</label><input maxlength="80" name="reviewerName" value="${escapeHtml(review.reviewerName||'Michael Tarin')}"></div><div class="field"><label>Review date</label><input name="reviewDate" type="date" value="${escapeHtml(review.reviewDate||new Date().toISOString().slice(0,10))}"></div></div><div class="form-actions"><button class="btn light" id="openStreetFromForm" type="button">Inspect Street View</button><button class="btn blue" type="submit">Save Review</button></div></form>`;
 }
 async function renderDetail(location){
+  locationPhotos?.contextChanged();
+  const revision=++detailRevision;
   let review={};
   if(isAdmin())try{const snapshot=await getDoc(doc(db,'reviews',location.id));if(snapshot.exists())review=snapshot.data();}catch(error){toast('Could not load the private review: '+friendlyError(error),true);}
+  if(revision!==detailRevision||location.id!==selectedId)return;
   const data=publicData.get(location.id)||{};
   detail.innerHTML=publicCard(location)+(isAdmin()?adminForm(location,data,review):`<div class="card"><h3 class="section-title">Bus Access Review</h3><div class="login-state">The map is publicly viewable. Sign in as the administrator to enter or change bus-access information and private site contacts.</div><button class="btn blue" id="detailLogin" style="margin-top:10px" type="button">Administrator Sign In</button></div>`);
+  const photoShortcut=document.createElement('button');photoShortcut.type='button';photoShortcut.className='btn light';photoShortcut.textContent='Photos & PDF';
+  photoShortcut.addEventListener('click',()=>document.getElementById('locationPhotos')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  detail.querySelector('.action-grid')?.append(photoShortcut);
   document.getElementById('detailLogin')?.addEventListener('click',openLogin);
   document.getElementById('reviewForm')?.addEventListener('submit',saveReview);
   document.getElementById('editLocationButton')?.addEventListener('click',()=>openLocationEditor(location));
@@ -179,7 +188,7 @@ async function saveLocation(event){
 async function deleteLocation(){
   const id=clean(locationForm.elements.locationId.value),location=findLocation(id);if(!location?.customLocation||!isAdmin())return;
   if(!window.confirm(`Remove ${location.name} from the planning map? Its private review and contacts will also be deleted.`))return;
-  try{const batch=writeBatch(db);batch.delete(doc(db,'halls',id));batch.delete(doc(db,'reviews',id));await batch.commit();closeLocationModal();selectedId=null;trafficPlanner?.contextChanged();history.replaceState(null,'','./');detail.innerHTML='<div class="card empty"><div><strong>Location removed</strong><br><small>Select another marker to continue.</small></div></div>';toast('Added location removed.');}catch(error){toast('Could not remove the location: '+friendlyError(error),true);}
+  try{const batch=writeBatch(db);batch.delete(doc(db,'halls',id));batch.delete(doc(db,'reviews',id));await batch.commit();closeLocationModal();selectedId=null;trafficPlanner?.contextChanged();locationPhotos?.contextChanged();history.replaceState(null,'','./');detail.innerHTML='<div class="card empty"><div><strong>Location removed</strong><br><small>Select another marker to continue.</small></div></div>';toast('Added location removed.');}catch(error){toast('Could not remove the location: '+friendlyError(error),true);}
 }
 
 function openLogin(){document.getElementById('loginModal').classList.add('open');setTimeout(()=>document.getElementById('loginPassword').focus(),50);}
@@ -203,12 +212,23 @@ document.addEventListener('click',event=>{if(event.target.id==='openStreetFromFo
 
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
+  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
   onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();renderList();});
 }catch(error){showFirebaseWarning('Firebase could not initialize. '+friendlyError(error));renderList();}
 
 initMap();renderList();
 if(map&&db)trafficPlanner=mountTrafficPlanner({L:window.L,getLocation:()=>findLocation(selectedId),isAdmin,
   storage:createTrafficStorage({db,doc,getDocFromServer,runTransaction,isAdmin}),notify:toast});
+let createSharedPhotoStore;
+if(SHARED_PHOTOS_ENABLED&&db){
+  try{
+    const [sdk,{createCloudPhotoStore}]=await Promise.all([import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js'),import('./photos-cloud.mjs')]);
+    const storage=sdk.getStorage(app);
+    createSharedPhotoStore=()=>createCloudPhotoStore({db,storage,doc,getDocFromServer,runTransaction,isAdmin,...sdk});
+  }catch(error){toast('Shared photos could not start. Device photos remain available.',true);}
+}
+locationPhotos=mountLocationPhotos({getLocation:()=>findLocation(selectedId),isAdmin,getOwner:()=>currentUser?.uid,
+  getSummary:()=>{const data=publicData.get(selectedId)||{};return{status:statusInfo(selectedId).label,busSize:BUS_SIZE_LABELS[data.busSize]||data.busSize,publicSummary:data.publicSummary};},
+  createSharedStore:createSharedPhotoStore});
 let requestedId=null;if(location.hash.startsWith('#location-'))requestedId=decodeURIComponent(location.hash.slice(10));else{const legacy=location.hash.match(/hall-(.+)/);if(legacy)requestedId=decodeURIComponent(legacy[1]);}
 selectLocation(findLocation(requestedId)?.id||locations[0].id,false);
