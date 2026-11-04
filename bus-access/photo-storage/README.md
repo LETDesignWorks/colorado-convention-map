@@ -160,3 +160,16 @@ and other UIDs (including another UID with the same email), image type/size/path
 limits, private photo metadata, and unchanged public map/admin review access.
 The test checks local emulator addresses before running and uses a demo project;
 it does not verify production deployment or actual device synchronization.
+
+Live verification on November 4, 2026 completed after deployment: synthetic
+interior/exterior uploads, thumbnail loading, saved captions, reopening the
+shared library in a fresh tab, and persisted PDF selection changes all passed.
+A two-page PDF was generated and downloaded with only the selected image.
+Firebase's bounded `getBlob` download can omit the Blob MIME label, so the PDF
+exporter validates JPEG bytes and includes a regression test for this case.
+Direct anonymous requests to the saved image through both Firebase and Cloud
+Storage endpoints, and to its Firestore metadata, returned HTTP 403. Published
+Storage rule simulations allowed the administrator UID and denied another UID
+and signed-out access. Both synthetic photos were removed with successful file
+cleanup and the shared library returned to zero entries. Physical second-device
+sign-in was not tested; the live persistence check used a fresh browser tab.
