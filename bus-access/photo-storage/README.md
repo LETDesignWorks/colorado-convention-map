@@ -27,10 +27,13 @@ the device and should only be shared with the intended recipients.
 
 ## Shared storage is pending
 
-On November 3, 2026, the `convention-fs` Firebase console showed the Spark plan
-and required a Blaze billing upgrade for Storage. No billing upgrade, bucket,
-security-rule change, or private image upload was performed by this feature.
-`photos-config.mjs` therefore keeps `SHARED_PHOTOS_ENABLED = false`.
+On November 4, 2026, the owner approved Blaze pay-as-you-go with a $5 monthly
+budget alert and access through the existing administrator account only. Google
+Cloud billing-account setup is still pending. No production bucket, rule change,
+budget alert, or shared photo upload has been completed by this feature.
+`photos-config.mjs` therefore keeps `SHARED_PHOTOS_ENABLED = false`. The prepared
+rules use the existing administrator UID verified in Firebase Authentication;
+the emulator suite verifies access and preserves existing map/review behavior.
 
 Recommended architecture:
 
@@ -50,12 +53,16 @@ Activation sequence for the project owner:
 
 1. Approve/link Firebase Blaze billing and choose budget alerts. Alerts are not
    a spending cap. Review current prices and storage location before provisioning.
-2. Provision the expected `convention-fs.firebasestorage.app` bucket (or update
-   the existing Firebase configuration if Firebase assigns a different name).
-3. Replace the UID placeholder in `storage.rules` with the existing administrator
-   UID. Merge this path into the actual bucket's rules without replacing rules
+2. Provision the expected `convention-fs.firebasestorage.app` bucket in
+   `us-central1` with Standard storage (or update the existing Firebase
+   configuration if Firebase assigns a different name). This matches the
+   existing Firestore region and qualifies for the regional Storage free tier.
+3. Reconfirm the administrator UID in `storage.rules`. Merge this path into the
+   actual bucket's rules without replacing rules
    needed by other features. Remove overlapping public grants for this path.
-4. Inspect the deployed Firestore rules. Ensure the `reviews/photo-library-*`
+4. Inspect the deployed Firestore rules before publishing `firestore.rules`.
+   The supplied file preserves the rules read from the console on November 4,
+   2026 and restricts the photo prefix by UID. Ensure the `reviews/photo-library-*`
    records are readable/writable only by the same administrator, including direct
    requests. A narrower rule cannot override a broader permissive match. Keep
    the public `halls` permissions and all unrelated records unchanged.
@@ -69,7 +76,8 @@ Activation sequence for the project owner:
 7. Set `SHARED_PHOTOS_ENABLED = true`, deploy, and test with disposable synthetic
    photos. Verify upload, reload from another browser/device, selections, PDF,
    deletion, sign-out, and denied access. Only then use real location photographs.
-8. Device libraries offer **Copy selected photos to shared storage** once enabled.
+8. Shared storage becomes the default library at administrator sign-in. Device
+   libraries offer **Copy selected photos to shared storage** once enabled.
    Copies preserve device originals; switch libraries to confirm shared results.
 
 Storage and Firestore are not one atomic service. Uploads finish before metadata
@@ -94,12 +102,35 @@ authorization, rate limits, and short-lived access is a reasonable alternative,
 but adds another service and backend to maintain. Do not put R2 credentials or
 Google service-account credentials in browser JavaScript or GitHub.
 
-References (reviewed November 3, 2026):
+## Expected photo costs
+
+At the application's maximum saved size, 30 locations with 40 photos each use
+about 2.8 GB including thumbnails (2 MiB + 200 KiB per photo). Ordinary private
+use is expected to cost $0 per month while the account remains within the free
+allowances; this is an estimate, not a guarantee or spending limit.
+
+For a new `firebasestorage.app` bucket, current no-cost allowances include 5 GB
+of monthly storage, 100 GB of monthly downloads, 5,000 upload operations, and
+50,000 download operations. Storage free-tier eligibility is restricted to
+`us-central1`, `us-east1`, and `us-west1`; allowances aggregate across eligible
+usage, and the free download allowance excludes Australia and China. Existing
+project/account usage, retained deleted versions, and repeated downloads also
+count. Firestore metadata has separate quotas and charges.
+
+Use a project-scoped $5 monthly budget alert with actual-spend notifications at
+50%, 90%, and 100%. A budget alert does not stop usage or cap charges. This
+alert must be created after billing setup; merely documenting it does not
+configure it. Review all project services when enabling Blaze.
+
+References (reviewed November 4, 2026):
 
 - https://firebase.google.com/docs/storage/web/download-files
 - https://firebase.google.com/docs/storage/security
 - https://firebase.google.com/docs/storage/faqs-storage-changes-announced-sept-2024
 - https://developers.google.com/workspace/drive/api/reference/rest/v3/files
+- https://firebase.google.com/pricing
+- https://cloud.google.com/storage/pricing
+- https://cloud.google.com/billing/docs/how-to/budgets
 
 ## Verification
 
@@ -107,3 +138,17 @@ Run `node --test tests/bus-photos.test.mjs tests/bus-photos-ui.test.mjs`.
 The device and UI tests use `fake-indexeddb` and `jsdom`. Cloud adapter tests use
 isolated fakes; they do not assert that production rules or billing are ready.
 Run the existing Bus Access model, boundary, UI, and PDF tests for regressions.
+
+The server-rule tests require Java 21+, Firebase CLI, `firebase` 12.x, and
+`@firebase/rules-unit-testing` 5.x. From the repository root, run:
+
+```sh
+firebase emulators:exec --project demo-bus-photos --only firestore,storage --config bus-access/photo-storage/firebase.json "node --test tests/bus-photo-rules.emulator.mjs"
+```
+
+The five emulator tests passed on November 4, 2026. They cover authorized
+upload/read/delete from separate client contexts, denial for signed-out users
+and other UIDs (including another UID with the same email), image type/size/path
+limits, private photo metadata, and unchanged public map/admin review access.
+The test checks local emulator addresses before running and uses a demo project;
+it does not verify production deployment or actual device synchronization.

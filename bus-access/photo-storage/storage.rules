@@ -1,10 +1,10 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Replace this placeholder with the EXISTING approved Firebase Auth user's
-    // UID before deployment. A UID binds access to an account, not a UI label.
+    // Existing administrator confirmed in Firebase Authentication on 2026-11-04.
+    // A UID binds access to an account, not a browser-visible email label.
     function photoAdmin() {
-      return request.auth != null && request.auth.uid == 'REPLACE_WITH_EXISTING_ADMIN_UID';
+      return request.auth != null && request.auth.uid == 'jPTl6zfkjaTbbCJMI7A7xXE2BN93';
     }
     match /bus-location-photos/{locationId}/{photoId}/{fileName} {
       allow read, delete: if photoAdmin();

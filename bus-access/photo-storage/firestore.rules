@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Existing deployed behavior retained for public map and ordinary reviews.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "michaeltarin@hotmail.com";
+    }
+    function isPhotoAdmin() {
+      return request.auth != null
+        && request.auth.uid == 'jPTl6zfkjaTbbCJMI7A7xXE2BN93';
+    }
+    match /halls/{hallId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /reviews/{reviewId} {
+      // The original broad review grant must exclude the photo prefix: a
+      // narrower match cannot override an existing permissive match.
+      allow read, create, update, delete: if
+        (!reviewId.matches('photo-library-.*') && isAdmin())
+        || (reviewId.matches('photo-library-.*') && isPhotoAdmin());
+    }
+  }
+}

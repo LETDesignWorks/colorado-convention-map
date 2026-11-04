@@ -9,7 +9,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
   d.getElementById('detail').after(host);
   const style=d.createElement('link'); style.rel='stylesheet'; style.href=new URL('./photos.css?v=photos-20261103-1',import.meta.url).href; d.head.append(style);
-  let epoch=0, identity='', mode='device', store, photos=[], urls=[], pdfUrl, busy=false, currentLocation;
+  let epoch=0, identity='', mode=createSharedStore?'shared':'device', store, photos=[], urls=[], pdfUrl, busy=false, currentLocation;
   const active=token=>token===epoch && (!identity.includes('|admin:') || isAdmin());
   const message=(value,error=false)=>{const node=host.querySelector('[data-photo-status]');if(node){node.textContent=value;node.classList.toggle('photo-error',error);}};
   function clearPdf(){if(pdfUrl){w.URL.revokeObjectURL(pdfUrl);pdfUrl=null;}host.querySelector('[data-photo-pdf-links]')?.replaceChildren();}
@@ -110,6 +110,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     const location=getLocation(),admin=isAdmin(),owner=admin?getOwner():'';
     const next=location?`${location.id}|${admin?'admin:'+owner:'public'}`:'';
     if(!force&&next===identity){currentLocation=location?{...location}:null;return;}
+    if(admin&&!identity.includes('|admin:'))mode=createSharedStore?'shared':'device';
     identity=next;const token=++epoch;clearUrls();photos=[];store=null;busy=false;currentLocation=location?{...location}:null;
     if(!location){host.hidden=true;host.replaceChildren();return;}host.hidden=false;
     if(!admin)mode='device';host.innerHTML=template(location,admin);

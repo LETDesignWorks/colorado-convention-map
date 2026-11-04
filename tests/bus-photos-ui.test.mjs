@@ -12,7 +12,7 @@ async function harness(options={}){
   const fakePhoto=file=>({id:file.name,category:'interior',caption:'',selected:true,createdAt:seq++,image:new Blob(['photo'],{type:'image/jpeg'}),thumbnail:new Blob(['thumb'],{type:'image/jpeg'})});
   const api=mountLocationPhotos({document:d,window:w,isAdmin:()=>admin,getOwner:()=> 'admin-uid',getLocation:()=>location,getSummary:()=>({status:'Approved'}),
     prepare:options.prepare||(async(file,category)=>({...fakePhoto(file),category})),
-    createDeviceStore:options.createDeviceStore,
+    createDeviceStore:options.createDeviceStore,createSharedStore:options.createSharedStore,
     exportPdf:options.exportPdf||(async data=>{exports.push(data);return{blob:new Blob(['pdf']),filename:'photos.pdf',pages:2};})});
   api.contextChanged();await tick();
   const q=selector=>d.querySelector(selector);
@@ -45,4 +45,12 @@ test('partial file failures report actual saves and keep valid photos',async()=>
 test('upload completing after navigation does not save to the newly selected location',async()=>{
   let finish;const h=await harness({prepare:()=>new Promise(resolve=>finish=resolve)});await h.add(['one']);h.location={id:'2',name:'Second'};
   finish({id:'one',category:'interior',image:new Blob(['x'],{type:'image/jpeg'}),thumbnail:new Blob(['x'],{type:'image/jpeg'})});await tick();assert.equal(h.d.querySelectorAll('.photo-item').length,0);h.close();
+});
+
+test('configured shared storage is the default after opening or signing in, and device copies remain selectable',async()=>{
+  let sharedReads=0;const h=await harness({createSharedStore:()=>({list:async()=>{sharedReads++;return[];}})});
+  assert.equal(h.q('[data-photo-library]').value,'shared');assert.equal(sharedReads,1);
+  h.q('[data-photo-library]').value='device';h.q('[data-photo-library]').dispatchEvent(new h.w.Event('change'));await tick();
+  assert.equal(h.q('[data-photo-library]').value,'device');assert.ok(h.q('[data-photo-copy]'));
+  h.admin=false;h.admin=true;await tick();assert.equal(h.q('[data-photo-library]').value,'shared');assert.equal(sharedReads,2);h.close();
 });
