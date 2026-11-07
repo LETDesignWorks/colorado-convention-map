@@ -1,5 +1,6 @@
 import {createPdfLibRibbons, ribbonLayout, loadPdfRibbonAssets} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {validatePlan, arrowheads} from './traffic-model.mjs?v=traffic-20261023-48';
+import {SATELLITE_TILE_URL, STREET_TILE_URL, STREET_NAMES_TILE_URL, MAX_NATIVE_ZOOM, SATELLITE_ATTRIBUTION, STREET_NAMES_ATTRIBUTION, STREET_ATTRIBUTION, tileUrl} from './traffic-basemap.mjs?v=street-names-20261107-1';
 
 // A detached, full-layout print snapshot. This module never writes to cloud storage.
 export const PDF_LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
@@ -32,13 +33,13 @@ export function layoutViewport(plan,width=736,height=350) {
     center={x:(left+right)/2,y:(top+bottom)/2};
     if(right-left>1e-10||bottom-top>1e-10)scale=Math.min(2**22/2.5,(width-90)/Math.max(right-left,1e-10),(height-90)/Math.max(bottom-top,1e-10));
   }
-  const zoom=Math.max(0,Math.min(19,Math.ceil(Math.log2(scale*2.5))));
+  const zoom=Math.max(0,Math.min(MAX_NATIVE_ZOOM,Math.ceil(Math.log2(scale*2.5))));
   return {width,height,scale,zoom,left:center.x-width/(2*scale),top:center.y-height/(2*scale),center};
 }
 export function projectPoint(point,viewport) {
   const p=worldPoint(point);return {x:(p.x-viewport.left)*viewport.scale,y:(p.y-viewport.top)*viewport.scale};
 }
-export function tileJobs(viewport,base) {
+function tilesForTemplate(viewport,template) {
   const n=2**viewport.zoom,span=256/n,jobs=[];
   const x0=Math.floor(viewport.left/span),x1=Math.floor((viewport.left+viewport.width/viewport.scale-1e-12)/span);
   const y0=Math.floor(viewport.top/span),y1=Math.floor((viewport.top+viewport.height/viewport.scale-1e-12)/span);
@@ -46,10 +47,19 @@ export function tileJobs(viewport,base) {
     if(y<0||y>=n)continue;
     const tx=((x%n)+n)%n;
     jobs.push({x:(x*span-viewport.left)*viewport.scale,y:(y*span-viewport.top)*viewport.scale,size:span*viewport.scale,
-      url:base==='street'?`https://tile.openstreetmap.org/${viewport.zoom}/${tx}/${y}.png`:`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${viewport.zoom}/${y}/${tx}`});
+      url:tileUrl(template,viewport.zoom,tx,y)});
   }
   if(jobs.length>90)throw Error('The map is too large to export in one page. Try a smaller parking-lot layout.');
   return jobs;
+}
+export function tileJobs(viewport,base) {
+  return tilesForTemplate(viewport,base==='street'?STREET_TILE_URL:SATELLITE_TILE_URL);
+}
+export function streetNameTileJobs(viewport) {
+  // The aerial pass uses high-resolution tiles for sharp imagery. Choose the
+  // labels at their printed size so that 2.5x image density does not shrink text.
+  const zoom=Math.max(0,Math.min(MAX_NATIVE_ZOOM,Math.round(Math.log2(viewport.scale))));
+  return tilesForTemplate({...viewport,zoom},STREET_NAMES_TILE_URL);
 }
 async function readBytes(url,fetcher=globalThis.fetch) {
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
@@ -66,12 +76,18 @@ async function imageFromBytes(bytes,w) {
 export async function renderBasemap(viewport,base,{document:d=globalThis.document,window:w=globalThis.window,fetch:fetcher=globalThis.fetch,progress=()=>{}}={}) {
   const canvas=d.createElement('canvas'),density=2.5;canvas.width=Math.ceil(viewport.width*density);canvas.height=Math.ceil(viewport.height*density);
   const context=canvas.getContext('2d');if(!context)throw Error('This browser cannot prepare a map image.');context.scale(density,density);context.fillStyle='#fff';context.fillRect(0,0,viewport.width,viewport.height);
-  const jobs=tileJobs(viewport,base);let cursor=0,completed=0,failures=0;
-  async function run(){while(cursor<jobs.length){const job=jobs[cursor++];let image;
-    try{image=await imageFromBytes(await readBytes(job.url,fetcher),w);context.drawImage(image,job.x,job.y,job.size,job.size);}catch{failures++;}finally{image?.close?.();completed++;progress(`Preparing map background (${completed}/${jobs.length})...`);}
-  }}
-  await Promise.all(Array.from({length:Math.min(8,jobs.length)},run));
-  if(failures||!jobs.length)throw Error('Some map background tiles could not be loaded. No incomplete PDF was created. Retry, or switch Background to Street map and export again.');
+  async function drawLayer(jobs,label,failure){
+    let cursor=0,completed=0,failures=0;
+    async function run(){while(cursor<jobs.length){const job=jobs[cursor++];let image;
+      try{image=await imageFromBytes(await readBytes(job.url,fetcher),w);context.drawImage(image,job.x,job.y,job.size,job.size);}catch{failures++;}finally{image?.close?.();completed++;progress(`${label} (${completed}/${jobs.length})...`);}
+    }}
+    await Promise.all(Array.from({length:Math.min(8,jobs.length)},run));
+    if(failures||!jobs.length)throw Error(failure);
+  }
+  await drawLayer(tileJobs(viewport,base),'Preparing map background','Some map background tiles could not be loaded. No incomplete PDF was created. Retry, or switch Background to Street map and export again.');
+  // Complete the opaque imagery before drawing transparent street names. A
+  // later-arriving aerial tile must never paint over an already loaded label.
+  if(base!=='street')await drawLayer(streetNameTileJobs(viewport),'Adding street names','Some street-name tiles could not be loaded. No incomplete PDF was created. Retry, or switch Background to Street map and export again.');
   return canvas.toDataURL('image/jpeg',.93);
 }
 // Standard PDF fonts support Western European text. Keep punctuation printable,
@@ -160,7 +176,7 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   let lx=32;cone(lx,legendY+3,.7);text(page,'Cone',lx+12,legendY,9);lx=113;
   for(const type of ['bus','car','walk']){line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},5,navy);line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,legendY,9);lx+=type==='walk'?135:95;}
   text(page,'R = route key     L = location label key',477,legendY,9);
-  const attribution=plan.view.base==='street'?'Map: © OpenStreetMap contributors':'Imagery: © Esri, Maxar, Earthstar Geographics and GIS User Community';
+  const attribution=plan.view.base==='street'?STREET_ATTRIBUTION:`${SATELLITE_ATTRIBUTION} | ${STREET_NAMES_ATTRIBUTION}`;
   text(page,attribution,24,footerLineY+35,7,font,muted);text(page,'Full layout fitted to page. Notes and item key follow.',24,footerLineY+22,8,font,muted);
   if(!plan.items.length)text(page,'No traffic items in this layout.',map.x+20,map.y+20,11,bold,navy);
   // Notes/key pages paginate by measured text width and available height.

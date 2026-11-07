@@ -1,7 +1,8 @@
 import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-48';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=ribbons-20261107-1';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=street-names-20261107-1';
 import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
+import {createTrafficBasemap} from './traffic-basemap.mjs?v=street-names-20261107-1';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
@@ -72,7 +73,10 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   }
   function historyMove(from,to){
     if(!editable()||state.draft||!state[from].length)return;
-    clearPdfLinks();state[to].push(clone(state.plan));state.plan=state[from].pop();state.selected=null;state.removeVertex=false;state.dirty=true;syncFields();render();
+    const previousBase=state.plan.view.base;
+    clearPdfLinks();state[to].push(clone(state.plan));state.plan=state[from].pop();state.selected=null;state.removeVertex=false;state.dirty=true;syncFields();
+    if(state.plan.view.base!==previousBase)setBasemap(state.plan.view.base,false);
+    render();
   }
   function view(){const s=state,c=s.map.getCenter();return {lat:c.lat,lng:c.lng,zoom:s.map.getZoom(),base:s.plan.view.base};}
   function syncFields(){if(!state)return;state.nodes.name.value=state.plan.name;state.nodes.notes.value=state.plan.notes;}
@@ -240,17 +244,17 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   }
   function setBasemap(base,dirty=true){
     const s=state;if(!s?.map)return;
-    if(s.tile)s.map.removeLayer(s.tile);
-    const satellite=base==='satellite';
-    s.tile=L.tileLayer(satellite?'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxNativeZoom:19,maxZoom:22,attribution:satellite?'Tiles © Esri — Esri, Maxar, Earthstar Geographics and GIS User Community':'© OpenStreetMap contributors'}).addTo(s.map);
-    let errors=0;s.tile.on('tileerror',()=>{if(state===s&&++errors===3)say('Some background tiles are unavailable. Try Street map or zoom out; the layout is unchanged.');});
+    s.basemapLayers??=createTrafficBasemap({L,map:s.map,onTileError:kind=>{
+      if(state===s)say(kind==='streetNames'?'Some street names could not load. Try Street map or zoom out; the layout is unchanged.':'Some background tiles are unavailable. Try Street map or zoom out; the layout is unchanged.');
+    }});
+    s.basemapLayers.set(base);
     s.plan.view.base=base;s.nodes.basemap.value=base;if(dirty){clearPdfLinks();s.dirty=true;}syncButtons();
   }
   function close(force=false){
     const s=state;if(!s)return true;
     if(!force&&s.busy){say('A save, deletion, or PDF export is still running. Keep this window open until its result is shown.');return false;}
     if(!force&&(s.dirty||s.draft?.points.length)&&!w.confirm('Close without saving this traffic draft? Cancel to save or download it first.'))return false;
-    clearPdfLinks();sequence++;state=null;s.map?.remove();s.nodes.dialog.close();s.nodes.dialog.remove();d.body.classList.remove('traffic-dialog-open');card.querySelector('[data-open]').focus();return true;
+    clearPdfLinks();sequence++;state=null;s.basemapLayers?.dispose();s.map?.remove();s.nodes.dialog.close();s.nodes.dialog.remove();d.body.classList.remove('traffic-dialog-open');card.querySelector('[data-open]').focus();return true;
   }
   function contextChanged(){
     const location=getLocation(),button=card.querySelector('[data-open]');
@@ -266,7 +270,8 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <div class="traffic-body"><aside class="traffic-tools">
       <label>Layout name<input data-name maxlength="160"></label>
       <div class="traffic-pair"><button class="btn light" data-tool="select">Move / select</button><button class="btn light" data-zoom>Zoom to parking lot</button></div>
-      <label>Background<select data-basemap><option value="satellite">Satellite / aerial</option><option value="street">Street map</option></select></label>
+      <label>Background<select data-basemap><option value="satellite">Satellite + street names</option><option value="street">Street map</option></select></label>
+      <small>Street names appear on the map and in exported PDFs. Cones, routes, and your location labels stay on top.</small>
       <h3>Draw the traffic pattern</h3><label>Route type<select data-route-type><option value="bus">Bus</option><option value="car">Car</option><option value="walk">Pedestrian</option></select></label>
       <button class="btn blue" data-tool="route">Draw directional route</button>
       <h3>Lay out cones</h3><div class="traffic-pair"><button class="btn light" data-tool="cone">Place cones</button><button class="btn light" data-tool="cone-row">Draw cone row</button></div>
