@@ -1,18 +1,22 @@
 import {PHOTO_LIMIT, createDevicePhotoStore, photoError} from './photos-model.mjs';
 import {preparePhoto} from './photos-images.mjs';
 import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=ribbons-20261107-1';
+import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 
 const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin, createSharedStore,
   createDeviceStore=createDevicePhotoStore, prepare=preparePhoto, exportPdf=buildPhotoPdf,
+  openParkingPlanner, onPdfChanged=()=>{}, sendToBuilder=sendPdfsToBuilder,
   document:d=globalThis.document, window:w=globalThis.window}) {
   const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
   d.getElementById('detail').after(host);
   const style=d.createElement('link'); style.rel='stylesheet'; style.href=new URL('./photos.css?v=photos-20261103-1',import.meta.url).href; d.head.append(style);
-  let epoch=0, identity='', mode=createSharedStore?'shared':'device', store, photos=[], urls=[], pdfUrl, busy=false, currentLocation;
-  const active=token=>token===epoch && (!identity.includes('|admin:') || isAdmin());
+  let epoch=0, identity='', mode=createSharedStore?'shared':'device', store, photos=[], urls=[], pdfUrl, busy=false, loaded=false, currentLocation, pdfRevision=0, reportIdentity='';
+  const contextIdentity=()=>{const location=getLocation(),admin=isAdmin();return location?`${location.id}|${admin?'admin:'+(getOwner?.()||''):'public'}`:'';};
+  const active=token=>token===epoch && contextIdentity()===identity;
+  const currentReport=()=>publicPhotoReport(getLocation(),getSummary?.());
   const message=(value,error=false)=>{const node=host.querySelector('[data-photo-status]');if(node){node.textContent=value;node.classList.toggle('photo-error',error);}};
-  function clearPdf(){if(pdfUrl){w.URL.revokeObjectURL(pdfUrl);pdfUrl=null;}host.querySelector('[data-photo-pdf-links]')?.replaceChildren();}
+  function clearPdf(){pdfRevision++;if(pdfUrl){w.URL.revokeObjectURL(pdfUrl);pdfUrl=null;}host.querySelector('[data-photo-pdf-links]')?.replaceChildren();onPdfChanged();}
   function clearUrls(){urls.forEach(url=>w.URL.revokeObjectURL(url));urls=[];clearPdf();}
   function setBusy(value){busy=value;host.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=value || el.dataset.unavailable==='true');}
   const selected=()=>photos.filter(p=>p.selected!==false);
@@ -28,6 +32,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     <p data-photo-count class="photo-count"></p><div data-photo-gallery></div>
     ${mode==='device'&&createSharedStore?'<button class="btn light" type="button" data-photo-copy>Copy selected photos to shared storage</button>':''}`:'<p class="photo-help">Sign in as the administrator to add, view, and select private location photos.</p>'}
     <div class="photo-export"><button type="button" class="btn blue" data-photo-pdf>Create location PDF</button><span class="photo-help">Saved location details${admin?' + selected photos':''}. Private contacts and inspection notes are excluded.</span></div>
+    ${admin&&openParkingPlanner?'<div class="photo-export"><button type="button" class="btn light" data-photo-parking>Combine with parking-lot plan</button><span class="photo-help">Open the parking-lot planner to choose a layout and create one PDF with this review and its selected photos.</span></div>':''}
     <div data-photo-pdf-links class="photo-pdf-links"></div><p data-photo-status role="status" aria-live="polite"></p>`;}
   async function showGallery(token){
     if(!active(token))return;
@@ -53,8 +58,8 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     }
   }
   async function load(token){
-    setBusy(true);message('Loading saved photos…');
-    try{const records=await store.list(currentLocation.id);if(!active(token))return;photos=records;await showGallery(token);if(active(token))message(photos.length?'Photos loaded.':'Add interior or exterior photos to this location.');}
+    loaded=false;setBusy(true);message('Loading saved photos…');
+    try{const records=await store.list(currentLocation.id);if(!active(token))return;photos=records;await showGallery(token);if(active(token)){loaded=true;message(photos.length?'Photos loaded.':'Add interior or exterior photos to this location.');}}
     catch(error){if(active(token))message('Could not load photos: '+photoError(error),true);}
     finally{if(active(token))setBusy(false);}
   }
@@ -90,31 +95,57 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     catch(error){if(active(token))message(`${count} photos copied. ${photoError(error)}`,true);}
     finally{if(active(token))setBusy(false);}
   }
+  function buildPdfSnapshot({expectedLocationId=currentLocation?.id}={}){
+    const token=epoch,revision=pdfRevision;
+    if(!currentLocation||!active(token)||String(currentLocation.id)!==String(expectedLocationId))throw Error('The selected location or sign-in changed. Choose the location and create the PDF again.');
+    if(busy)throw Error('The photo library is still loading or saving. Wait for it to finish, then create the PDF again.');
+    if(!loaded)throw Error('The photo library has not loaded. Close the parking-lot planner if needed, choose Refresh photos, and try again.');
+    const unsaved=photos.some(photo=>host.querySelector(`[data-photo-id="${photo.id}"] [data-photo-caption]`)?.value!==photo.caption);
+    if(unsaved)throw Error('Save the edited captions before creating the PDF.');
+    const locationId=currentLocation.id,readingStore=store,report=currentReport(),reportKey=JSON.stringify(report),source=mode;
+    const snapshot=photos.map(photo=>({...photo}));
+    const isCurrent=()=>active(token)&&revision===pdfRevision&&String(getLocation()?.id)===String(locationId)&&JSON.stringify(currentReport())===reportKey;
+    const assertCurrent=()=>{if(!isCurrent())throw Error('The location, selected photos, review details, or sign-in changed. Create the PDF again.');};
+    return (async()=>{
+      const result=await exportPdf({report,photos:snapshot,source,loadImage:async photo=>{assertCurrent();const blob=await readingStore.image(locationId,photo);assertCurrent();return blob;}});
+      assertCurrent();if(!result?.blob?.size)throw Error('The location PDF was empty. Please try again.');
+      return {...result,isCurrent};
+    })();
+  }
   async function pdf(token){
     if(busy||!active(token))return;
-    const unsaved=photos.some(photo=>host.querySelector(`[data-photo-id="${photo.id}"] [data-photo-caption]`)?.value!==photo.caption);
-    if(unsaved){message('Save the edited captions before creating the PDF.',true);return;}
-    setBusy(true);clearPdf();message('Preparing a print-ready PDF…');
-    const locationId=currentLocation.id,readingStore=store,report=publicPhotoReport(currentLocation,getSummary());
-    const snapshot=photos.map(p=>({...p}));
+    clearPdf();message('Preparing a print-ready PDF…');
     try{
-      const result=await exportPdf({report,photos:snapshot,source:mode,loadImage:async photo=>{if(!active(token))throw Error('Location or sign-in changed.');return readingStore.image(locationId,photo);}});
-      if(!active(token))return;pdfUrl=w.URL.createObjectURL(result.blob);
+      const pending=buildPdfSnapshot({expectedLocationId:currentLocation.id});setBusy(true);
+      const result=await pending;
+      if(!active(token))return;if(!result.isCurrent())throw Error('The location or selected photos changed. Create the PDF again.');pdfUrl=w.URL.createObjectURL(result.blob);
       const download=d.createElement('a');download.href=pdfUrl;download.download=result.filename;download.className='btn blue';download.textContent='Download PDF';
       const view=d.createElement('a');view.href=pdfUrl;view.target='_blank';view.rel='noopener';view.className='btn light';view.textContent='Open / print PDF';
-      host.querySelector('[data-photo-pdf-links]').append(download,view);message(`${result.pages} page PDF ready. Download it or open it to print.`);
+      const checkCurrent=()=>{if(result.isCurrent())return true;clearPdf();message('The location or selected photos changed. Create a new PDF.',true);return false;};
+      for(const link of [download,view])link.addEventListener('click',event=>{if(!checkCurrent())event.preventDefault();});
+      const presentation=d.createElement('button');presentation.type='button';presentation.className='btn light';presentation.textContent='Add to PowerPoint';
+      presentation.addEventListener('click',async()=>{
+        if(!checkCurrent())return;
+        presentation.disabled=true;
+        try{await sendToBuilder([{name:result.filename,blob:result.blob}],{window:w,isCurrent:result.isCurrent,notify:value=>{if(active(token))message(value);}});}
+        catch(error){if(active(token))message('Could not add the PDF to PowerPoint: '+photoError(error),true);}
+        finally{if(active(token)&&presentation.isConnected)presentation.disabled=false;}
+      });
+      host.querySelector('[data-photo-pdf-links]').append(download,view,presentation);message(`${result.pages} page PDF ready. Download it, open it to print, or add it to PowerPoint.`);
     }catch(error){if(active(token))message('PDF was not created: '+photoError(error),true);}
     finally{if(active(token))setBusy(false);}
   }
   function contextChanged(force=false){
-    const location=getLocation(),admin=isAdmin(),owner=admin?getOwner():'';
+    const location=getLocation(),admin=isAdmin(),owner=admin?(getOwner?.()||''):'';
     const next=location?`${location.id}|${admin?'admin:'+owner:'public'}`:'';
-    if(!force&&next===identity){currentLocation=location?{...location}:null;return;}
+    const nextReport=location?JSON.stringify(publicPhotoReport(location,getSummary?.())):'';
+    if(!force&&next===identity){currentLocation=location?{...location}:null;if(reportIdentity!==nextReport)clearPdf();reportIdentity=nextReport;return;}
     if(admin&&!identity.includes('|admin:'))mode=createSharedStore?'shared':'device';
-    identity=next;const token=++epoch;clearUrls();photos=[];store=null;busy=false;currentLocation=location?{...location}:null;
+    identity=next;reportIdentity=nextReport;const token=++epoch;clearUrls();photos=[];store=null;busy=false;loaded=!admin;currentLocation=location?{...location}:null;
     if(!location){host.hidden=true;host.replaceChildren();return;}host.hidden=false;
     if(!admin)mode='device';host.innerHTML=template(location,admin);
     host.querySelector('[data-photo-pdf]').addEventListener('click',()=>pdf(token));
+    host.querySelector('[data-photo-parking]')?.addEventListener('click',()=>{if(active(token)&&isAdmin())openParkingPlanner();});
     if(!admin)return;
     store=mode==='shared'?createSharedStore():createDeviceStore({indexedDB:w.indexedDB,owner});
     host.querySelector('[data-photo-refresh]').addEventListener('click',()=>contextChanged(true));
@@ -123,5 +154,5 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     host.querySelector('[data-photo-copy]')?.addEventListener('click',()=>copy(token));
     load(token);
   }
-  return {contextChanged,dispose(){epoch++;clearUrls();host.remove();style.remove();}};
+  return {contextChanged,buildPdfSnapshot,dispose(){epoch++;clearUrls();host.remove();style.remove();}};
 }

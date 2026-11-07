@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b447e">
+  <meta name="description" content="Combine Denver 2027 planning PDFs or turn selected reports into one PowerPoint presentation.">
+  <title>PDFs &amp; PowerPoint | Denver 2027</title>
+  <link rel="icon" type="image/png" href="../assets/denver-2027-territory-logo.png">
+  <link rel="stylesheet" href="styles.css?v=packets-20261107-1">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to PDF collection</a>
+  <header class="site-header">
+    <div class="header-content">
+      <a class="site-brand" href="../" target="_blank" rel="opener" aria-label="Denver 2027 planning map"><img src="../assets/denver-2027-territory-logo.png" alt="Denver 2027"><span>Convention planning</span></a>
+      <nav class="site-nav" aria-label="Planning navigation">
+        <a href="../" target="_blank" rel="opener">Planning map</a>
+        <a href="../bus-access/" target="_blank" rel="opener">Bus Access Review</a>
+        <a href="../territories/" target="_blank" rel="opener">Territories</a>
+        <a href="#main" aria-current="page">PDFs &amp; PowerPoint</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main">
+    <div class="page-heading">
+      <div><p class="eyebrow">DENVER 2027</p><h1>PDFs &amp; PowerPoint</h1><p class="intro">Bring your location reviews, parking plans, and other PDFs into one download.</p></div>
+      <div class="local-note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"></rect><path d="M8 21h8M12 17v4"></path></svg><span>Processed in your browser<small>No file upload required</small></span></div>
+    </div>
+    <div id="notice" class="notice" role="status" aria-live="polite">Loading PDF tools…</div>
+    <div class="workspace">
+      <section class="card collection-card" aria-labelledby="collection-heading">
+        <div class="card-heading"><span class="step" aria-hidden="true">1</span><div><h2 id="collection-heading">Build your collection</h2><p>Add PDFs, choose what to include, and set the order.</p></div></div>
+        <div id="drop-zone" class="drop-zone">
+          <svg class="upload-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M15 7H7v34h26v-8M20 3h14l9 9v25H20V3Z"></path><path d="M34 3v10h9M26 24h11M26 30h8"></path></svg>
+          <div class="drop-copy"><strong>Add your planning PDFs</strong><p>Choose several at once, or drag PDF files here.</p></div>
+          <button id="add-files" class="button primary" type="button" disabled>Choose PDFs</button>
+          <input id="pdf-files" type="file" accept="application/pdf,.pdf" multiple hidden disabled>
+          <p class="drop-limit" id="file-limits">PDF files only</p>
+        </div>
+        <p class="source-help">You can also choose <strong>Add to PowerPoint</strong> after creating a Bus Access Review or parking-lot PDF. Keep this collection open to add more.</p>
+        <div class="collection-toolbar">
+          <div><h3>Your PDFs</h3><p id="collection-count">No PDFs added</p></div>
+          <div class="selection-actions"><button id="select-all" class="button quiet" type="button" disabled>Select all</button><button id="clear-selection" class="button quiet" type="button" disabled>Clear selection</button></div>
+        </div>
+        <div id="empty-collection" class="empty-collection"><span class="empty-pages" aria-hidden="true">PDF</span><p>Your PDFs will appear here.</p><small>Each file has its own checkbox. Use the arrows to arrange the presentation.</small></div>
+        <ol id="pdf-list" class="pdf-list" aria-label="PDFs in presentation order"></ol>
+        <p class="collection-note">Files stay in this tab. Closing or refreshing the page clears this collection.</p>
+      </section>
+      <aside class="export-sidebar">
+        <section class="card export-card" aria-labelledby="export-heading">
+          <div class="card-heading"><span class="step" aria-hidden="true">2</span><h2 id="export-heading">Create your download</h2></div>
+          <dl class="selection-totals"><div><dt>PDFs selected</dt><dd id="selected-files">0</dd></div><div><dt>Pages / slides</dt><dd id="selected-pages">0</dd></div></dl>
+          <label for="export-title">Download title</label><input id="export-title" type="text" maxlength="100" value="Denver 2027 Planning" autocomplete="off" disabled>
+          <label for="slide-layout">PowerPoint slide size</label><select id="slide-layout" disabled><option value="wide">Widescreen (16:9)</option><option value="first-page">Match the first selected PDF page</option></select>
+          <p class="format-help">Each PDF page becomes one slide. Pages keep their layout; text inside a PDF page is not individually editable.</p>
+          <p id="selection-message" class="selection-message">Add PDFs to start your collection.</p>
+          <div class="download-actions">
+            <button id="download-powerpoint" class="button primary download-button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"></path></svg>Download PowerPoint</button>
+            <button id="download-pdf" class="button secondary download-button" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"></path></svg>Download combined PDF</button>
+          </div>
+          <div id="export-progress" class="export-progress" hidden><progress aria-label="Preparing your download"></progress><p id="export-progress-text" role="status" aria-live="polite"></p><button id="cancel-export" class="button secondary" type="button">Cancel export</button></div>
+          <div id="download-result" class="download-result" hidden><strong id="download-result-title"></strong><p id="download-result-detail"></p><a id="download-again" class="button secondary" download>Download again</a></div>
+          <p class="pdf-help">The combined PDF keeps the original page sizes and is a print copy. Keep the original PDFs for editable forms.</p>
+        </section>
+        <section class="help-card" aria-labelledby="collection-help"><h2 id="collection-help">One meeting, one presentation</h2><p>Start with a location review, add its parking plan, then include territories, directions, or other saved PDFs.</p><p id="collection-limits"></p><a href="../bus-access/" target="_blank" rel="opener">Open Bus Access Review <span aria-hidden="true">→</span></a></section>
+      </aside>
+    </div>
+    <footer class="page-footer"><span>Denver 2027 Convention planning</span><span>Use the latest saved reports for your meeting.</span></footer>
+  </main>
+  <noscript><p class="notice error">Enable JavaScript to combine PDFs or create a PowerPoint presentation.</p></noscript>
+  <script type="module">
+    import('./app.mjs?v=packets-20261107-1').then(module => module.mountPdfTools()).catch(error => {
+      const notice = document.getElementById('notice');
+      notice.hidden = false; notice.className = 'notice error'; notice.setAttribute('role', 'alert');
+      notice.textContent = 'The PDF tools could not load. Check your connection and refresh this page.';
+      console.error('PDF tools could not start', error);
+    });
+  </script>
+</body>
+</html>

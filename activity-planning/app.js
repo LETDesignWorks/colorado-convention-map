@@ -1,5 +1,5 @@
 import {mountPrintRibbons,waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
-import {LOCATIONS,SOURCES} from './locations.js?v=ribbons-20261107-1';
+import {LOCATIONS,SOURCES} from './locations.js?v=packets-20261107-1';
 import {calculate,routePoints,validPoint,conflicts,decodeRecord,encodeRecord,RECORD_TYPE,wallTime} from './model.mjs?v=20261020-3';
 
 const $=id=>document.getElementById(id), esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

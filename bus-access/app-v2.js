@@ -1,11 +1,11 @@
-import { mountTrafficPlanner } from './traffic-planner.mjs?v=ribbons-20261107-1';
-import { mountLocationPhotos } from './photos.mjs?v=ribbons-20261107-1';
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=packets-20261107-1';
+import { mountLocationPhotos } from './photos.mjs?v=packets-20261107-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-48';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { HALLS } from './data.js?v=ribbons-20261107-1';
+import { HALLS } from './data.js?v=packets-20261107-1';
 import { CONVENTION_CENTER } from './planning-center.mjs?v=bus-center-20261023-53';
 import { DRIVE_TIME_AREA, driveTimeEstimateFor } from './drive-time-area.mjs?v=bus-drive-time-20261023-54';
 import { mountPlanningBoundary } from './rounded-boundary.mjs?v=bus-boundary-20261023-55';
@@ -218,6 +218,7 @@ try{
 
 initMap();renderList();
 if(map&&db)trafficPlanner=mountTrafficPlanner({L:window.L,getLocation:()=>findLocation(selectedId),isAdmin,
+  getLocationPdf:options=>{if(!locationPhotos)throw Error('The location photo panel is still loading. Try again in a moment.');return locationPhotos.buildPdfSnapshot(options);},
   storage:createTrafficStorage({db,doc,getDocFromServer,runTransaction,isAdmin}),notify:toast});
 let createSharedPhotoStore;
 if(SHARED_PHOTOS_ENABLED&&db){
@@ -228,6 +229,8 @@ if(SHARED_PHOTOS_ENABLED&&db){
   }catch(error){toast('Shared photos could not start. Device photos remain available.',true);}
 }
 locationPhotos=mountLocationPhotos({getLocation:()=>findLocation(selectedId),isAdmin,getOwner:()=>currentUser?.uid,
+  openParkingPlanner:trafficPlanner?()=>trafficPlanner.open():undefined,
+  onPdfChanged:()=>trafficPlanner?.invalidatePdfContext(),
   getSummary:()=>{const data=publicData.get(selectedId)||{};return{status:statusInfo(selectedId).label,busSize:BUS_SIZE_LABELS[data.busSize]||data.busSize,publicSummary:data.publicSummary};},
   createSharedStore:createSharedPhotoStore});
 let requestedId=null;if(location.hash.startsWith('#location-'))requestedId=decodeURIComponent(location.hash.slice(10));else{const legacy=location.hash.match(/hall-(.+)/);if(legacy)requestedId=decodeURIComponent(legacy[1]);}

@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=ribbons-20261107-1';
+import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=packets-20261107-1';
 import { HOTELS } from './hotels.js';
 
 const firebaseConfig={

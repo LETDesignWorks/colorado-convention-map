@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=ribbons-20261107-1';
+import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=packets-20261107-1';
 
 const firebaseConfig={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',storageBucket:'convention-fs.firebasestorage.app',messagingSenderId:'29365992209',appId:'1:29365992209:web:0bd35e723688b37d776ab0',measurementId:'G-054BLBBE0F'};
 const EVERGREEN=[39.6333,-105.3172];

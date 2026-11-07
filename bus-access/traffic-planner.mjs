@@ -1,11 +1,39 @@
 import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-48';
 import {exportTrafficPdf} from './traffic-pdf.mjs?v=ribbons-20261107-1';
+import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
+import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
 const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-48',import.meta.url).href;
-export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exportTrafficPdf,notify=()=>{},document:documentHost=globalThis.document,window:windowHost=globalThis.window}) {
+// Reuse the two existing renderers so individual and combined exports share
+// the same artwork, selected photos, geometry, and privacy rules.
+export async function buildParkingPdfPacket(source,{combined=false,getLocationPdf,exportPdf=exportTrafficPdf,mergePdfs=mergePdfDocuments,exportOptions={},isCurrent=()=>true}={}){
+  const plan=validatePlan(source,source.locationId),progress=exportOptions.progress||(()=>{});
+  let review;
+  const stillCurrent=()=>isCurrent()&&(!review?.isCurrent||review.isCurrent());
+  const assertCurrent=()=>{if(!stillCurrent())throw Error('The layout, location, selected photos, review details, or sign-in changed. Create the PDF again.');};
+  assertCurrent();
+  if(combined){
+    if(typeof getLocationPdf!=='function')throw Error('The Bus Access Review PDF is still loading. Please try again in a moment.');
+    progress('Preparing the Bus Access Review and selected location photos…');
+    review=await getLocationPdf({expectedLocationId:plan.locationId});assertCurrent();
+    if(!review?.blob?.size)throw Error('The Bus Access Review PDF could not be prepared. No combined PDF was created.');
+  }
+  const parking=await exportPdf(plan,exportOptions);assertCurrent();
+  if(!parking?.blob?.size)throw Error('The parking-lot PDF was empty. Please retry.');
+  let result=parking;
+  if(combined){
+    const stem=(plan.locationName||plan.name).normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100)||'meeting-location';
+    progress('Combining the review, selected photos, and parking-lot plan…');
+    result=await mergePdfs([{name:review.filename||'Bus Access Review.pdf',blob:review.blob},{name:parking.filename||'Parking-lot plan.pdf',blob:parking.blob}],{filename:`${stem}-bus-access-and-parking.pdf`,title:`${plan.locationName} - Bus access and parking`,progress,document:exportOptions.document,window:exportOptions.window,PDFLib:exportOptions.PDFLib,signal:exportOptions.signal});
+    assertCurrent();
+  }
+  if(!result?.blob?.size)throw Error('The PDF was empty. Please retry.');
+  return {...result,textWarning:Boolean(parking.textWarning||review?.textWarning),isCurrent:stillCurrent};
+}
+export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPdf,exportPdf=exportTrafficPdf,mergePdfs=mergePdfDocuments,sendToBuilder=sendPdfsToBuilder,notify=()=>{},document:documentHost=globalThis.document,window:windowHost=globalThis.window}) {
   const d=documentHost,w=windowHost;
   if(d.getElementById('trafficPlannerLauncher'))return null;
   const style=d.createElement('link');style.rel='stylesheet';style.href=cssUrl;d.head.append(style);
@@ -26,6 +54,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exp
     s.nodes.cancelDraw.disabled=s.busy||!s.draft;
     s.nodes.save.disabled=s.busy||!permitted();
     s.nodes.pdf.disabled=s.busy||!permitted();
+    s.nodes.combinedPdf.disabled=s.busy||!permitted()||typeof getLocationPdf!=='function';
     for(const node of [s.nodes.name,s.nodes.notes,s.nodes.basemap])node.disabled=s.busy;
     s.nodes.load.disabled=s.busy||!s.records.length;
     s.nodes.removeSaved.disabled=s.busy||!s.records.length;
@@ -159,27 +188,44 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exp
   }
   function clearPdfLinks(){
     if(!state)return;const s=state;
+    s.pdfCurrent=null;
     if(s.pdfUrl){w.URL.revokeObjectURL(s.pdfUrl);s.pdfUrl=null;}
     s.nodes.pdfLinks?.replaceChildren();
   }
-  async function makePdf(){
+  function invalidatePdfContext(){
+    if(state?.pdfCurrent&&!state.pdfCurrent()){clearPdfLinks();say('The location review or selected photos changed. Create a new PDF.');}
+  }
+  async function makePdf(combined=false){
     if(!editable())return;const s=state;
     if(s.draft?.points.length)return say('Finish or cancel the current line before exporting a PDF.');
     let captured;try{captured=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);}
     catch(error){say(error.message);return;}
     const fingerprint=JSON.stringify(captured);
+    const isCurrent=()=>{
+      if(state!==s||!permitted())return false;
+      try{return JSON.stringify(validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId))===fingerprint;}
+      catch{return false;}
+    };
     clearPdfLinks();s.busy=true;render();say('Preparing your convention-branded PDF...');
     try{
-      const built=await exportPdf(captured,{document:d,window:w,unsaved:s.dirty,progress:message=>{if(state===s&&permitted())say(message);}});
+      const built=await buildParkingPdfPacket(captured,{combined,getLocationPdf,exportPdf,mergePdfs,isCurrent,exportOptions:{document:d,window:w,unsaved:s.dirty,progress:message=>{if(state===s&&permitted())say(message);}}});
       if(state!==s||!permitted())return;
-      const current=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);
-      if(JSON.stringify(current)!==fingerprint){say('The layout changed while the PDF was being prepared. Export again to capture the current layout.');return;}
-      if(!built?.blob?.size)throw Error('The PDF was empty. Please retry.');
-      s.pdfUrl=w.URL.createObjectURL(built.blob);
+      if(!built.isCurrent())throw Error('The layout or review changed. Create the PDF again.');
+      s.pdfUrl=w.URL.createObjectURL(built.blob);s.pdfCurrent=built.isCurrent;
       const open=d.createElement('a');open.href=s.pdfUrl;open.target='_blank';open.rel='noopener';open.className='btn light';open.textContent='Open PDF / Print';
       const download=d.createElement('a');download.href=s.pdfUrl;download.download=built.filename;download.className='btn blue';download.textContent='Download PDF';
-      s.nodes.pdfLinks.append(open,download);
-      say(`PDF ready (${built.pages||'multiple'} pages), including the convention logo, full layout, and notes. Exporting does not save your layout to the cloud.${built.textWarning?' Some text characters need review; see the PDF text notice.':''}`);
+      const checkCurrent=()=>{if(built.isCurrent())return true;clearPdfLinks();say('The layout or review changed. Create a new PDF.');return false;};
+      for(const link of [open,download])link.addEventListener('click',event=>{if(!checkCurrent())event.preventDefault();});
+      const presentation=d.createElement('button');presentation.type='button';presentation.className='btn light';presentation.textContent='Add to PowerPoint';
+      presentation.addEventListener('click',async()=>{
+        if(!checkCurrent())return;
+        presentation.disabled=true;
+        try{await sendToBuilder([{name:built.filename,blob:built.blob}],{window:w,isCurrent:built.isCurrent,notify:message=>{if(state===s&&permitted())say(message);}});}
+        catch(error){if(state===s&&permitted())say(`Could not add the PDF to PowerPoint: ${error.message}`);}
+        finally{if(state===s&&presentation.isConnected)presentation.disabled=false;}
+      });
+      s.nodes.pdfLinks.append(open,download,presentation);
+      say(`PDF ready (${built.pages||'multiple'} pages). ${combined?'Bus Access Review and selected photos come first, followed by the parking-lot layout and notes.':'Includes the convention logo, full parking-lot layout, and notes.'} The sky header and hills footer appear on every page. Exporting does not save your layout to the cloud.${built.textWarning?' Some text characters need review; see the PDF text notice.':''}`);
     }catch(error){if(state===s&&permitted())say(`PDF was not created: ${error.message} Your layout and saved work are unchanged.`);}
     finally{if(state===s){s.busy=false;render();}}
   }
@@ -232,21 +278,22 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exp
       <div class="traffic-selection" data-selected></div>
       <label>Setup notes<textarea data-notes maxlength="2500" rows="3" placeholder="Arrival sequence, volunteer positions, areas to keep clear…"></textarea></label>
       <p data-dirty class="traffic-dirty"></p><button class="btn blue" data-save>Save layout — new copy</button>
-      <button type="button" class="btn blue" data-export-pdf>Export PDF with convention logo</button>
-      <small>Includes the full layout, cones, route arrows, labels, and notes. This does not save changes to the cloud.</small>
+      <button type="button" class="btn blue" data-export-pdf>Export parking-lot PDF</button>
+      <button type="button" class="btn blue" data-export-combined>Export bus review + parking PDF</button>
+      <small>Both options include the sky header and hills footer. The combined PDF starts with the saved Bus Access Review and the photos selected in Location photos &amp; PDF, then includes this parking-lot layout and notes.</small>
       <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
       </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><strong data-count></strong></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
     d.body.append(dialog);const q=selector=>dialog.querySelector(selector);
-    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]')};
+    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),combinedPdf:q('[data-export-combined]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]')};
     state={plan:newTrafficPlan(location),nodes,records:[],mode:'select',draft:null,selected:null,removeVertex:false,dirty:false,busy:false,undo:[],redo:[],suppressView:true,sequence:++sequence};
     const s=state;dialog.showModal();d.body.classList.add('traffic-dialog-open');
     s.map=L.map(q('[data-map]'),{maxZoom:22,minZoom:1,zoomControl:true,doubleClickZoom:false}).setView([location.lat,location.lng],19);
     s.items=L.featureGroup().addTo(s.map);s.handles=L.featureGroup().addTo(s.map);s.sketch=L.featureGroup().addTo(s.map);
     L.control.scale({imperial:true,metric:false}).addTo(s.map);setBasemap('satellite',false);s.suppressView=false;
     s.map.on('click',mapClick);s.map.on('zoomend',()=>{if(state===s)render();});
-    s.map.on('moveend',()=>{if(state!==s||s.suppressView)return;const v=view();if(JSON.stringify(v)!==JSON.stringify(s.plan.view)){s.plan.view=v;s.dirty=true;syncButtons();}});
+    s.map.on('moveend',()=>{if(state!==s||s.suppressView)return;const v=view();if(JSON.stringify(v)!==JSON.stringify(s.plan.view)){clearPdfLinks();s.plan.view=v;s.dirty=true;syncButtons();}});
     w.setTimeout(()=>{if(state===s)s.map.invalidateSize({pan:false});},100);
     q('[data-close]').addEventListener('click',()=>close());dialog.addEventListener('cancel',event=>{event.preventDefault();if(s.draft){s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');}else close();});
     dialog.querySelectorAll('[data-tool]').forEach(button=>{button.type='button';button.addEventListener('click',()=>setTool(button.dataset.tool));});
@@ -254,7 +301,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exp
     nodes.undo.addEventListener('click',()=>historyMove('undo','redo'));nodes.redo.addEventListener('click',()=>historyMove('redo','undo'));
     nodes.name.addEventListener('input',()=>{clearPdfLinks();s.plan.name=nodes.name.value;s.dirty=true;syncButtons();});nodes.notes.addEventListener('input',()=>{clearPdfLinks();s.plan.notes=nodes.notes.value;s.dirty=true;syncButtons();});
     nodes.basemap.addEventListener('change',()=>setBasemap(nodes.basemap.value));q('[data-zoom]').addEventListener('click',()=>s.map.setView([location.lat,location.lng],20,{animate:false}));
-    nodes.save.addEventListener('click',save);nodes.pdf.addEventListener('click',makePdf);q('[data-refresh]').addEventListener('click',()=>refreshSaved());
+    nodes.save.addEventListener('click',save);nodes.pdf.addEventListener('click',()=>makePdf(false));nodes.combinedPdf.addEventListener('click',()=>makePdf(true));q('[data-refresh]').addEventListener('click',()=>refreshSaved());
     nodes.load.addEventListener('click',()=>{if(!editable())return;const record=s.records.find(x=>x.id===nodes.saved.value);if(record&&loadPlan(record.plan))say('Saved layout loaded. Edits will be saved as a new copy.');});
     q('[data-new]').addEventListener('click',()=>{if(editable()&&loadPlan(newTrafficPlan(location)))say('Blank layout ready. Existing saved layouts are unchanged.');});
     nodes.removeSaved.addEventListener('click',async()=>{if(!editable())return;const record=s.records.find(x=>x.id===nodes.saved.value);if(!record||!w.confirm(`Delete the saved traffic copy “${record.plan.name}”? This cannot be undone. Download it first if needed. Your current draft and inspection notes will not change.`))return;s.busy=true;render();say('Deleting the selected saved traffic copy…');try{await storage.remove(s.plan.locationId,record.id);if(state===s&&permitted()){s.records=s.records.filter(x=>x.id!==record.id);savedOptions();say('Saved copy deleted. The current editable draft and review notes are unchanged.');}}catch(error){if(state===s)say(`Deletion failed: ${error.message}`);}finally{if(state===s){s.busy=false;render();}}});
@@ -265,5 +312,5 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,exportPdf=exp
   card.querySelector('[data-open]').addEventListener('click',()=>{try{open();}catch(error){if(state)close(true);notify(`Could not open the traffic planner: ${error.message}`,true);}});
   const unload=event=>{if(state&&(state.dirty||state.busy||state.draft?.points.length)){event.preventDefault();event.returnValue='';}};
   w.addEventListener('beforeunload',unload);contextChanged();
-  return {contextChanged,open,close,dispose(){close(true);w.removeEventListener('beforeunload',unload);card.remove();style.remove();}};
+  return {contextChanged,invalidatePdfContext,open,close,dispose(){close(true);w.removeEventListener('beforeunload',unload);card.remove();style.remove();}};
 }

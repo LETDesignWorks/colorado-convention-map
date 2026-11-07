@@ -1,3 +1,4 @@
+import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=sitewide-circles-20260926-2';
 import './bus-access-status-sync.js?v=bus-status-sync-20260927-1';
@@ -184,6 +185,7 @@ function applyDenver2027Branding() {
   addDelegateActivitiesLink();
   addActivityPlanningLink();
   addLoadTestsLink();
+  addPdfToolsLink();
   addMapLogo();
 }
 
@@ -218,6 +220,23 @@ function addLoadTestsLink() {
   link.textContent = 'Load Tests';
   link.setAttribute('aria-label', 'Open the field service load-test checklists');
   insertBeforeRouteOrBus(nav, link);
+}
+
+function addPdfToolsLink() {
+  if (location.pathname.includes('/pdf-tools/') || document.querySelector('a[href*="pdf-tools/"]')) return;
+  const nav = navHost();
+  if (!nav) return;
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('pdf-tools-link');
+  link.href = PDF_BUILDER_URL;
+  link.textContent = 'PDFs & PowerPoint';
+  link.setAttribute('aria-label', 'Combine PDFs and create a PowerPoint presentation');
+  link.addEventListener('click', event => {
+    if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    try { openPdfBuilderWindow(window); } catch (error) { window.alert(error.message); }
+  });
+  nav.append(link);
 }
 
 if (document.readyState === 'loading') {

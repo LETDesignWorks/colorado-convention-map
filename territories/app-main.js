@@ -23,7 +23,7 @@ import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } f
 import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-50';
 import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-50';
 import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261023-50';
-import { HALLS } from './halls.js?v=ribbons-20261107-1';
+import { HALLS } from './halls.js?v=packets-20261107-1';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
   parseSourceFeature, normalizeAddressKey, splitStreetSort
