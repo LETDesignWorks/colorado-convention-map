@@ -190,8 +190,9 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     const notes=host.querySelector('[data-photo-report-notes]');notes.value=draft.notes;updateNotesState();
     notes.addEventListener('input',()=>{
       if(!active(token))return;
+      const hadPdf=Boolean(pdfUrl);
       clearPdf();
-      try{saveDraft({notes:reportNotes(currentNotes())});}
+      try{saveDraft({notes:reportNotes(currentNotes())});if(hadPdf)message('PDF notes changed. Create a new PDF to include these notes.');}
       catch(error){updateNotesState();message(photoError(error),true);}
     });
     host.querySelector('[data-photo-pdf]').addEventListener('click',()=>pdf(token));
