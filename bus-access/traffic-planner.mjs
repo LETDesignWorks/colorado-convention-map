@@ -1,13 +1,14 @@
-import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-48';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=street-names-20261107-1';
+import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSummary} from './traffic-model.mjs?v=parking-count-20261107-1';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-count-20261107-1';
 import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 import {createTrafficBasemap} from './traffic-basemap.mjs?v=street-names-20261107-1';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
+const PARKING_COLOR='#36d7b7';
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
-const cssUrl=new URL('./traffic-planner.css?v=traffic-20261023-48',import.meta.url).href;
+const cssUrl=new URL('./traffic-planner.css?v=parking-count-20261107-1',import.meta.url).href;
 // Reuse the two existing renderers so individual and combined exports share
 // the same artwork, selected photos, geometry, and privacy rules.
 export async function buildParkingPdfPacket(source,{combined=false,getLocationPdf,exportPdf=exportTrafficPdf,mergePdfs=mergePdfDocuments,exportOptions={},isCurrent=()=>true}={}){
@@ -46,63 +47,141 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   const permitted=()=>Boolean(state&&isAdmin()&&String(getLocation()?.id)===state.plan.locationId);
   const editable=()=>permitted()&&!state.busy;
   const say=message=>{if(state)state.nodes.status.textContent=message;};
+  function optionalParkingCount(value,badInput=false,label='Adjusted parking total'){
+    const raw=String(value??'').trim();
+    if(badInput)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}, or leave it blank to use the estimate.`);
+    if(raw==='')return null;
+    const count=Number(raw);
+    if(!Number.isInteger(count)||count<0||count>MAX_PARKING_SPACES)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}.`);
+    return count;
+  }
+  function parkingWidth(value,badInput=false){
+    const raw=String(value??'').trim(),width=Number(raw);
+    if(badInput||raw===''||!Number.isFinite(width)||width<1||width>100)throw Error('Enter feet per parking space along the row between 1 and 100.');
+    return width;
+  }
+  function selectedParkingInput(){
+    const s=state,item=s.plan.items.find(row=>row.id===s.selected&&row.kind==='parking-row');
+    if(!item)return null;
+    const width=s.nodes.selected.querySelector('[data-parking-row-width]'),count=s.nodes.selected.querySelector('[data-parking-row-count]'),label=s.nodes.selected.querySelector('[data-parking-row-label]');
+    if(!width||!count)return null;
+    return {id:item.id,label:label?.value??item.label,width:width.value,widthBadInput:Boolean(width.validity?.badInput),count:count.value,countBadInput:Boolean(count.validity?.badInput)};
+  }
+  function parkingInputPlan(){
+    const s=state,plan=clone(s.plan),total=s.nodes.parkingTotal;
+    plan.parking={totalOverride:optionalParkingCount(total.value,Boolean(total.validity?.badInput))};
+    const edits=new Map(s.parkingEdits),current=selectedParkingInput();
+    if(current)edits.set(current.id,current);
+    for(const [id,edit]of edits){
+      const row=plan.items.find(item=>item.id===id&&item.kind==='parking-row');if(!row)continue;
+      row.label=edit.label;row.spaceWidthFeet=parkingWidth(edit.width,edit.widthBadInput);
+      row.countOverride=optionalParkingCount(edit.count,edit.countBadInput,'Adjusted row count');
+    }
+    return plan;
+  }
+  function capturePlan(){
+    const s=state;
+    return validatePlan({...parkingInputPlan(),name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);
+  }
+  function commitParkingInputs(){
+    const s=state;let next;
+    try{next=validatePlan(parkingInputPlan(),s.plan.locationId);}catch(error){say(error.message);return false;}
+    if(JSON.stringify(next)!==JSON.stringify(s.plan)){
+      s.undo.push(clone(s.plan));if(s.undo.length>40)s.undo.shift();s.redo=[];s.plan=next;s.dirty=true;clearPdfLinks();
+    }
+    s.parkingEdits.clear();s.nodes.parkingTotal.value=next.parking.totalOverride??'';
+    return true;
+  }
+  function renderParkingSummary(){
+    const s=state;
+    try{
+      const summary=parkingSummary(parkingInputPlan()),value=summary.total===null?'Parking: Not counted':`Parking: ${summary.total.toLocaleString('en-US')} spaces (${summary.adjusted?'adjusted':'estimated'})`;
+      s.nodes.parkingSummary.textContent=value;s.nodes.parkingMapCount.textContent=value;s.nodes.parkingSummary.classList.remove('traffic-count-invalid');
+      s.nodes.parkingDetails.textContent=summary.rowCount?`${summary.rowCount} marked row${summary.rowCount===1?'':'s'}: ${summary.rowTotal.toLocaleString('en-US')} spaces.${summary.rowTotal!==summary.estimatedTotal?' Includes row adjustments.':''}${summary.totalOverride!==null?' The adjusted total is used in the PDF.':''}`:summary.totalOverride!==null?'Adjusted total entered without marked rows.':'Mark parking rows to estimate a count, or enter an adjusted total.';
+    }catch(error){
+      s.nodes.parkingSummary.textContent='Parking count needs attention';s.nodes.parkingMapCount.textContent='Parking: check the entered count';s.nodes.parkingDetails.textContent=error.message;s.nodes.parkingSummary.classList.add('traffic-count-invalid');
+    }
+    s.nodes.parkingReset.disabled=s.busy||(s.nodes.parkingTotal.value.trim()===''&&!s.nodes.parkingTotal.validity?.badInput);
+    s.nodes.parkingActions.hidden=s.mode!=='parking-row';
+    s.nodes.parkingFinish.disabled=s.busy||s.mode!=='parking-row'||!s.draft||s.draft.points.length<2;
+    s.nodes.parkingCancel.disabled=s.busy||s.mode!=='parking-row'||!s.draft;
+    s.nodes.parkingDraft.textContent='';
+    if(s.mode==='parking-row'&&s.draft?.points.length>=2){
+      try{const width=parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput));s.nodes.parkingDraft.textContent=`Current row estimate: ${estimateParkingRow({points:s.draft.points,spaceWidthFeet:width}).toLocaleString('en-US')} spaces. Choose Finish row to add it.`;}
+      catch(error){s.nodes.parkingDraft.textContent=error.message;}
+    }
+  }
   function syncButtons(){
     if(!state)return;
     const s=state;
-    s.nodes.undo.disabled=s.busy||!s.undo.length;
-    s.nodes.redo.disabled=s.busy||!s.redo.length;
+    let pendingParkingChange=false;
+    try{pendingParkingChange=JSON.stringify(validatePlan(parkingInputPlan(),s.plan.locationId))!==JSON.stringify(s.plan);}catch{}
+    // Valid number edits join history when the next action commits them, so
+    // Undo must also be available before a first edit has been committed.
+    s.nodes.undo.disabled=s.busy||(!s.undo.length&&!pendingParkingChange);
+    s.nodes.redo.disabled=s.busy||!s.redo.length||pendingParkingChange;
     s.nodes.finish.disabled=s.busy||!s.draft||s.draft.points.length<2;
     s.nodes.cancelDraw.disabled=s.busy||!s.draft;
     s.nodes.save.disabled=s.busy||!permitted();
     s.nodes.pdf.disabled=s.busy||!permitted();
     s.nodes.combinedPdf.disabled=s.busy||!permitted()||typeof getLocationPdf!=='function';
-    for(const node of [s.nodes.name,s.nodes.notes,s.nodes.basemap])node.disabled=s.busy;
+    for(const node of [s.nodes.name,s.nodes.notes,s.nodes.basemap,s.nodes.parkingWidth,s.nodes.parkingTotal])node.disabled=s.busy;
     s.nodes.load.disabled=s.busy||!s.records.length;
     s.nodes.removeSaved.disabled=s.busy||!s.records.length;
     s.nodes.saved.disabled=s.busy||!s.records.length;
     s.nodes.count.textContent=`${s.plan.items.filter(i=>i.kind==='cone').length} cones · ${s.plan.items.filter(i=>i.kind==='route').length} routes · ${s.plan.items.filter(i=>i.kind==='pin').length} labels`;
     s.nodes.dirty.textContent=s.dirty?'Unsaved layout changes':'No unsaved layout changes';
     s.nodes.dialog.querySelectorAll('[data-tool]').forEach(button=>{button.disabled=s.busy;button.setAttribute('aria-pressed',String(button.dataset.tool===s.mode));});
+    renderParkingSummary();
   }
   function recordChange(fn){
     if(!editable())return false;
+    if(!commitParkingInputs())return false;
     const s=state,before=clone(s.plan);
     try{fn(s.plan);s.plan=validatePlan(s.plan,s.plan.locationId);}
     catch(error){s.plan=before;say(error.message);return false;}
     clearPdfLinks();s.undo.push(before);if(s.undo.length>40)s.undo.shift();s.redo=[];s.dirty=true;render();return true;
   }
   function historyMove(from,to){
-    if(!editable()||state.draft||!state[from].length)return;
+    if(!editable()||state.draft)return;
+    if(!commitParkingInputs()||!state[from].length)return;
     const previousBase=state.plan.view.base;
     clearPdfLinks();state[to].push(clone(state.plan));state.plan=state[from].pop();state.selected=null;state.removeVertex=false;state.dirty=true;syncFields();
     if(state.plan.view.base!==previousBase)setBasemap(state.plan.view.base,false);
     render();
   }
   function view(){const s=state,c=s.map.getCenter();return {lat:c.lat,lng:c.lng,zoom:s.map.getZoom(),base:s.plan.view.base};}
-  function syncFields(){if(!state)return;state.nodes.name.value=state.plan.name;state.nodes.notes.value=state.plan.notes;}
-  function selectItem(id){if(!editable()||state.mode!=='select')return;state.selected=id;state.removeVertex=false;render();}
+  function syncFields(){if(!state)return;state.nodes.name.value=state.plan.name;state.nodes.notes.value=state.plan.notes;state.nodes.parkingTotal.value=state.plan.parking?.totalOverride??'';}
+  function selectItem(id){if(!editable()||state.mode!=='select'||!commitParkingInputs())return;state.selected=id;state.removeVertex=false;render();}
   function icon(html,size=[28,30],anchor=[14,15]){return L.divIcon({className:'traffic-map-icon',html,iconSize:size,iconAnchor:anchor});}
   function render(){
     const s=state;if(!s?.map)return;
     s.items.clearLayers();s.handles.clearLayers();
     const interactive=editable()&&s.mode==='select';
+    let parkingNumber=0;
     for(const item of s.plan.items){
       const selected=item.id===s.selected;
-      if(item.kind==='route'){
+      if(item.kind==='route'||item.kind==='parking-row'){
+        const parking=item.kind==='parking-row',color=parking?PARKING_COLOR:COLORS[item.routeType],pointName=parking?'Parking row':'Route';
+        if(parking)parkingNumber++;
         L.polyline(item.points,{color:'#142736',weight:selected?10:8,opacity:.85,interactive:false}).addTo(s.items);
-        const line=L.polyline(item.points,{color:COLORS[item.routeType],weight:selected?6:4,opacity:1,dashArray:item.routeType==='walk'?'10 6':null,bubblingMouseEvents:false}).addTo(s.items);
-        line.bindTooltip(escape(item.label||`${item.routeType} route`));line.on('click',()=>selectItem(item.id));
-        const projected=item.points.map(p=>s.map.latLngToLayerPoint(p));
-        arrowheads(projected).forEach(a=>L.marker(s.map.layerPointToLatLng(L.point(a.x,a.y)),{interactive:false,keyboard:false,icon:icon(`<span class="traffic-arrow" style="transform:rotate(${a.angle}deg);color:${COLORS[item.routeType]}">➤</span>`,[24,24],[12,12])}).addTo(s.items));
+        const line=L.polyline(item.points,{color,weight:selected?6:4,opacity:1,dashArray:parking?'4 5':item.routeType==='walk'?'10 6':null,bubblingMouseEvents:false}).addTo(s.items);
+        line.bindTooltip(escape(parking?`${item.label||`Parking row P${parkingNumber}`}: ${parkingRowCount(item)} spaces${item.countOverride!==null?' (adjusted)':''}`:item.label||`${item.routeType} route`));line.on('click',()=>selectItem(item.id));
+        if(parking){
+          L.marker(item.points[0],{bubblingMouseEvents:false,icon:icon(`<span class="traffic-label traffic-parking-label${selected?' traffic-selected':''}">P${parkingNumber} · ${parkingRowCount(item).toLocaleString('en-US')} spaces</span>`,[1,1],[-8,24]),title:`Parking row P${parkingNumber}: select to adjust the count`}).addTo(s.items).on('click',()=>selectItem(item.id));
+        }else{
+          const projected=item.points.map(p=>s.map.latLngToLayerPoint(p));
+          arrowheads(projected).forEach(a=>L.marker(s.map.layerPointToLatLng(L.point(a.x,a.y)),{interactive:false,keyboard:false,icon:icon(`<span class="traffic-arrow" style="transform:rotate(${a.angle}deg);color:${COLORS[item.routeType]}">➤</span>`,[24,24],[12,12])}).addTo(s.items));
+        }
         if(selected&&interactive){
           item.points.forEach((p,i)=>{
-            const h=L.marker(p,{draggable:!s.removeVertex,bubblingMouseEvents:false,icon:icon(`<span class="traffic-handle${s.removeVertex?' traffic-handle-remove':''}"></span>`,[18,18],[9,9]),title:`Route point ${i+1}: drag to move${s.removeVertex?', click to remove':''}`}).addTo(s.handles);
+            const h=L.marker(p,{draggable:!s.removeVertex,bubblingMouseEvents:false,icon:icon(`<span class="traffic-handle${s.removeVertex?' traffic-handle-remove':''}"></span>`,[18,18],[9,9]),title:`${pointName} point ${i+1}: drag to move${s.removeVertex?', click to remove':''}`}).addTo(s.handles);
             h.on('dragend',()=>{const q=h.getLatLng();recordChange(plan=>{plan.items.find(x=>x.id===item.id).points[i]=[q.lat,q.lng];});});
-            h.on('click',()=>{if(!s.removeVertex)return;if(item.points.length<=2)return say('A route needs at least two points. Use Delete selected item to remove the route.');recordChange(plan=>plan.items.find(x=>x.id===item.id).points.splice(i,1));});
+            h.on('click',()=>{if(!s.removeVertex)return;if(item.points.length<=2)return say(`${parking?'A parking row':'A route'} needs at least two points. Use Delete selected item to remove it.`);recordChange(plan=>plan.items.find(x=>x.id===item.id).points.splice(i,1));});
           });
           if(!s.removeVertex)item.points.slice(1).forEach((p,i)=>{
             const a=item.points[i],mid=[(a[0]+p[0])/2,(a[1]+p[1])/2];
-            L.marker(mid,{bubblingMouseEvents:false,icon:icon('<span class="traffic-midpoint">+</span>',[16,16],[8,8]),title:'Add a route point here'}).addTo(s.handles).on('click',()=>recordChange(plan=>plan.items.find(x=>x.id===item.id).points.splice(i+1,0,mid)));
+            L.marker(mid,{bubblingMouseEvents:false,icon:icon('<span class="traffic-midpoint">+</span>',[16,16],[8,8]),title:`Add a ${parking?'parking row':'route'} point here`}).addTo(s.handles).on('click',()=>recordChange(plan=>plan.items.find(x=>x.id===item.id).points.splice(i+1,0,mid)));
           });
         }
       }else{
@@ -116,35 +195,59 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   function renderDraft(){
     const s=state;s.sketch.clearLayers();
     if(!s.draft)return;
-    if(s.draft.points.length>1)L.polyline(s.draft.points,{color:s.mode==='cone-row'?'#ff8a22':COLORS[s.nodes.routeType.value],weight:4,dashArray:'7 5',interactive:false}).addTo(s.sketch);
+    if(s.draft.points.length>1)L.polyline(s.draft.points,{color:s.mode==='parking-row'?PARKING_COLOR:s.mode==='cone-row'?'#ff8a22':COLORS[s.nodes.routeType.value],weight:4,dashArray:'7 5',interactive:false}).addTo(s.sketch);
     s.draft.points.forEach(p=>L.circleMarker(p,{radius:5,color:'#fff',fillColor:'#ed7828',fillOpacity:1,interactive:false}).addTo(s.sketch));
   }
   function renderSelection(){
     const s=state,item=s.plan.items.find(i=>i.id===s.selected),box=s.nodes.selected;
+    // Preserve the live number inputs while the map moves. In particular, a
+    // partial number such as "-" has an empty .value but still has badInput.
+    if(item?.kind==='parking-row'&&s.editorId===item.id&&s.parkingEdits.has(item.id)){
+      box.querySelectorAll('input,button').forEach(node=>node.disabled=s.busy);return;
+    }
     box.replaceChildren();
-    if(!item){box.textContent='Choose Move / select, then click a cone, route, or label to edit it.';return;}
-    const title=d.createElement('strong');title.textContent=item.kind==='cone'?'Selected cone':item.label||'Selected route';box.append(title);
+    s.editorId=item?.id||null;
+    if(!item){box.textContent='Choose Move / select, then click a cone, route, parking row, or label to edit it.';return;}
+    const parking=item.kind==='parking-row';
+    const title=d.createElement('strong');title.textContent=item.kind==='cone'?'Selected cone':item.label||(parking?'Selected parking row':'Selected route');box.append(title);
+    const rememberParkingEdit=()=>{
+      if(!editable())return;
+      const edit=selectedParkingInput();if(edit)s.parkingEdits.set(item.id,edit);
+      clearPdfLinks();s.dirty=true;syncButtons();
+    };
     if(item.kind!=='cone'){
-      const label=d.createElement('label');label.textContent='Item label';const input=d.createElement('input');input.value=item.label;input.maxLength=100;label.append(input);box.append(label);
-      input.addEventListener('change',()=>recordChange(plan=>{plan.items.find(x=>x.id===item.id).label=input.value;}));
+      const label=d.createElement('label');label.textContent=parking?'Parking row name':'Item label';const input=d.createElement('input');input.value=item.label;input.maxLength=100;input.disabled=s.busy;label.append(input);box.append(label);
+      if(parking){input.dataset.parkingRowLabel='';input.addEventListener('input',rememberParkingEdit);}
+      else input.addEventListener('change',()=>recordChange(plan=>{plan.items.find(x=>x.id===item.id).label=input.value;}));
     }
-    const action=(label,fn)=>{const button=d.createElement('button');button.type='button';button.className='btn light';button.textContent=label;button.disabled=s.busy;button.addEventListener('click',fn);box.append(button);};
-    if(item.kind==='route'){
-      action('Reverse traffic direction',()=>recordChange(plan=>plan.items.find(x=>x.id===item.id).points.reverse()));
-      action(s.removeVertex?'Done removing route points':'Remove route points',()=>{s.removeVertex=!s.removeVertex;render();});
-      const help=d.createElement('small');help.textContent='Drag solid points to reshape. Click + to insert a point. Arrows follow the route’s drawing direction.';box.append(help);
+    const action=(label,fn)=>{const button=d.createElement('button');button.type='button';button.className='btn light';button.textContent=label;button.disabled=s.busy;button.addEventListener('click',fn);box.append(button);return button;};
+    if(parking){
+      const estimate=d.createElement('p');estimate.className='traffic-row-estimate';estimate.textContent=`Row estimate: ${estimateParkingRow(item).toLocaleString('en-US')} spaces. ${item.countOverride!==null?`Adjusted row count: ${item.countOverride.toLocaleString('en-US')}.`:'Using the row estimate.'}`;box.append(estimate);
+      const widthLabel=d.createElement('label');widthLabel.textContent='Feet per space along this row';const width=d.createElement('input');width.type='number';width.min='1';width.max='100';width.step='0.1';width.value=item.spaceWidthFeet;width.dataset.parkingRowWidth='';width.disabled=s.busy;widthLabel.append(width);box.append(widthLabel);
+      const countLabel=d.createElement('label');countLabel.textContent='Adjusted row count (optional)';const count=d.createElement('input');count.type='number';count.min='0';count.max=String(MAX_PARKING_SPACES);count.step='1';count.value=item.countOverride??'';count.placeholder=`Use estimate (${estimateParkingRow(item)})`;count.dataset.parkingRowCount='';count.disabled=s.busy;countLabel.append(count);box.append(countLabel);
+      for(const input of [width,count])input.addEventListener('input',rememberParkingEdit);
+      action('Apply row changes',()=>{if(editable()&&commitParkingInputs()){render();say('Parking row updated. Save the layout to keep this count.');}}).dataset.parkingRowApply='';
+      action('Use row estimate',()=>{if(!editable())return;count.value='';rememberParkingEdit();if(commitParkingInputs()){render();say('The row now uses its length-and-spacing estimate.');}}).dataset.parkingRowReset='';
+      const help=d.createElement('small');help.textContent='Leave the adjusted count blank to use the estimate. Enter 0 if this row has no usable spaces. Count each row separately, and verify the marked spaces on site.';box.append(help);
     }
-    action('Delete selected item',()=>{recordChange(plan=>{plan.items=plan.items.filter(x=>x.id!==item.id);});s.selected=null;renderSelection();});
+    if(item.kind==='route'||parking){
+      if(!parking)action('Reverse traffic direction',()=>recordChange(plan=>plan.items.find(x=>x.id===item.id).points.reverse()));
+      action(s.removeVertex?'Done removing points':`Remove ${parking?'row':'route'} points`,()=>{if(!editable()||!commitParkingInputs())return;s.removeVertex=!s.removeVertex;render();});
+      const help=d.createElement('small');help.textContent=parking?'Drag solid points to adjust the row. Click + to insert a point; its estimate updates from the revised length.':'Drag solid points to reshape. Click + to insert a point. Arrows follow the route’s drawing direction.';box.append(help);
+    }
+    action('Delete selected item',()=>{if(recordChange(plan=>{plan.items=plan.items.filter(x=>x.id!==item.id);})){s.selected=null;renderSelection();}});
   }
   function setTool(mode){
     if(!editable())return;
+    if(!commitParkingInputs())return;
     if(state.draft?.points.length&&!w.confirm('Discard the unfinished line? Finished layout items will stay.'))return;
-    state.mode=mode;state.draft=['route','cone-row'].includes(mode)?{points:[]}:null;state.selected=null;state.removeVertex=false;
-    const hints={select:'Drag a cone or label to move it. Click a route to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.',cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
+    state.mode=mode;state.draft=['route','cone-row','parking-row'].includes(mode)?{points:[]}:null;state.selected=null;state.removeVertex=false;
+    const hints={select:'Drag a cone or label to move it. Click a route or parking row to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.','parking-row':'Mark one parking row from the outside edge of its first space to the outside edge of its last space. Then choose Finish row. Use separate rows on each side of an aisle.',cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
     say(hints[mode]);render();
   }
   function mapClick(event){
     if(!editable())return;
+    if(!commitParkingInputs())return;
     const s=state,p=[event.latlng.lat,event.latlng.lng];
     if(s.draft){if(s.draft.points.length>=200)return say('Finish this line before adding more points.');s.draft.points.push(p);renderDraft();syncButtons();return;}
     if(s.mode==='cone')recordChange(plan=>plan.items.push({id:uid(),kind:'cone',label:'',point:p}));
@@ -153,10 +256,13 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   function finishLine(){
     if(!editable()||!state.draft||state.draft.points.length<2)return;
     const s=state,points=clone(s.draft.points);let items;
-    try{items=s.mode==='cone-row'?coneRow(points,Number(s.nodes.coneCount.value)).map(point=>({id:uid(),kind:'cone',label:'',point})):[{id:uid(),kind:'route',routeType:s.nodes.routeType.value,label:s.nodes.itemLabel.value.trim()||`${s.nodes.routeType.selectedOptions[0].textContent} route`,points}];}
+    try{
+      if(s.mode==='parking-row')items=[{id:uid(),kind:'parking-row',label:`Parking row ${s.plan.items.filter(item=>item.kind==='parking-row').length+1}`,points,spaceWidthFeet:parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput)),countOverride:null}];
+      else items=s.mode==='cone-row'?coneRow(points,Number(s.nodes.coneCount.value)).map(point=>({id:uid(),kind:'cone',label:'',point})):[{id:uid(),kind:'route',routeType:s.nodes.routeType.value,label:s.nodes.itemLabel.value.trim()||`${s.nodes.routeType.selectedOptions[0].textContent} route`,points}];
+    }
     catch(error){say(error.message);return;}
     if(s.plan.items.length+items.length>MAX_ITEMS)return say(`Keep this layout to ${MAX_ITEMS} items or fewer.`);
-    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1?items[0].id:null;say('Added to this draft. Save layout to keep a named copy for this meeting place.');render();}
+    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1?items[0].id:null;say(items[0].kind==='parking-row'?`Parking row added: ${parkingRowCount(items[0])} estimated spaces. Select the row to adjust its count, then save the layout.`:'Added to this draft. Save layout to keep a named copy for this meeting place.');render();}
   }
   function savedOptions(){
     const s=state,previous=s.nodes.saved.value;s.nodes.saved.replaceChildren();
@@ -176,15 +282,16 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     const s=state;let checked;
     try{checked=validatePlan(plan,s.plan.locationId);}catch(error){say(error.message);return false;}
     if((s.dirty||s.draft?.points.length)&&!w.confirm('Replace this unsaved traffic draft with the selected layout? Download JSON first to keep a local copy.'))return false;
-    clearPdfLinks();s.plan=checked;s.undo=[];s.redo=[];s.selected=null;s.removeVertex=false;s.draft=null;s.mode='select';s.dirty=false;syncFields();
+    clearPdfLinks();s.plan=checked;s.undo=[];s.redo=[];s.parkingEdits.clear();s.selected=null;s.editorId=null;s.removeVertex=false;s.draft=null;s.mode='select';s.dirty=false;syncFields();
     setBasemap(checked.view.base,false);s.suppressView=true;s.map.setView([checked.view.lat,checked.view.lng],checked.view.zoom,{animate:false});s.suppressView=false;render();return true;
   }
   async function save(){
     if(!editable())return;
     const s=state;
     if(s.draft?.points.length)return say('Finish or cancel the current line before saving.');
-    s.plan.name=s.nodes.name.value.trim();s.plan.notes=s.nodes.notes.value;s.plan.view=view();
-    let snapshot;try{snapshot=validatePlan(s.plan,s.plan.locationId);}catch(error){say(error.message);return;}
+    if(!commitParkingInputs())return;
+    let snapshot;try{snapshot=capturePlan();}catch(error){say(error.message);return;}
+    s.plan=clone(snapshot);
     const fingerprint=JSON.stringify(snapshot);s.busy=true;render();say('Saving a new traffic layout copy to this meeting location…');
     try{const saved=await storage.save(snapshot);if(state!==s||!permitted())return;s.records.unshift(saved);s.dirty=JSON.stringify(s.plan)!==fingerprint;savedOptions();s.nodes.saved.value=saved.id;say(`Saved “${snapshot.name}” to ${snapshot.locationName}.${s.dirty?' Further changes are still unsaved.':''}`);}
     catch(error){if(state===s)say(`Layout was NOT saved: ${error.message}. Keep this window open or Download JSON to preserve the draft.`);}
@@ -202,12 +309,13 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   async function makePdf(combined=false){
     if(!editable())return;const s=state;
     if(s.draft?.points.length)return say('Finish or cancel the current line before exporting a PDF.');
-    let captured;try{captured=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);}
+    if(!commitParkingInputs())return;
+    let captured;try{captured=capturePlan();}
     catch(error){say(error.message);return;}
     const fingerprint=JSON.stringify(captured);
     const isCurrent=()=>{
       if(state!==s||!permitted())return false;
-      try{return JSON.stringify(validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId))===fingerprint;}
+      try{return JSON.stringify(capturePlan())===fingerprint;}
       catch{return false;}
     };
     clearPdfLinks();s.busy=true;render();say('Preparing your convention-branded PDF...');
@@ -234,10 +342,11 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     finally{if(state===s){s.busy=false;render();}}
   }
   function download(){
-    if(!state)return;
+    if(!editable())return;
     const s=state;
     if(s.draft?.points.length)return say('Finish or cancel the line before downloading the layout.');
-    try{const data=validatePlan({...s.plan,name:s.nodes.name.value,notes:s.nodes.notes.value,view:view()},s.plan.locationId);
+    if(!commitParkingInputs())return;
+    try{const data=capturePlan();
       const url=w.URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=d.createElement('a');a.href=url;a.download=`${data.name.replace(/[^a-zA-Z0-9]+/g,'-')}-traffic.json`;d.body.append(a);a.click();a.remove();w.setTimeout(()=>w.URL.revokeObjectURL(url),1500);
       say('JSON backup downloaded. This does not save the layout to the cloud.');
     }catch(error){say(error.message);}
@@ -272,6 +381,14 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <div class="traffic-pair"><button class="btn light" data-tool="select">Move / select</button><button class="btn light" data-zoom>Zoom to parking lot</button></div>
       <label>Background<select data-basemap><option value="satellite">Satellite + street names</option><option value="street">Street map</option></select></label>
       <small>Street names appear on the map and in exported PDFs. Cones, routes, and your location labels stay on top.</small>
+      <section class="traffic-parking-controls" aria-labelledby="trafficParkingTitle"><h3 id="trafficParkingTitle">Parking spaces</h3>
+      <p class="traffic-parking-summary" data-parking-summary role="status" aria-live="polite">Parking: Not counted</p><small data-parking-details></small>
+      <button class="btn blue" data-tool="parking-row">Mark parking row</button>
+      <label>Feet per space along row<input data-parking-width type="number" min="1" max="100" step="0.1" value="${DEFAULT_PARKING_SPACE_WIDTH_FEET}" aria-describedby="trafficParkingWidthHelp"></label>
+      <small id="trafficParkingWidthHelp">${DEFAULT_PARKING_SPACE_WIDTH_FEET} ft is a starting estimate. Adjust it to match the row. Mark each row separately, from the outside edge of its first space to the outside edge of its last space.</small>
+      <div class="traffic-pair traffic-parking-actions" data-parking-actions hidden><button type="button" class="btn blue" data-parking-finish disabled>Finish row</button><button type="button" class="btn light" data-parking-cancel disabled>Cancel row</button></div><small class="traffic-parking-draft" data-parking-draft></small>
+      <label>Adjusted parking total (optional)<input data-parking-total type="number" min="0" max="${MAX_PARKING_SPACES}" step="1" placeholder="Use marked-row total" aria-describedby="trafficParkingTotalHelp"></label>
+      <small id="trafficParkingTotalHelp">Leave blank to use the row total, or enter the number you want to use for this lot. An adjusted total stays in place as you edit rows. Verify spaces on site.</small><button type="button" class="btn light" data-parking-reset>Use row count</button></section>
       <h3>Draw the traffic pattern</h3><label>Route type<select data-route-type><option value="bus">Bus</option><option value="car">Car</option><option value="walk">Pedestrian</option></select></label>
       <button class="btn blue" data-tool="route">Draw directional route</button>
       <h3>Lay out cones</h3><div class="traffic-pair"><button class="btn light" data-tool="cone">Place cones</button><button class="btn light" data-tool="cone-row">Draw cone row</button></div>
@@ -289,10 +406,10 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
-      </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><strong data-count></strong></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
+      </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><span class="traffic-parking-key">P Parking row</span><strong data-count></strong><span class="traffic-parking-map-total" data-parking-map-count>Parking: Not counted</span></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
     d.body.append(dialog);const q=selector=>dialog.querySelector(selector);
-    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),combinedPdf:q('[data-export-combined]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]')};
-    state={plan:newTrafficPlan(location),nodes,records:[],mode:'select',draft:null,selected:null,removeVertex:false,dirty:false,busy:false,undo:[],redo:[],suppressView:true,sequence:++sequence};
+    const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),combinedPdf:q('[data-export-combined]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]'),parkingWidth:q('[data-parking-width]'),parkingTotal:q('[data-parking-total]'),parkingSummary:q('[data-parking-summary]'),parkingDetails:q('[data-parking-details]'),parkingReset:q('[data-parking-reset]'),parkingMapCount:q('[data-parking-map-count]'),parkingActions:q('[data-parking-actions]'),parkingFinish:q('[data-parking-finish]'),parkingCancel:q('[data-parking-cancel]'),parkingDraft:q('[data-parking-draft]')};
+    state={plan:newTrafficPlan(location),nodes,records:[],mode:'select',draft:null,selected:null,editorId:null,parkingEdits:new Map(),removeVertex:false,dirty:false,busy:false,undo:[],redo:[],suppressView:true,sequence:++sequence};
     const s=state;dialog.showModal();d.body.classList.add('traffic-dialog-open');
     s.map=L.map(q('[data-map]'),{maxZoom:22,minZoom:1,zoomControl:true,doubleClickZoom:false}).setView([location.lat,location.lng],19);
     s.items=L.featureGroup().addTo(s.map);s.handles=L.featureGroup().addTo(s.map);s.sketch=L.featureGroup().addTo(s.map);
@@ -303,8 +420,12 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     q('[data-close]').addEventListener('click',()=>close());dialog.addEventListener('cancel',event=>{event.preventDefault();if(s.draft){s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');}else close();});
     dialog.querySelectorAll('[data-tool]').forEach(button=>{button.type='button';button.addEventListener('click',()=>setTool(button.dataset.tool));});
     nodes.finish.addEventListener('click',finishLine);nodes.cancelDraw.addEventListener('click',()=>{if(!editable())return;s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');});
+    nodes.parkingFinish.addEventListener('click',finishLine);nodes.parkingCancel.addEventListener('click',()=>{if(!editable()||s.mode!=='parking-row')return;s.draft=null;s.mode='select';render();say('Unfinished parking row cancelled.');});
     nodes.undo.addEventListener('click',()=>historyMove('undo','redo'));nodes.redo.addEventListener('click',()=>historyMove('redo','undo'));
     nodes.name.addEventListener('input',()=>{clearPdfLinks();s.plan.name=nodes.name.value;s.dirty=true;syncButtons();});nodes.notes.addEventListener('input',()=>{clearPdfLinks();s.plan.notes=nodes.notes.value;s.dirty=true;syncButtons();});
+    nodes.parkingTotal.addEventListener('input',()=>{if(!editable())return;clearPdfLinks();s.dirty=true;syncButtons();});
+    nodes.parkingReset.addEventListener('click',()=>{if(!editable())return;nodes.parkingTotal.value='';if(commitParkingInputs()){render();say('The parking total now follows the marked rows.');}});
+    nodes.parkingWidth.addEventListener('input',()=>{if(editable())syncButtons();});
     nodes.basemap.addEventListener('change',()=>setBasemap(nodes.basemap.value));q('[data-zoom]').addEventListener('click',()=>s.map.setView([location.lat,location.lng],20,{animate:false}));
     nodes.save.addEventListener('click',save);nodes.pdf.addEventListener('click',()=>makePdf(false));nodes.combinedPdf.addEventListener('click',()=>makePdf(true));q('[data-refresh]').addEventListener('click',()=>refreshSaved());
     nodes.load.addEventListener('click',()=>{if(!editable())return;const record=s.records.find(x=>x.id===nodes.saved.value);if(record&&loadPlan(record.plan))say('Saved layout loaded. Edits will be saved as a new copy.');});

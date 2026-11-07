@@ -1,5 +1,5 @@
 import {createPdfLibRibbons, ribbonLayout, loadPdfRibbonAssets} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
-import {validatePlan, arrowheads} from './traffic-model.mjs?v=traffic-20261023-48';
+import {validatePlan, arrowheads, estimateParkingRow, parkingRowCount, parkingSummary} from './traffic-model.mjs?v=parking-count-20261107-1';
 import {SATELLITE_TILE_URL, STREET_TILE_URL, STREET_NAMES_TILE_URL, MAX_NATIVE_ZOOM, SATELLITE_ATTRIBUTION, STREET_NAMES_ATTRIBUTION, STREET_ATTRIBUTION, tileUrl} from './traffic-basemap.mjs?v=street-names-20261107-1';
 
 // A detached, full-layout print snapshot. This module never writes to cloud storage.
@@ -26,7 +26,7 @@ export function worldPoint(point) {
   return {x:(lng+180)/360*256,y:(.5-Math.log((1+sin)/(1-sin))/(4*Math.PI))*256};
 }
 export function layoutViewport(plan,width=736,height=350) {
-  const points=plan.items.flatMap(item=>item.kind==='route'?item.points:[item.point]).map(worldPoint);
+  const points=plan.items.flatMap(item=>item.kind==='route'||item.kind==='parking-row'?item.points:[item.point]).map(worldPoint);
   let center=worldPoint([plan.view.lat,plan.view.lng]),scale=2**Math.min(21,plan.view.zoom)/2.5;
   if(points.length){
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y),left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);
@@ -117,6 +117,10 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   const contentTop=612-frame.top,footerY=frame.bottom+6,footerLineY=footerY+14;
   const font=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold),logo=await doc.embedPng(logoBytes);
   const c=(a)=>rgb(...a),navy=rgb(.12,.23,.38),ink=rgb(.13,.18,.24),muted=rgb(.36,.41,.47),white=rgb(1,1,1),orange=rgb(.98,.47,.10);
+  const parkingColor=rgb(54/255,215/255,183/255),parkingInk=rgb(.04,.38,.29),parkingOutline=rgb(20/255,39/255,54/255);
+  const parking=parkingSummary(plan),number=value=>Number(value).toLocaleString('en-US');
+  const spaces=value=>`${number(value)} ${value===1?'space':'spaces'}`;
+  const parkingTotal=parking.total===null?'Parking: Not counted':`Parking: ${spaces(parking.total)} (${parking.adjusted?'Adjusted':'Estimated'})`;
   doc.setTitle(`${plan.name} - Traffic patterns and cones`);doc.setSubject('2027 Denver Convention parking-lot planning sketch');doc.setCreator('Denver 2027 Bus Review');doc.setCreationDate(now);
   const text=(page,value,x,y,size=10,weight=font,color=ink)=>page.drawText(printable(value,weight),{x,y,size,font:weight,color});
   const lines=(page,value,x,y,size,width,weight=font,color=ink)=>{for(const line of wrapText(value,weight,size,width)){if(line)text(page,line,x,y,size,weight,color);y-=size+3;}return y;};
@@ -131,6 +135,9 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   let page=doc.addPage([792,612]),top=header(page,'Traffic patterns & cones');
   const counts={cones:plan.items.filter(i=>i.kind==='cone').length,routes:plan.items.filter(i=>i.kind==='route').length,labels:plan.items.filter(i=>i.kind==='pin').length};
   text(page,`${counts.cones} cones   |   ${counts.routes} routes   |   ${counts.labels} labels`,24,top,10,bold);
+  const parkingWidth=bold.widthOfTextAtSize(parkingTotal,10)+16;
+  page.drawRectangle({x:768-parkingWidth,y:top-5,width:parkingWidth,height:20,color:rgb(.91,.97,.94),borderColor:rgb(.65,.83,.75),borderWidth:.6});
+  text(page,parkingTotal,776-parkingWidth,top,10,bold,parking.total===null?muted:parkingInk);
   const mapBottom=footerLineY+75;
   const map={x:24,y:mapBottom,width:744,height:top-13-mapBottom},viewport=layoutViewport(plan,map.width,map.height);
   progress('Preparing the full parking-lot map...');
@@ -139,7 +146,14 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   const image=await doc.embedJpg(background);page.drawImage(image,map);
   const pos=point=>{const p=projectPoint(point,viewport);return{x:map.x+p.x,y:map.y+map.height-p.y};};
   const line=(a,b,width,color,dash)=>page.drawLine({start:a,end:b,thickness:width,color,lineCap:1,...(dash?{dashArray:dash}:{})});
-  const routes=plan.items.filter(i=>i.kind==='route'),pins=plan.items.filter(i=>i.kind==='pin');
+  const routes=plan.items.filter(i=>i.kind==='route'),pins=plan.items.filter(i=>i.kind==='pin'),parkingRows=plan.items.filter(i=>i.kind==='parking-row');
+  // Parking rows are count guides, not vehicle routes: keep them non-directional
+  // and draw the traffic routes and cones above them.
+  for(const item of parkingRows){
+    const pts=item.points.map(pos);
+    pts.slice(1).forEach((p,i)=>line(pts[i],p,5.4,parkingOutline));
+    pts.slice(1).forEach((p,i)=>line(pts[i],p,3,parkingColor));
+  }
   for(const item of routes){
     const pts=item.points.map(pos),color=c(ROUTES[item.routeType].color);
     pts.slice(1).forEach((p,i)=>line(pts[i],p,5.8,navy));pts.slice(1).forEach((p,i)=>line(pts[i],p,3.4,color,item.routeType==='walk'?[7,4]:null));
@@ -169,15 +183,18 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
     page.drawCircle({x:p.x,y:p.y,size:2.2,color,borderColor:white,borderWidth:.7});
   }
   routes.forEach((item,i)=>tag(item.points[0],`R${i+1}`));pins.forEach((item,i)=>tag(item.point,`L${i+1} ${PINS[item.pinType]}`,item.pinType==='no-entry'?rgb(.7,.13,.14):navy));
+  parkingRows.forEach((item,i)=>tag(item.points[0],`P${i+1} · ${spaces(parkingRowCount(item))}`,parkingInk));
   page.drawRectangle({x:map.x+map.width-31,y:map.y+map.height-45,width:25,height:39,color:white,opacity:.92});
   text(page,'N',map.x+map.width-22,map.y+map.height-20,9,bold,navy);
   const nx=map.x+map.width-18,ny=map.y+map.height-27;line({x:nx,y:ny-11},{x:nx,y:ny},1.2,navy);line({x:nx-3,y:ny-4},{x:nx,y:ny},1.2,navy);line({x:nx+3,y:ny-4},{x:nx,y:ny},1.2,navy);
   const legendY=footerLineY+52;
   let lx=32;cone(lx,legendY+3,.7);text(page,'Cone',lx+12,legendY,9);lx=113;
   for(const type of ['bus','car','walk']){line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},5,navy);line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,legendY,9);lx+=type==='walk'?135:95;}
-  text(page,'R = route key     L = location label key',477,legendY,9);
+  if(parkingRows.length){
+    line({x:477,y:legendY+3},{x:501,y:legendY+3},5,parkingOutline);line({x:477,y:legendY+3},{x:501,y:legendY+3},2.8,parkingColor);text(page,'Parking row',508,legendY,9);
+  }else text(page,'R = route key     L = location label key',477,legendY,9);
   const attribution=plan.view.base==='street'?STREET_ATTRIBUTION:`${SATELLITE_ATTRIBUTION} | ${STREET_NAMES_ATTRIBUTION}`;
-  text(page,attribution,24,footerLineY+35,7,font,muted);text(page,'Full layout fitted to page. Notes and item key follow.',24,footerLineY+22,8,font,muted);
+  text(page,attribution,24,footerLineY+35,7,font,muted);text(page,parkingRows.length?'Full layout fitted to page. R = route; L = location; P = parking row. Notes and item key follow.':'Full layout fitted to page. Notes and item key follow.',24,footerLineY+22,8,font,muted);
   if(!plan.items.length)text(page,'No traffic items in this layout.',map.x+20,map.y+20,11,bold,navy);
   // Notes/key pages paginate by measured text width and available height.
   let y=0;
@@ -187,6 +204,19 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   detailsPage();paragraph(plan.locationName,14,bold,navy);paragraph(plan.locationAddress,10);
   paragraph(unsaved?'CURRENT DRAFT EXPORT - not saved to the cloud by exporting.':'Exported layout snapshot. Exporting does not create or update a saved layout.',9,bold,navy);
   paragraph(`Prepared ${dateLabel(now)}. ${counts.cones} cones; ${counts.routes} routes; ${counts.labels} location labels.`,9);
+  paragraph('Parking spaces',12,bold,navy);paragraph(parkingTotal,11,bold,parking.total===null?muted:parkingInk);
+  if(parking.totalOverride!==null){
+    paragraph(parking.rowCount?`The overall total was entered manually. The ${parking.rowCount} marked parking ${parking.rowCount===1?'row totals':'rows total'} ${spaces(parking.rowTotal)} before the overall adjustment.`:'The total was entered manually; no parking rows are marked in this layout.',9);
+  }else if(parking.rowCount){
+    paragraph(`Total from ${parking.rowCount} marked parking ${parking.rowCount===1?'row':'rows'}${parking.adjusted?', including corrected row counts':''}.`,9);
+  }else paragraph('No parking-space count has been entered for this layout.',9);
+  if(parkingRows.length){
+    paragraph(`Length-based estimate before row corrections: ${spaces(parking.estimatedTotal)}. Row estimates use the measured map lengths and feet per space entered for each row.`,9);
+    for(const [i,item]of parkingRows.entries()){
+      const estimate=estimateParkingRow(item),count=parkingRowCount(item),adjusted=item.countOverride!==null;
+      paragraph(`P${i+1} - ${item.label||`Parking row ${i+1}`}: ${spaces(count)} (${adjusted?`adjusted; length-based estimate: ${spaces(estimate)}`:'estimated'}; ${item.spaceWidthFeet} ft per space along the row).`,10);
+    }
+  }
   paragraph('Setup notes',12,bold,navy);paragraph(plan.notes||'No setup notes entered.');
   if(routes.length){paragraph('Route key',12,bold,navy);routes.forEach((item,i)=>paragraph(`R${i+1} - ${ROUTES[item.routeType].label}: ${item.label||'Unnamed route'}`,10));}
   if(pins.length){paragraph('Location label key',12,bold,navy);pins.forEach((item,i)=>paragraph(`L${i+1} - ${PINS[item.pinType]}: ${item.label||PINS[item.pinType]}`,10));}

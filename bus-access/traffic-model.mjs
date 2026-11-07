@@ -3,6 +3,8 @@ export const SCHEMA_VERSION = 1;
 export const MAX_LAYOUTS = 20;
 export const MAX_ITEMS = 800;
 export const MAX_STORE_BYTES = 650000;
+export const DEFAULT_PARKING_SPACE_WIDTH_FEET = 9;
+export const MAX_PARKING_SPACES = 100000;
 export const clone = value => JSON.parse(JSON.stringify(value));
 const text = (value, max = 160) => String(value ?? '').trim().slice(0, max);
 const number = value => value !== null && value !== '' && typeof value !== 'boolean' && Number.isFinite(Number(value));
@@ -16,7 +18,7 @@ export function datedLayoutName(name, now = new Date()) {
 export function newTrafficPlan(location, now = new Date()) {
   if (!location?.id) throw Error('Select a meeting location first.');
   const [lat,lng] = point([location.lat,location.lng]);
-  return {schemaVersion:1,locationId:String(location.id),locationName:text(location.name),locationAddress:text(location.address,240),name:datedLayoutName(location.name,now),notes:'',view:{lat,lng,zoom:19,base:'satellite'},items:[]};
+  return {schemaVersion:1,locationId:String(location.id),locationName:text(location.name),locationAddress:text(location.address,240),name:datedLayoutName(location.name,now),notes:'',view:{lat,lng,zoom:19,base:'satellite'},parking:{totalOverride:null},items:[]};
 }
 export function validatePlan(input, expectedLocationId) {
   if (!input || input.schemaVersion !== 1) throw Error('This traffic layout format is not supported.');
@@ -36,22 +38,64 @@ export function validatePlan(input, expectedLocationId) {
       if (!['entry','exit','loading','no-entry','note'].includes(item.pinType)) throw Error('Unknown map label type.');
       return {...base,pinType:item.pinType,point:point(item.point)};
     }
-    if (item.kind === 'route') {
-      if (!['bus','car','walk'].includes(item.routeType) || !Array.isArray(item.points) || item.points.length < 2 || item.points.length > 200) throw Error('A route needs 2–200 points and a valid route type.');
+    if (item.kind === 'route' || item.kind === 'parking-row') {
+      const parkingRow=item.kind==='parking-row';
+      if (!Array.isArray(item.points) || item.points.length < 2 || item.points.length > 200 || (!parkingRow&&!['bus','car','walk'].includes(item.routeType))) throw Error(parkingRow?'A parking row needs 2–200 points.':'A route needs 2–200 points and a valid route type.');
       vertices += item.points.length;
-      if (vertices > 5000) throw Error('This layout has too many route points. Split it into smaller layouts.');
+      if (vertices > 5000) throw Error('This layout has too many route or parking-row points. Split it into smaller layouts.');
       const points = item.points.map(point);
-      if (points.every(p=>p[0]===points[0][0]&&p[1]===points[0][1])) throw Error('A route must contain at least two different points.');
+      if (points.every(p=>p[0]===points[0][0]&&p[1]===points[0][1])) throw Error(parkingRow?'A parking row must contain at least two different points.':'A route must contain at least two different points.');
+      if(parkingRow)return {...base,points,spaceWidthFeet:parkingSpaceWidth(item.spaceWidthFeet),countOverride:parkingCountOverride(item.countOverride,'The parking-row count')};
       return {...base,routeType:item.routeType,points};
     }
     throw Error('Unknown traffic layout item.');
   });
-  return {schemaVersion:1,locationId:String(expectedLocationId),locationName:text(input.locationName),locationAddress:text(input.locationAddress,240),name:text(input.name),notes:text(input.notes,2500),view:{lat,lng,zoom:Number(input.view.zoom),base:input.view.base==='street'?'street':'satellite'},items};
+  const checked={schemaVersion:1,locationId:String(expectedLocationId),locationName:text(input.locationName),locationAddress:text(input.locationAddress,240),name:text(input.name),notes:text(input.notes,2500),view:{lat,lng,zoom:Number(input.view.zoom),base:input.view.base==='street'?'street':'satellite'},parking:parkingValue(input.parking),items};
+  parkingSummary(checked);
+  return checked;
 }
 export function distanceMeters(a,b) {
   const r = Math.PI/180, dlat=(b[0]-a[0])*r, dlng=(b[1]-a[1])*r;
   const h=Math.sin(dlat/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dlng/2)**2;
   return 6371008.8*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+}
+function parkingCountOverride(value,label){
+  if(value===undefined||value===null||(typeof value==='string'&&!value.trim()))return null;
+  const raw=typeof value==='string'?value.trim():value;
+  if((typeof raw!=='number'&&typeof raw!=='string')||(typeof raw==='string'&&!/^\d+$/.test(raw))||!Number.isInteger(Number(raw))||Number(raw)<0||Number(raw)>MAX_PARKING_SPACES)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}.`);
+  return Number(raw)===0?0:Number(raw);
+}
+function parkingValue(value){
+  if(value===undefined||value===null)return {totalOverride:null};
+  if(typeof value!=='object'||Array.isArray(value))throw Error('The parking-space settings are invalid.');
+  return {totalOverride:parkingCountOverride(value.totalOverride,'The parking-space total')};
+}
+function parkingSpaceWidth(value){
+  const raw=typeof value==='string'?value.trim():value;
+  if((typeof raw!=='number'&&typeof raw!=='string')||raw===''||(typeof raw==='string'&&!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw))||!Number.isFinite(Number(raw))||Number(raw)<1||Number(raw)>100)throw Error('Enter feet per parking space from 1 to 100.');
+  return Number(raw);
+}
+export function estimateParkingRow(row){
+  if(!Array.isArray(row?.points)||row.points.length<2||row.points.length>200)throw Error('A parking row needs 2–200 points.');
+  const points=row.points.map(point),width=parkingSpaceWidth(row.spaceWidthFeet);
+  const feet=points.slice(1).reduce((sum,p,i)=>sum+distanceMeters(points[i],p),0)/0.3048;
+  if(!Number.isFinite(feet)||feet<=0)throw Error('A parking row must contain at least two different points.');
+  const count=Math.round(feet/width);
+  if(count>MAX_PARKING_SPACES)throw Error(`A parking row cannot exceed ${MAX_PARKING_SPACES.toLocaleString('en-US')} estimated spaces. Shorten the row or increase feet per space.`);
+  return count;
+}
+export function parkingRowCount(row){
+  return parkingCountOverride(row?.countOverride,'The parking-row count')??estimateParkingRow(row);
+}
+export function parkingSummary(plan){
+  const parking=parkingValue(plan?.parking),rows=(plan?.items||[]).filter(item=>item.kind==='parking-row');
+  let estimatedTotal=0,rowTotal=0,adjusted=parking.totalOverride!==null;
+  for(const row of rows){
+    const estimate=estimateParkingRow(row),override=parkingCountOverride(row.countOverride,'The parking-row count');
+    estimatedTotal+=estimate;rowTotal+=override??estimate;adjusted||=override!==null;
+  }
+  if(estimatedTotal>MAX_PARKING_SPACES||rowTotal>MAX_PARKING_SPACES)throw Error(`The total from the parking rows cannot exceed ${MAX_PARKING_SPACES.toLocaleString('en-US')} spaces. Split this into smaller layouts.`);
+  return {rowCount:rows.length,estimatedTotal,rowTotal,total:parking.totalOverride??(rows.length?rowTotal:null),adjusted,totalOverride:parking.totalOverride};
 }
 export function coneRow(rawPoints,count) {
   if (!Number.isInteger(count) || count<2 || count>100) throw Error('Choose between 2 and 100 cones in a row.');
