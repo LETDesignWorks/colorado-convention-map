@@ -2,7 +2,7 @@ import {PHOTO_LIMIT, createDevicePhotoStore, photoError} from './photos-model.mj
 import {preparePhoto} from './photos-images.mjs';
 import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=site-visit-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
-import {PDF_NOTES_LIMIT, createPhotoReportDraftStore, photoReportScope, reportNotes, selectedOverviewPhotoId} from './photos-report-draft.mjs?v=site-visit-20261107-1';
+import {PDF_NOTES_LIMIT, createPhotoReportDraftStore, photoReportScope, reportNotes, pdfPhotos, selectedOverviewPhotoId} from './photos-report-draft.mjs?v=photo-selection-20261107-1';
 
 const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin, createSharedStore,
@@ -12,10 +12,10 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   document:d=globalThis.document, window:w=globalThis.window}) {
   const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
   d.getElementById('detail').after(host);
-  const style=d.createElement('link'); style.rel='stylesheet'; style.href=new URL('./photos.css?v=site-visit-20261107-1',import.meta.url).href; d.head.append(style);
+  const style=d.createElement('link'); style.rel='stylesheet'; style.href=new URL('./photos.css?v=photo-selection-20261107-1',import.meta.url).href; d.head.append(style);
   const drafts=createReportDraftStore({getStorage:()=>w.localStorage});
   let epoch=0, identity='', mode=createSharedStore?'shared':'device', store, photos=[], urls=[], pdfUrl, busy=false, loaded=false, currentLocation, currentAdmin=false, pdfRevision=0, reportIdentity='';
-  let draft={notes:'',overviewPhotoIds:{device:'',shared:''},persistence:'ready'};
+  let draft={notes:'',overviewPhotoIds:{device:'',shared:''},useOnlySelectedPhotos:{device:true,shared:true},persistence:'ready'};
   const contextIdentity=()=>{const location=getLocation();return location?photoReportScope({locationId:location.id,admin:isAdmin(),owner:getOwner?.()||''}):'';};
   const active=token=>token===epoch && contextIdentity()===identity;
   const currentReport=()=>publicPhotoReport(getLocation(),getSummary?.());
@@ -24,27 +24,35 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   function clearUrls(){urls.forEach(url=>w.URL.revokeObjectURL(url));urls=[];clearPdf();}
   function setBusy(value){busy=value;host.querySelectorAll('button,input,select,textarea').forEach(el=>el.disabled=value || el.dataset.unavailable==='true');}
   const selected=()=>photos.filter(p=>p.selected!==false);
+  const useOnlySelected=()=>host.querySelector('[data-photo-selected-only]')?.checked??(draft.useOnlySelectedPhotos?.[mode]!==false);
+  const included=()=>pdfPhotos(photos,useOnlySelected());
   const currentNotes=()=>String(host.querySelector('[data-photo-report-notes]')?.value??draft.notes).replace(/\r\n?/g,'\n');
-  const overviewId=()=>selectedOverviewPhotoId(photos,draft.overviewPhotoIds[mode]);
+  const overviewId=()=>selectedOverviewPhotoId(photos,draft.overviewPhotoIds[mode],useOnlySelected());
   function updateNotesState(){
     const count=host.querySelector('[data-photo-notes-count]');
     if(count)count.textContent=`${currentNotes().length.toLocaleString('en-US')} / ${PDF_NOTES_LIMIT.toLocaleString('en-US')} characters`;
     const status=host.querySelector('[data-photo-notes-status]');
     if(status){
-      status.textContent=draft.persistence==='session'?'Kept for this session only. This browser could not save your notes and overview choice.':draft.persistence==='saved'?'Saved in this browser for this location.':'Notes and overview choices save automatically in this browser for this location.';
+      status.textContent=draft.persistence==='session'?'Kept for this session only. This browser could not save your notes and PDF photo choices.':draft.persistence==='saved'?'Saved in this browser for this location.':'Notes and PDF photo choices save automatically in this browser for this location.';
       status.classList.toggle('photo-save-warning',draft.persistence==='session');
     }
   }
   function saveDraft(patch){draft=drafts.update(identity,patch);updateNotesState();}
   function updateOverview(){
     const preferred=draft.overviewPhotoIds[mode];
-    if(preferred&&!selected().some(photo=>photo.id===preferred))saveDraft({overviewPhotoIds:{[mode]:''}});
+    if(preferred&&!included().some(photo=>photo.id===preferred))saveDraft({overviewPhotoIds:{[mode]:''}});
     const actual=overviewId();
     for(const photo of photos){
-      const tile=host.querySelector(`[data-photo-id="${photo.id}"]`),radio=tile?.querySelector('[data-photo-overview]');
+      const tile=host.querySelector(`[data-photo-id="${photo.id}"]`),radio=tile?.querySelector('[data-photo-overview]'),selection=tile?.querySelector('[data-photo-select]');
+      const label=`${photo.category==='interior'?'interior':'exterior'} photo ${photos.indexOf(photo)+1}${photo.caption?': '+photo.caption:''}`;
+      if(selection){
+        selection.dataset.unavailable=String(!useOnlySelected());selection.disabled=busy||!useOnlySelected();
+        selection.setAttribute('aria-label',`Include ${label} in PDF`);
+      }
       if(radio){
-        radio.checked=photo.id===actual;radio.dataset.unavailable=String(photo.selected===false);radio.disabled=busy||photo.selected===false;
-        radio.setAttribute('aria-label',`Use ${photo.category==='interior'?'interior':'exterior'} photo ${photos.indexOf(photo)+1}${photo.caption?': '+photo.caption:''} as overview photo`);
+        const excluded=useOnlySelected()&&photo.selected===false;
+        radio.checked=photo.id===actual;radio.dataset.unavailable=String(excluded);radio.disabled=busy||excluded;
+        radio.setAttribute('aria-label',`Use ${label} as overview photo`);
       }
       tile?.classList.toggle('photo-is-overview',photo.id===actual);
     }
@@ -53,10 +61,20 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     const status=host.querySelector('[data-photo-overview-status]'),photo=photos.find(photo=>photo.id===actual);
     if(status)status.textContent=photo?`${draft.overviewPhotoIds[mode]?'Overview photo':'Automatic overview'}: ${photo.caption||`${photo.category==='interior'?'Interior':'Exterior'} photo ${photos.indexOf(photo)+1}`}.`:'Select Include in PDF for a photo to use an overview image.';
   }
-  function updateCount(){const node=host.querySelector('[data-photo-count]');if(node)node.textContent=`${photos.length} saved · ${selected().length} selected for PDF`;updateOverview();}
+  function updateCount(){
+    const count=included().length,node=host.querySelector('[data-photo-count]');
+    if(node)node.textContent=count?`${useOnlySelected()?`${count} of ${photos.length}`:`All ${photos.length} saved`} photo${photos.length===1?'':'s'} will appear in the PDF.`:`0 of ${photos.length} photos will appear in the PDF. Location details and notes only.`;
+    updateOverview();
+  }
+  function choosePhotoSelection(onlySelected,token){
+    if(!active(token))return;
+    if(busy){host.querySelector('[data-photo-selected-only]').checked=draft.useOnlySelectedPhotos?.[mode]!==false;return;}
+    clearPdf();saveDraft({useOnlySelectedPhotos:{[mode]:Boolean(onlySelected)}});updateCount();
+    message('Photo choices changed. Create a new PDF to include these choices.');
+  }
   function chooseOverview(id,token){
     if(!active(token))return;
-    if(busy||(id&&!selected().some(photo=>photo.id===id))){updateOverview();return;}
+    if(busy||(id&&!included().some(photo=>photo.id===id))){updateOverview();return;}
     clearPdf();saveDraft({overviewPhotoIds:{[mode]:id}});updateOverview();
     message(id?'Overview photo chosen. Create the PDF to see the new layout.':'The first included exterior photo will be used, or the first included photo if there is no exterior.');
   }
@@ -69,10 +87,10 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     ${!createSharedStore?'<p class="photo-pending">Shared storage is not enabled yet. Device saving and PDF downloads work now.</p>':''}
     <div class="photo-add"><label>Photo type <select data-photo-category aria-label="Photo type"><option value="interior">Interior</option><option value="exterior">Exterior</option></select></label><label class="photo-file-label">Add &amp; save photos <input data-photo-files type="file" accept="image/jpeg,image/png,image/webp" multiple aria-label="Add and save photos"></label></div>
     <p class="photo-help">Choose several JPG, PNG, or WebP files. Up to ${PHOTO_LIMIT} per location per library, 20 MB per original. Photos are resized and location metadata is removed.</p>
-    <p data-photo-count class="photo-count"></p><p class="photo-help">Choose an included photo for the large overview image. Landscape exterior photos work well; the other included photos appear as supporting images. This choice is saved in this browser.</p><div class="photo-overview-toolbar"><p data-photo-overview-status class="photo-help"></p><button class="btn light" type="button" data-photo-overview-auto>Choose automatically</button></div><div data-photo-gallery></div>
+    <div class="photo-pdf-selection"><label class="photo-selection"><input type="checkbox" data-photo-selected-only ${draft.useOnlySelectedPhotos?.[mode]!==false?'checked':''} aria-describedby="photoSelectionHelp photoSelectionCount"> Use only selected photos</label><p class="photo-help" id="photoSelectionHelp">Check Include in PDF on the photos you want below. Uncheck this option to include every photo in this library; your individual checkmarks are kept for next time. This choice also applies to the combined PDF and PowerPoint.</p><p data-photo-count class="photo-count" id="photoSelectionCount" role="status" aria-live="polite"></p></div><p class="photo-help">Choose an included photo for the large overview image. Landscape exterior photos work well; the other included photos appear as supporting images. This choice is saved in this browser.</p><div class="photo-overview-toolbar"><p data-photo-overview-status class="photo-help"></p><button class="btn light" type="button" data-photo-overview-auto>Choose automatically</button></div><div data-photo-gallery></div>
     ${mode==='device'&&createSharedStore?'<button class="btn light" type="button" data-photo-copy>Copy selected photos to shared storage</button>':''}`:'<p class="photo-help">Sign in as the administrator to add, view, and select private location photos.</p>'}
-    <div class="photo-export"><button type="button" class="btn blue" data-photo-pdf>Create location PDF</button><span class="photo-help">Landscape site visit overview with saved location details, your PDF notes${admin?', and selected photos':''}. Includes the convention logo, sky header and hills footer. Private contacts and internal inspection notes are excluded.</span></div>
-    ${admin&&openParkingPlanner?'<div class="photo-export"><button type="button" class="btn light" data-photo-parking>Combine with parking-lot plan</button><span class="photo-help">Open the parking-lot planner to choose a layout and create one PDF with this review, your PDF notes, and selected photos.</span></div>':''}
+    <div class="photo-export"><button type="button" class="btn blue" data-photo-pdf>Create location PDF</button><span class="photo-help">Landscape site visit overview with saved location details, your PDF notes${admin?', and the photos included above':''}. Includes the convention logo, sky header and hills footer. Private contacts and internal inspection notes are excluded.</span></div>
+    ${admin&&openParkingPlanner?'<div class="photo-export"><button type="button" class="btn light" data-photo-parking>Combine with parking-lot plan</button><span class="photo-help">Open the parking-lot planner to choose a layout and create one PDF with this review, your PDF notes, and the photos included above.</span></div>':''}
     <div data-photo-pdf-links class="photo-pdf-links"></div><p data-photo-status role="status" aria-live="polite"></p>`;}
   async function showGallery(token){
     if(!active(token))return;
@@ -144,9 +162,11 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     const unsaved=photos.some(photo=>host.querySelector(`[data-photo-id="${photo.id}"] [data-photo-caption]`)?.value!==photo.caption);
     if(unsaved)throw Error('Save the edited captions before creating the PDF.');
     const locationId=currentLocation.id,readingStore=store,report=currentReport(),reportKey=JSON.stringify(report),source=mode;
-    const notes=reportNotes(currentNotes()),overviewPhotoId=overviewId();
-    const snapshot=photos.map(photo=>({...photo}));
-    const isCurrent=()=>active(token)&&revision===pdfRevision&&String(getLocation()?.id)===String(locationId)&&JSON.stringify(currentReport())===reportKey&&currentNotes()===notes&&overviewId()===overviewPhotoId;
+    const notes=reportNotes(currentNotes()),overviewPhotoId=overviewId(),onlySelected=useOnlySelected();
+    // The renderer reads selected flags. Include every photo in all-photo mode
+    // on export copies only, preserving the user's saved individual checkmarks.
+    const snapshot=photos.map(photo=>({...photo,selected:!onlySelected||photo.selected!==false}));
+    const isCurrent=()=>active(token)&&revision===pdfRevision&&String(getLocation()?.id)===String(locationId)&&JSON.stringify(currentReport())===reportKey&&currentNotes()===notes&&overviewId()===overviewPhotoId&&useOnlySelected()===onlySelected;
     const assertCurrent=()=>{if(!isCurrent())throw Error('The location, PDF notes, overview photo, selected photos, review details, or sign-in changed. Create the PDF again.');};
     return (async()=>{
       const result=await exportPdf({report,photos:snapshot,source,notes,overviewPhotoId,loadImage:async photo=>{assertCurrent();const blob=await readingStore.image(locationId,photo);assertCurrent();return blob;}});
@@ -203,6 +223,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     host.querySelector('[data-photo-library]').addEventListener('change',event=>{mode=event.target.value;contextChanged(true);});
     host.querySelector('[data-photo-files]').addEventListener('change',event=>{const files=Array.from(event.target.files);event.target.value='';add(files,host.querySelector('[data-photo-category]').value,token);});
     host.querySelector('[data-photo-overview-auto]').addEventListener('click',()=>chooseOverview('',token));
+    host.querySelector('[data-photo-selected-only]').addEventListener('change',event=>choosePhotoSelection(event.target.checked,token));
     host.querySelector('[data-photo-copy]')?.addEventListener('click',()=>copy(token));
     load(token);
   }

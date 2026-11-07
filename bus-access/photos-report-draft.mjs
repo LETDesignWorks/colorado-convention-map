@@ -1,6 +1,6 @@
 export const PDF_NOTES_LIMIT = 6000;
 const PREFIX = 'bus-access-pdf-report-v1:';
-const blank = () => ({notes:'', overviewPhotoIds:{device:'', shared:''}});
+const blank = () => ({notes:'', overviewPhotoIds:{device:'', shared:''},useOnlySelectedPhotos:{device:true,shared:true}});
 
 // A signed-in viewer has a separate draft from an anonymous viewer, even when
 // neither can access administrator photos. JSON avoids ambiguous scope keys.
@@ -16,8 +16,12 @@ export function reportNotes(value='') {
   return notes;
 }
 
-export function selectedOverviewPhotoId(photos, preferred='') {
-  const included=photos.filter(photo=>photo.selected!==false);
+export function pdfPhotos(photos, useOnlySelected=true) {
+  return useOnlySelected===false?[...photos]:photos.filter(photo=>photo.selected!==false);
+}
+
+export function selectedOverviewPhotoId(photos, preferred='', useOnlySelected=true) {
+  const included=pdfPhotos(photos,useOnlySelected);
   return (included.find(photo=>photo.id===preferred)||included.find(photo=>photo.category==='exterior')||included[0])?.id||'';
 }
 
@@ -27,12 +31,14 @@ function photoId(value) {
 function draftValue(value={}) {
   return {notes:reportNotes(value.notes??''),overviewPhotoIds:{
     device:photoId(value.overviewPhotoIds?.device),shared:photoId(value.overviewPhotoIds?.shared)
+  },useOnlySelectedPhotos:{
+    device:value.useOnlySelectedPhotos?.device!==false,shared:value.useOnlySelectedPhotos?.shared!==false
   }};
 }
-const copy = value => ({...value,overviewPhotoIds:{...value.overviewPhotoIds}});
+const copy = value => ({...value,overviewPhotoIds:{...value.overviewPhotoIds},useOnlySelectedPhotos:{...value.useOnlySelectedPhotos}});
 
-// Only PDF-specific notes and photo IDs are stored here. No photo bytes, public
-// review fields, private inspection notes, or cloud records are read or written.
+// Only PDF-specific notes and photo preferences are stored here. No photo bytes,
+// public review fields, private inspection notes, or cloud records are read or written.
 // Memory keeps a draft usable while switching locations if browser saving fails.
 export function createPhotoReportDraftStore({getStorage=()=>globalThis.localStorage}={}) {
   const memory=new Map();
@@ -54,7 +60,10 @@ export function createPhotoReportDraftStore({getStorage=()=>globalThis.localStor
   }
   function update(scope,patch) {
     const previous=load(scope);
-    const next={...draftValue({...previous,...patch,overviewPhotoIds:{...previous.overviewPhotoIds,...patch.overviewPhotoIds}}),persistence:'session'};
+    const next={...draftValue({...previous,...patch,
+      overviewPhotoIds:{...previous.overviewPhotoIds,...patch.overviewPhotoIds},
+      useOnlySelectedPhotos:{...previous.useOnlySelectedPhotos,...patch.useOnlySelectedPhotos}
+    }),persistence:'session'};
     // Set memory first so quota errors or unavailable localStorage never lose the
     // text that the user just entered. Saving is retried on the next edit.
     memory.set(scope,next);

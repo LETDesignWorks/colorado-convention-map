@@ -190,3 +190,61 @@ test('PDF notes travel into the parking packet and edits invalidate in-progress 
   notes.value='A later instruction.';await notes.trigger('input');assert.equal(ready.isCurrent(),false);
   h.panel.dispose();
 });
+
+test('the photo PDF option exports the exact selected or complete image set without changing saved selections',async()=>{
+  const records=[photo('inside'),photo('outside',false)],original=structuredClone(records);
+  const h=photoPanelHarness({records,exportPdf:source=>buildPhotoPdf(source,{PDFLib,ribbonAssets,logoBytes,now})});await settle();
+  const host=h.d.getElementById('locationPhotos'),onlySelected=host.querySelector('[data-photo-selected-only]');
+  const outside=host.querySelector('[data-photo-id="outside"]'),outsideInclude=outside.querySelector('[data-photo-select]'),outsideOverview=outside.querySelector('[data-photo-overview]');
+  assert.ok(onlySelected,'the explicit PDF photo option is available');assert.equal(onlySelected.checked,true);
+  assert.equal(outsideInclude.checked,false);assert.equal(outsideOverview.disabled,true);
+  const selected=await h.panel.buildPdfSnapshot();assert.deepEqual(h.reads,['inside']);assert.equal(selected.pages,1);
+  h.reads.length=0;onlySelected.checked=false;await onlySelected.trigger('change');
+  assert.equal(selected.isCurrent(),false);assert.equal(outsideInclude.checked,false,'all mode preserves individual selections');
+  assert.equal(outsideInclude.disabled,true);assert.equal(outsideOverview.disabled,false,'any included image may be the overview');
+  outsideOverview.checked=true;await outsideOverview.trigger('change');
+  const all=await h.panel.buildPdfSnapshot();assert.deepEqual(h.reads,['inside','outside']);assert.equal(all.pages,1);
+  assert.deepEqual(h.writes,[]);assert.deepEqual(records,original,'export options never rewrite stored photo records');
+  h.reads.length=0;onlySelected.checked=true;await onlySelected.trigger('change');
+  assert.equal(all.isCurrent(),false);assert.equal(outsideInclude.checked,false);assert.equal(outsideInclude.disabled,false);assert.equal(outsideOverview.disabled,true);
+  await h.panel.buildPdfSnapshot();assert.deepEqual(h.reads,['inside']);assert.deepEqual(h.writes,[]);assert.deepEqual(records,original);
+  h.panel.dispose();
+});
+
+test('selected-only with no checked photos produces a branded text-only PDF and never falls back to all images',async()=>{
+  const records=[photo('inside',false),photo('outside',false)],original=structuredClone(records);
+  const h=photoPanelHarness({records,exportPdf:source=>buildPhotoPdf(source,{PDFLib,ribbonAssets,logoBytes,now})});await settle();
+  const host=h.d.getElementById('locationPhotos'),onlySelected=host.querySelector('[data-photo-selected-only]');
+  assert.equal(onlySelected.checked,true);
+  const empty=await h.panel.buildPdfSnapshot();assert.equal(empty.pages,1);assert.deepEqual(h.reads,[]);
+  const output=await PDFLib.PDFDocument.load(await empty.blob.arrayBuffer()),page=output.getPages()[0];
+  assert.deepEqual(page.getSize(),{width:960,height:540});
+  const objects=page.node.Resources().lookup(PDFLib.PDFName.of('XObject'));
+  assert.ok(objects.keys().every(key=>objects.lookup(key).dict.lookup(PDFLib.PDFName.of('Filter'))?.toString()!=='/DCTDecode'),'no location JPEG is embedded');
+  onlySelected.checked=false;await onlySelected.trigger('change');
+  await h.panel.buildPdfSnapshot();assert.deepEqual(h.reads,['inside','outside']);
+  assert.deepEqual(h.writes,[]);assert.deepEqual(records,original);h.panel.dispose();
+});
+
+test('changing the PDF photo option invalidates in-progress and completed parking packets and stale presentation handoffs',async()=>{
+  const rendered=[];let changes=0;
+  const h=photoPanelHarness({records:[photo('inside'),photo('outside',false)],onPdfChanged:()=>{changes++;},
+    exportPdf:async source=>{rendered.push(source.photos.filter(p=>p.selected!==false).map(p=>p.id));return pdfResult('review');}});await settle();
+  const host=h.d.getElementById('locationPhotos'),onlySelected=host.querySelector('[data-photo-selected-only]');
+  const plan=newTrafficPlan(location(),now),mapGate=deferred(),mapStarted=deferred();let merges=0;
+  const pending=buildParkingPdfPacket(plan,{combined:true,getLocationPdf:options=>h.panel.buildPdfSnapshot(options),
+    exportPdf:()=>{mapStarted.resolve();return mapGate.promise;},mergePdfs:async()=>{merges++;return pdfResult('combined');}});
+  await mapStarted.promise;assert.deepEqual(rendered[0],['inside']);
+  const before=changes;onlySelected.checked=false;await onlySelected.trigger('change');assert.ok(changes>before);
+  mapGate.resolve(pdfResult('parking'));await assert.rejects(pending,/changed/);assert.equal(merges,0,'an outdated review is never merged');
+  const ready=await buildParkingPdfPacket(plan,{combined:true,getLocationPdf:options=>h.panel.buildPdfSnapshot(options),
+    exportPdf:async()=>pdfResult('parking'),mergePdfs:async()=>pdfResult('combined')});
+  assert.deepEqual(rendered.at(-1),['inside','outside']);assert.equal(ready.isCurrent(),true);
+  await host.querySelector('[data-photo-pdf]').trigger('click');
+  const download=host.querySelector('[data-photo-pdf-links]').querySelector('a');
+  const presentation=host.querySelectorAll('button').find(button=>button.textContent==='Add to PowerPoint');assert.ok(download);assert.ok(presentation);
+  onlySelected.checked=true;await onlySelected.trigger('change');
+  assert.equal(ready.isCurrent(),false);assert.ok(h.revoked.includes(download.href));assert.equal(host.querySelector('[data-photo-pdf-links]').children.length,0);
+  assert.equal((await download.trigger('click')).defaultPrevented,true);await presentation.trigger('click');assert.deepEqual(h.sent,[]);
+  assert.deepEqual(h.writes,[]);h.panel.dispose();
+});

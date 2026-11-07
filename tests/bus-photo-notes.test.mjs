@@ -207,3 +207,39 @@ test('the PDF success message exposes a renderer text warning',async()=>{
   await h.host().querySelector('[data-photo-pdf]').trigger('click');
   assert.match(h.host().querySelector('[data-photo-status]').textContent,/Some text characters need review/);h.panel.dispose();
 });
+
+test('the selected-photo option saves with its library and restores without changing individual photo choices',async()=>{
+  const storage=browserStorage(),records=[picture('inside','interior'),picture('outside','exterior',false)];
+  const h=harness({storage,records,deviceRecords:[picture('device-outside')]});await settle();
+  const option=()=>h.host().querySelector('[data-photo-selected-only]');
+  assert.equal(option().checked,true);
+  assert.match(h.host().querySelector('[data-photo-count]').textContent,/1 of 2 photos? will appear/);
+  option().checked=false;await option().trigger('change');
+  assert.match(h.host().querySelector('[data-photo-count]').textContent,/All 2 saved photos will appear/);
+  assert.equal(h.tile('outside').querySelector('[data-photo-select]').checked,false);
+  assert.equal(h.tile('outside').querySelector('[data-photo-select]').disabled,true);
+  assert.deepEqual(h.photoWrites,[]);
+  await library(h,'device');assert.equal(option().checked,true);
+  await library(h,'shared');assert.equal(option().checked,false);
+  h.panel.contextChanged(true);await settle();assert.equal(option().checked,false);
+  h.state.location={id:'2',name:'Another location'};h.panel.contextChanged();await settle();assert.equal(option().checked,true);
+  h.state.location={id:'1',name:'Example location'};h.panel.contextChanged();await settle();assert.equal(option().checked,false);
+  h.panel.dispose();
+  const reopened=harness({storage,records});await settle();
+  assert.equal(reopened.host().querySelector('[data-photo-selected-only]').checked,false);
+  assert.equal(reopened.tile('outside').querySelector('[data-photo-select]').checked,false);
+  assert.deepEqual(reopened.photoWrites,[]);reopened.panel.dispose();
+});
+
+test('PDF snapshots read the current photo option and reject a changed option even without a change event',async()=>{
+  const h=harness({records:[picture('inside','interior'),picture('outside','exterior',false)]});await settle();
+  const option=h.host().querySelector('[data-photo-selected-only]');
+  const selected=await h.panel.buildPdfSnapshot();
+  assert.deepEqual(h.exports.at(-1).photos.filter(p=>p.selected).map(p=>p.id),['inside']);
+  option.checked=false;assert.equal(selected.isCurrent(),false);
+  const all=await h.panel.buildPdfSnapshot();
+  assert.deepEqual(h.exports.at(-1).photos.filter(p=>p.selected).map(p=>p.id),['inside','outside']);
+  assert.equal(h.exports.at(-1).overviewPhotoId,'outside');assert.equal(all.isCurrent(),true);
+  option.checked=true;assert.equal(all.isCurrent(),false);
+  assert.deepEqual(h.photoWrites,[]);h.panel.dispose();
+});

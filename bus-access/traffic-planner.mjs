@@ -280,7 +280,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <p data-dirty class="traffic-dirty"></p><button class="btn blue" data-save>Save layout — new copy</button>
       <button type="button" class="btn blue" data-export-pdf>Export parking-lot PDF</button>
       <button type="button" class="btn blue" data-export-combined>Export bus review + parking PDF</button>
-      <small>Both options include the sky header and hills footer. The combined PDF starts with the saved Bus Access Review and the photos selected in Location photos &amp; PDF, then includes this parking-lot layout and notes.</small>
+      <small>Both options include the sky header and hills footer. The combined PDF starts with the saved Bus Access Review and the photos included by your Location photos &amp; PDF settings, then includes this parking-lot layout and notes.</small>
       <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
