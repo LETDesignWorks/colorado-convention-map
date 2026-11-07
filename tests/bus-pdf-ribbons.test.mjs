@@ -63,20 +63,20 @@ const report=()=>publicPhotoReport({id:'synthetic-21',markerLabel:'21',name:'Sam
 
 test('location summary has both supplied ribbons without entering the text or footer',async()=>{
   const recorded=recordDrawing();
-  const result=await buildPhotoPdf({report:report(),photos:[],loadImage:()=>assert.fail('No selected images')},{PDFLib:recorded.lib,ribbonAssets,now});
+  const result=await buildPhotoPdf({report:report(),photos:[],loadImage:()=>assert.fail('No selected images')},{PDFLib:recorded.lib,ribbonAssets,logoBytes,now});
   assert.equal(result.pages,1);assertSafePages(recorded);
   const parsed=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(parsed.getPageCount(),1);
   await output(result,'bus-photo-overview-ribbons.pdf');
 });
 
-test('selected photo pages keep full-size photos and long captions clear of the new artwork',async()=>{
+test('selected photo pages keep complete photos and long captions clear of the new artwork',async()=>{
   const recorded=recordDrawing(),reads=[];
   const photos=Array.from({length:5},(_,i)=>({id:'photo-'+i,category:i%2?'exterior':'interior',caption:i===3?'W'.repeat(180):`Sample photo ${i+1} - verify access on site.`,selected:true}));
   photos.push({id:'not-selected',selected:false,category:'exterior'});
-  const before=JSON.stringify(photos),result=await buildPhotoPdf({report:report(),photos,loadImage:async photo=>{reads.push(photo.id);return new Blob([jpeg],{type:'image/jpeg'});}},{PDFLib:recorded.lib,ribbonAssets,now});
+  const before=JSON.stringify(photos),result=await buildPhotoPdf({report:report(),photos,loadImage:async photo=>{reads.push(photo.id);return new Blob([jpeg],{type:'image/jpeg'});}},{PDFLib:recorded.lib,ribbonAssets,logoBytes,now});
   assert.deepEqual(reads,photos.slice(0,5).map(x=>x.id));assert.equal(JSON.stringify(photos),before);
-  assert.ok(result.pages>=4);assertSafePages(recorded);
-  assert.equal(recorded.pages.flatMap(p=>p.images).filter(x=>x.value.width!==2048).length,5);
+  assert.ok(result.pages>=2);assertSafePages(recorded);
+  assert.equal(recorded.pages.flatMap(p=>p.images).filter(x=>x.value.width!==2048&&!(x.value.width===997&&x.value.height===559)).length,5);
   const printed=recorded.pages.flatMap(p=>p.texts).map(x=>x.value).join('');assert.ok(printed.includes('W'.repeat(180)),'Caption text is complete');
   const parsed=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(parsed.getPageCount(),result.pages);
   await output(result,'bus-location-photos-ribbons.pdf');
@@ -101,7 +101,7 @@ test('traffic map, logo, notes and every continuation page fit between the ribbo
 
 test('bad ribbon artwork cannot silently produce a partly branded bus PDF',async()=>{
   const bad={header:Uint8Array.of(0),footer:ribbonAssets.footer};
-  await assert.rejects(buildPhotoPdf({report:report(),photos:[],loadImage:()=>assert.fail()},{PDFLib,ribbonAssets:bad}));
+  await assert.rejects(buildPhotoPdf({report:report(),photos:[],loadImage:()=>assert.fail()},{PDFLib,ribbonAssets:bad,logoBytes}));
   const plan=newTrafficPlan({id:'sample',name:'Sample',lat:39.6,lng:-105},now);
   await assert.rejects(buildTrafficPdf(plan,{PDFLib,ribbonAssets:bad,logoBytes,mapImage:()=>assert.fail()}));
 });

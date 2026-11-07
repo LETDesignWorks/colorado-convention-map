@@ -8,6 +8,7 @@ import {createCloudPhotoStore} from '../bus-access/photos-cloud.mjs';
 import {publicPhotoReport,buildPhotoPdf} from '../bus-access/photos-pdf.mjs';
 const require=createRequire(import.meta.url),PDFLib=require('../load-tests/vendor/pdf-lib.min.js');
 const ribbonAssets={header:readFileSync('assets/print-header-sky.png'),footer:readFileSync('assets/print-footer-hills.png')};
+const logoBytes=readFileSync('assets/denver-2027-territory-logo.png');
 const jpeg=()=>new Blob([readFileSync('load-tests/assets/bible.jpg')],{type:'image/jpeg'});
 const photo=(id='one')=>({id,category:'interior',caption:'Sample photo',selected:true,createdAt:123,image:jpeg(),thumbnail:jpeg()});
 const smallPhoto=(id='one')=>({...photo(id),image:new Blob(['image'],{type:'image/jpeg'}),thumbnail:new Blob(['thumb'],{type:'image/jpeg'})});
@@ -63,21 +64,21 @@ test('PDF report excludes private review fields and embeds only selected photos'
   const report=publicPhotoReport({id:'1',name:'Example location',markerLabel:'1',address:'Synthetic test address',contact1:{name:'PRIVATE'}},{status:'Approved',publicSummary:'Saved summary',internalNotes:'PRIVATE'});
   assert.ok(!JSON.stringify(report).includes('PRIVATE'));
   const read=[],photos=[photo(),{...photo('two'),category:'exterior'},{...photo('three'),selected:false}];
-  const result=await buildPhotoPdf({report,photos,loadImage:async p=>{read.push(p.id);return p.image;}},{PDFLib,ribbonAssets});
-  assert.deepEqual(read,['one','two']);const pdf=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(pdf.getPageCount(),2);
-  for(const page of pdf.getPages())assert.deepEqual(page.getSize(),{width:612,height:792});
+  const result=await buildPhotoPdf({report,photos,loadImage:async p=>{read.push(p.id);return p.image;}},{PDFLib,ribbonAssets,logoBytes});
+  assert.deepEqual(read,['one','two']);const pdf=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(pdf.getPageCount(),1);
+  for(const page of pdf.getPages())assert.deepEqual(page.getSize(),{width:960,height:540});
 });
 test('missing selected imagery stops PDF creation; zero selection still makes a summary',async()=>{
   const report=publicPhotoReport({id:'1',name:'Example'});
-  await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>{throw Error('offline');}},{PDFLib,ribbonAssets}),/offline/);
-  const result=await buildPhotoPdf({report,photos:[],loadImage:()=>assert.fail('no image expected')},{PDFLib,ribbonAssets});assert.equal(result.pages,1);
+  await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>{throw Error('offline');}},{PDFLib,ribbonAssets,logoBytes}),/offline/);
+  const result=await buildPhotoPdf({report,photos:[],loadImage:()=>assert.fail('no image expected')},{PDFLib,ribbonAssets,logoBytes});assert.equal(result.pages,1);
 });
 
 test('PDF embeds JPEG download bytes with generic or parameterized MIME types and rejects mislabeled data',async()=>{
   const report=publicPhotoReport({id:'1',name:'Shared download'}),bytes=await jpeg().arrayBuffer();
   const types=['','application/octet-stream','image/jpeg; charset=utf-8'];
   const photos=types.map((type,index)=>({...photo('download-'+index),image:new Blob([bytes],{type})}));
-  const result=await buildPhotoPdf({report,photos,loadImage:async p=>p.image},{PDFLib,ribbonAssets});
-  const pdf=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(pdf.getPageCount(),3);
-  await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>new Blob(['not a JPEG'],{type:'image/jpeg'})},{PDFLib,ribbonAssets}),/not a valid JPEG/);
+  const result=await buildPhotoPdf({report,photos,loadImage:async p=>p.image},{PDFLib,ribbonAssets,logoBytes});
+  const pdf=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());assert.equal(pdf.getPageCount(),1);
+  await assert.rejects(buildPhotoPdf({report,photos:[photo()],loadImage:async()=>new Blob(['not a JPEG'],{type:'image/jpeg'})},{PDFLib,ribbonAssets,logoBytes}),/not a valid JPEG/);
 });

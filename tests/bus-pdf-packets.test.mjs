@@ -22,7 +22,7 @@ test('combined export keeps review and selected photos first, then landscape par
   const plan=newTrafficPlan(location(),now);plan.name='Sample bus arrival';
   plan.items=[{id:'cone-1',kind:'cone',label:'',point:[39.60001,-105.00001]}];
   const untouched=structuredClone(plan),read=[];
-  const review=await buildPhotoPdf({report:publicPhotoReport(location(),{status:'Approved',publicSummary:'Use the south entrance.'}),photos:[photo('inside'),photo('outside'),photo('not-selected',false)],loadImage:async p=>{read.push(p.id);return new Blob([jpeg],{type:'image/jpeg'});}},{PDFLib,ribbonAssets,now});
+  const review=await buildPhotoPdf({report:publicPhotoReport(location(),{status:'Approved',publicSummary:'Use the south entrance.'}),notes:'Use the marked loading area.\nKeep the pedestrian route clear.',overviewPhotoId:'outside',photos:[photo('inside'),photo('outside'),photo('not-selected',false)],loadImage:async p=>{read.push(p.id);return new Blob([jpeg],{type:'image/jpeg'});}},{PDFLib,ribbonAssets,logoBytes,now});
   const reviewBytes=new Uint8Array(await review.blob.arrayBuffer());
   let expectedLocation,parking;
   const result=await buildParkingPdfPacket(plan,{combined:true,
@@ -34,7 +34,7 @@ test('combined export keeps review and selected photos first, then landscape par
   assert.equal(result.pages,review.pages+parking.pages);assert.equal(result.isCurrent(),true);
   const output=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());
   assert.deepEqual(output.getPages().map(p=>p.getSize()),[
-    ...Array.from({length:review.pages},()=>({width:612,height:792})),
+    ...Array.from({length:review.pages},()=>({width:960,height:540})),
     ...Array.from({length:parking.pages},()=>({width:792,height:612}))]);
   for(const page of output.getPages()){
     const objects=page.node.Resources().lookup(PDFLib.PDFName.of('XObject'));
@@ -170,4 +170,23 @@ test('saved review changes revoke completed links and notify the parking packet 
   const before=changes;h.state.summary.publicSummary='Updated public summary';h.panel.contextChanged();
   assert.equal(changes,before+1);assert.equal(host.querySelector('[data-photo-pdf-links]').children.length,0);assert.ok(h.revoked.includes(download.href));
   assert.equal((await download.trigger('click')).defaultPrevented,true,'a stale link reference cannot navigate');h.panel.dispose();
+});
+
+test('PDF notes travel into the parking packet and edits invalidate in-progress and completed packets',async()=>{
+  const rendered=[];
+  const h=photoPanelHarness({exportPdf:async source=>{rendered.push(source.notes);return pdfResult('review');}});await settle();
+  const notes=h.d.getElementById('locationPhotos').querySelector('[data-photo-report-notes]');
+  notes.value='Use the east entrance.\nKeep the unloading area clear.';await notes.trigger('input');
+  const plan=newTrafficPlan(location(),now),mapGate=deferred(),mapStarted=deferred();let merges=0;
+  const pending=buildParkingPdfPacket(plan,{combined:true,getLocationPdf:options=>h.panel.buildPdfSnapshot(options),
+    exportPdf:()=>{mapStarted.resolve();return mapGate.promise;},mergePdfs:async()=>{merges++;return pdfResult('combined');}});
+  await mapStarted.promise;
+  assert.equal(rendered[0],'Use the east entrance.\nKeep the unloading area clear.');
+  notes.value='Use the west entrance instead.';await notes.trigger('input');mapGate.resolve(pdfResult('parking'));
+  await assert.rejects(pending,/changed/);assert.equal(merges,0,'no outdated review can be merged');
+  const ready=await buildParkingPdfPacket(plan,{combined:true,getLocationPdf:options=>h.panel.buildPdfSnapshot(options),
+    exportPdf:async()=>pdfResult('parking'),mergePdfs:async()=>pdfResult('combined')});
+  assert.equal(rendered.at(-1),'Use the west entrance instead.');assert.equal(ready.isCurrent(),true);
+  notes.value='A later instruction.';await notes.trigger('input');assert.equal(ready.isCurrent(),false);
+  h.panel.dispose();
 });
