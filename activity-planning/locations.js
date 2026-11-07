@@ -1,6 +1,6 @@
 import { ACTIVITY_POINTS } from '../activities/data.js';
 import { HOTELS } from '../routes/hotels.js';
-import { HALLS } from '../territories/halls.js';
+import { HALLS } from '../territories/halls.js?v=ribbons-20261107-1';
 export const LOCATIONS=[
   {id:'ccc',name:'Colorado Convention Center',address:'700 14th St, Denver, CO 80202',lat:39.74248,lng:-104.99567,group:'Rally points',note:'Rally point. Confirm the assigned bus-loading curb.'},
   ...ACTIVITY_POINTS.map(p=>({...p,group:'Activities'})),

@@ -14,7 +14,8 @@ site.workbook.fields.literature_notes='Long notes remain printable. '.repeat(180
 assert.deepEqual(validateTest(test),test);assert.equal(newTest('2026-10-24').sites[0].packetTarget,'');
 assert.equal(duplicateTest(test,'Future test','2026-11-01',true).sites[0].workbook,undefined);
 const assets={};for(const name of ['brand_sky.png','brand_mountains.png','packaging_photo.png','invitation.jpg','bible.jpg','future.jpg','suffering.jpg'])assets[name]=await readFile(new URL(`../load-tests/assets/${name}`,import.meta.url));
-const bytes=await makeChecklistPdf(test,site.id,false,{assets,PDFLib});
+const ribbonAssets={header:await readFile(new URL('../assets/print-header-sky.png',import.meta.url)),footer:await readFile(new URL('../assets/print-footer-hills.png',import.meta.url))};
+const bytes=await makeChecklistPdf(test,site.id,false,{assets,PDFLib,ribbonAssets});
 const reopened=await PDFLib.PDFDocument.load(bytes),form=reopened.getForm();
 assert.equal(form.getTextField(`${site.id}_auditorium_access_contact`).getText(),'Access Test');
 assert.equal(form.getCheckBox(`${site.id}_welcome_ready`).isChecked(),true);

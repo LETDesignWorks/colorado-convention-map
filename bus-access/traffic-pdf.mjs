@@ -1,3 +1,4 @@
+import {createPdfLibRibbons, ribbonLayout, loadPdfRibbonAssets} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {validatePlan, arrowheads} from './traffic-model.mjs?v=traffic-20261023-48';
 
 // A detached, full-layout print snapshot. This module never writes to cloud storage.
@@ -91,28 +92,31 @@ export function wrapText(text,font,size,width) {
   }return lines;
 }
 function dateLabel(date){return new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',dateStyle:'medium',timeStyle:'short'}).format(date)+' MT';}
-export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress=()=>{},now=new Date(),unsaved=false}={}) {
+export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress=()=>{},now=new Date(),unsaved=false,ribbonAssets}={}) {
   const plan=validatePlan(source,source.locationId);
   if(!PDFLib?.PDFDocument)throw Error('The PDF library is not available.');
   if(!logoBytes?.length)throw Error('The convention logo could not load. No unbranded PDF was created. Please retry.');
   const {PDFDocument,StandardFonts,rgb}=PDFLib,doc=await PDFDocument.create();
+  const ribbons=await createPdfLibRibbons(doc,{ribbonAssets}),frame=ribbonLayout(792,612);
+  const contentTop=612-frame.top,footerY=frame.bottom+6,footerLineY=footerY+14;
   const font=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold),logo=await doc.embedPng(logoBytes);
   const c=(a)=>rgb(...a),navy=rgb(.12,.23,.38),ink=rgb(.13,.18,.24),muted=rgb(.36,.41,.47),white=rgb(1,1,1),orange=rgb(.98,.47,.10);
   doc.setTitle(`${plan.name} - Traffic patterns and cones`);doc.setSubject('2027 Denver Convention parking-lot planning sketch');doc.setCreator('Denver 2027 Bus Review');doc.setCreationDate(now);
   const text=(page,value,x,y,size=10,weight=font,color=ink)=>page.drawText(printable(value,weight),{x,y,size,font:weight,color});
   const lines=(page,value,x,y,size,width,weight=font,color=ink)=>{for(const line of wrapText(value,weight,size,width)){if(line)text(page,line,x,y,size,weight,color);y-=size+3;}return y;};
   function header(page,section){
-    const dims=logo.scale(Math.min(154/logo.width,62/logo.height));page.drawImage(logo,{x:24+(154-dims.width)/2,y:612-24-dims.height,width:dims.width,height:dims.height});
-    text(page,section.toUpperCase(),196,586,9,bold,navy);
-    let y=lines(page,plan.name,196,566,16,572,bold,navy);
+    const dims=logo.scale(Math.min(154/logo.width,62/logo.height));page.drawImage(logo,{x:24+(154-dims.width)/2,y:contentTop-dims.height,width:dims.width,height:dims.height});
+    text(page,section.toUpperCase(),196,contentTop-9,9,bold,navy);
+    let y=lines(page,plan.name,196,contentTop-29,16,572,bold,navy);
     y=lines(page,`${plan.locationName} | ${plan.locationAddress}`,196,y-2,9,572,font,muted);
-    const lower=Math.min(508,y-8);page.drawLine({start:{x:24,y:lower},end:{x:768,y:lower},thickness:.7,color:rgb(.75,.80,.85)});
+    const lower=Math.min(contentTop-80,y-8);page.drawLine({start:{x:24,y:lower},end:{x:768,y:lower},thickness:.7,color:rgb(.75,.80,.85)});
     return lower-18;
   }
   let page=doc.addPage([792,612]),top=header(page,'Traffic patterns & cones');
   const counts={cones:plan.items.filter(i=>i.kind==='cone').length,routes:plan.items.filter(i=>i.kind==='route').length,labels:plan.items.filter(i=>i.kind==='pin').length};
   text(page,`${counts.cones} cones   |   ${counts.routes} routes   |   ${counts.labels} labels`,24,top,10,bold);
-  const map={x:24,y:117,width:744,height:top-13-117},viewport=layoutViewport(plan,map.width,map.height);
+  const mapBottom=footerLineY+75;
+  const map={x:24,y:mapBottom,width:744,height:top-13-mapBottom},viewport=layoutViewport(plan,map.width,map.height);
   progress('Preparing the full parking-lot map...');
   const background=await mapImage(viewport,plan.view.base);
   if(!background)throw Error('The map background was not produced.');
@@ -152,17 +156,18 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   page.drawRectangle({x:map.x+map.width-31,y:map.y+map.height-45,width:25,height:39,color:white,opacity:.92});
   text(page,'N',map.x+map.width-22,map.y+map.height-20,9,bold,navy);
   const nx=map.x+map.width-18,ny=map.y+map.height-27;line({x:nx,y:ny-11},{x:nx,y:ny},1.2,navy);line({x:nx-3,y:ny-4},{x:nx,y:ny},1.2,navy);line({x:nx+3,y:ny-4},{x:nx,y:ny},1.2,navy);
-  let lx=32;cone(lx,97,.7);text(page,'Cone',lx+12,94,9);lx=113;
-  for(const type of ['bus','car','walk']){line({x:lx,y:97},{x:lx+24,y:97},5,navy);line({x:lx,y:97},{x:lx+24,y:97},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,94,9);lx+=type==='walk'?135:95;}
-  text(page,'R = route key     L = location label key',477,94,9);
+  const legendY=footerLineY+52;
+  let lx=32;cone(lx,legendY+3,.7);text(page,'Cone',lx+12,legendY,9);lx=113;
+  for(const type of ['bus','car','walk']){line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},5,navy);line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,legendY,9);lx+=type==='walk'?135:95;}
+  text(page,'R = route key     L = location label key',477,legendY,9);
   const attribution=plan.view.base==='street'?'Map: © OpenStreetMap contributors':'Imagery: © Esri, Maxar, Earthstar Geographics and GIS User Community';
-  text(page,attribution,24,77,7,font,muted);text(page,'Full layout fitted to page. Notes and item key follow.',24,64,8,font,muted);
+  text(page,attribution,24,footerLineY+35,7,font,muted);text(page,'Full layout fitted to page. Notes and item key follow.',24,footerLineY+22,8,font,muted);
   if(!plan.items.length)text(page,'No traffic items in this layout.',map.x+20,map.y+20,11,bold,navy);
   // Notes/key pages paginate by measured text width and available height.
   let y=0;
   function detailsPage(){page=doc.addPage([792,612]);y=header(page,'Setup notes & item key');}
   function paragraph(value,size=10,weight=font,color=ink){for(const entry of wrapText(value,weight,size,744)){
-    if(y<size+55)detailsPage();if(entry)text(page,entry,24,y,size,weight,color);y-=size+4;}y-=7;}
+    if(y<footerLineY+size+13)detailsPage();if(entry)text(page,entry,24,y,size,weight,color);y-=size+4;}y-=7;}
   detailsPage();paragraph(plan.locationName,14,bold,navy);paragraph(plan.locationAddress,10);
   paragraph(unsaved?'CURRENT DRAFT EXPORT - not saved to the cloud by exporting.':'Exported layout snapshot. Exporting does not create or update a saved layout.',9,bold,navy);
   paragraph(`Prepared ${dateLabel(now)}. ${counts.cones} cones; ${counts.routes} routes; ${counts.labels} location labels.`,9);
@@ -174,9 +179,10 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   const unsupported=[...new Set([...allText].filter(ch=>{if(/[\n\r\t‐‑‒–—…\u00a0]/.test(ch))return false;try{font.encodeText(ch);return false;}catch{return true;}}))];
   if(unsupported.length)paragraph('Text notice: Some non-Western characters were replaced with ? for this PDF. The original layout and JSON retain the complete text.',9,bold);
   for(const[p,index]of doc.getPages().map((p,i)=>[p,i])){
-    p.drawLine({start:{x:24,y:42},end:{x:768,y:42},thickness:.6,color:rgb(.8,.83,.87)});
-    text(p,'PLANNING SKETCH - VERIFY ON SITE',24,28,8,bold,navy);text(p,dateLabel(now),340,28,8,font,muted);text(p,`${index+1} / ${doc.getPageCount()}`,727,28,8,font,muted);
+    p.drawLine({start:{x:24,y:footerLineY},end:{x:768,y:footerLineY},thickness:.6,color:rgb(.8,.83,.87)});
+    text(p,'PLANNING SKETCH - VERIFY ON SITE',24,footerY,8,bold,navy);text(p,dateLabel(now),340,footerY,8,font,muted);text(p,`${index+1} / ${doc.getPageCount()}`,727,footerY,8,font,muted);
   }
+  ribbons.drawAllPages();
   progress('Finishing the branded PDF...');const bytes=await doc.save();
   const stem=plan.name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,110)||'traffic-layout';
   return{blob:new Blob([bytes],{type:'application/pdf'}),filename:`${stem}-traffic-plan.pdf`,pages:doc.getPageCount(),textWarning:unsupported.length>0};
@@ -185,6 +191,6 @@ export async function exportTrafficPdf(source,options={}) {
   const plan=validatePlan(source,source.locationId);
   const d=options.document||globalThis.document,w=options.window||globalThis.window;
   const progress=options.progress||(()=>{});progress('Loading convention logo and PDF tools...');
-  const [PDFLib,logoBytes]=await Promise.all([loadPdfLibrary(d,w),readBytes(PDF_LOGO_URL,options.fetch||globalThis.fetch)]);
-  return buildTrafficPdf(plan,{...options,PDFLib,logoBytes,mapImage:(viewport,base)=>renderBasemap(viewport,base,{...options,document:d,window:w})});
+  const [PDFLib,logoBytes,ribbonAssets]=await Promise.all([loadPdfLibrary(d,w),readBytes(PDF_LOGO_URL,options.fetch||globalThis.fetch),options.ribbonAssets||loadPdfRibbonAssets({fetch:options.fetch||globalThis.fetch})]);
+  return buildTrafficPdf(plan,{...options,PDFLib,logoBytes,ribbonAssets,mapImage:(viewport,base)=>renderBasemap(viewport,base,{...options,document:d,window:w})});
 }

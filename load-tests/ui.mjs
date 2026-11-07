@@ -1,10 +1,12 @@
+import {mountPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {STATUSES,ROLES,uid,copy,dateText,newTest,blankSite,blankContact,blankTask,duplicateTest,moveDate,progress,validateTest} from './model.mjs?v=20261019-3';
-import {escapeHtml as e,reportHtml} from './report.mjs';
+import {escapeHtml as e,reportHtml} from './report.mjs?v=ribbons-20261107-1';
 import {workbookFor} from './workbook.mjs?v=20261019-3';
-import {scheduleHtml,workbookHtml,sampleHtml} from './workbook-ui.mjs?v=20261019-3';
-import {makeChecklistPdf} from './checklist-pdf.mjs?v=20261019-3';
+import {scheduleHtml,workbookHtml,sampleHtml} from './workbook-ui.mjs?v=ribbons-20261107-1';
+import {makeChecklistPdf} from './checklist-pdf.mjs?v=ribbons-20261107-1';
 
 export async function mount(store){
+  mountPrintRibbons(document);
   const app=document.getElementById('app'),notice=document.getElementById('notice');
   let user=null,records=[],test=null,siteId='overall',revision=0,dirty=false,saving=false,ready=false,showArchived=false,remoteConflict=false;
   let search='',roleFilter='',statusFilter='',creationMode='new',importMode='copy',templates=[],noticeTimer;

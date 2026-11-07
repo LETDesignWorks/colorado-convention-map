@@ -1,3 +1,5 @@
+import {TERRITORY_PDF_LAYOUT as PDF_PAGE} from './pdf-page-layout.js?v=ribbons-20261107-1';
+
 // Use the complete Colorado snapshot where it covers the nearest shops. Else
 // search around this territory's center, without sending home addresses or names.
 import { streetAddressInfo } from './street-addresses.js?v=territories-20261017-31';
@@ -149,16 +151,16 @@ export async function loadNearbyCoffee(houses, options = {}) {
 export function drawNearbyCoffeePage(doc, coffee, map) {
   const center = coffee.center;
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(72, 87, 104);
-  doc.text('Closest listed coffee shops and cafes to this territory, nearest first. The search widens when needed.', .48, 1.27);
+  doc.text('Closest listed coffee shops and cafes to this territory, nearest first. The search widens when needed.', .48, PDF_PAGE.contentTop);
   const searchUrl = center ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`coffee shops near ${center.lat},${center.lng}`)}` : 'https://www.google.com/maps/search/coffee/';
   if (!coffee.shops.length) {
     const message = coffee.status === 'ready' ? 'No coffee shops were listed within this search area.' : 'Nearby coffee shops could not be loaded for this export.';
-    doc.setTextColor(40, 55, 72); doc.text(message, .48, 1.85);
-    doc.setTextColor(11, 91, 159); doc.textWithLink('Search this area for coffee shops', .48, 2.16, { url: searchUrl });
+    doc.setTextColor(40, 55, 72); doc.text(message, .48, PDF_PAGE.top + 1.85);
+    doc.setTextColor(11, 91, 159); doc.textWithLink('Search this area for coffee shops', .48, PDF_PAGE.top + 2.16, { url: searchUrl });
     return;
   }
   coffee.shops.forEach((shop, i) => {
-    const y = 1.76 + i * 1.03;
+    const y = PDF_PAGE.contentTop + .40 + i * .90;
     doc.setFillColor(125, 73, 37); doc.circle(.62, y - .045, .13, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(255, 255, 255);
     doc.text(String(i + 1), .62, y - .045, { align: 'center', baseline: 'middle' });
@@ -174,7 +176,7 @@ export function drawNearbyCoffeePage(doc, coffee, map) {
     doc.setTextColor(11, 91, 159); doc.setFontSize(8.5);
     doc.textWithLink(`${shop.miles.toFixed(1)} mi from center  |  Open map location`, .88, addressY + addressLines.length * .16 + .06, { url: shop.url });
   });
-  const box = { x: 5.03, y: 1.57, width: 5.5, height: 4.03 };
+  const box = { x: 5.03, y: PDF_PAGE.top + 1.30, width: 5.5, height: 4.03 };
   if (map?.dataUrl && map.streetTilesLoaded) {
     doc.addImage(map.dataUrl, 'JPEG', box.x, box.y, box.width, box.height, undefined, 'FAST');
     const territoryX = box.x + map.territoryPoint.x / map.viewport.width * box.width;
@@ -200,16 +202,16 @@ export function drawNearbyCoffeePage(doc, coffee, map) {
       doc.text(String(i + 1), pin.x, pin.y, { align: 'center', baseline: 'middle' });
     }
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(72, 87, 104);
-    doc.text('Numbers = coffee shops  |  Blue outline = territory', box.x, 5.87);
+    doc.text('Numbers = coffee shops  |  Blue outline = territory', box.x, PDF_PAGE.top + 5.60);
   } else {
     doc.setTextColor(72, 87, 104); doc.setFontSize(9);
-    doc.text('Location map unavailable. Use the map links beside each shop.', box.x, 1.85, { maxWidth: box.width });
+    doc.text('Location map unavailable. Use the map links beside each shop.', box.x, PDF_PAGE.top + 1.85, { maxWidth: box.width });
   }
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(72, 87, 104);
-  doc.text('Distances are straight-line estimates, not walking or driving routes.', .48, 7.14);
+  doc.text('Distances are straight-line estimates, not walking or driving routes.', .48, PDF_PAGE.footerLine - .56);
   doc.text(coffee.status === 'partial' ? 'The wider search was unavailable; these are the closest available listings. Check current hours.' :
-    'Check current hours before visiting. Map listings may be incomplete.', .48, 7.35);
-  doc.textWithLink(`Coffee listings: ${coffee.source || 'Overture Maps'} and contributors`, .48, 7.60, { url: new URL('./coffee-data-sources.html', import.meta.url).href });
-  doc.textWithLink('Search for more coffee shops', 10.53, 7.14, { align: 'right', url: searchUrl });
-  doc.text(`Data: ${coffee.dataDate || coffee.localDataDate || 'date unavailable'}`, 10.53, 7.60, { align: 'right' });
+    'Check current hours before visiting. Map listings may be incomplete.', .48, PDF_PAGE.footerLine - .35);
+  doc.textWithLink(`Coffee listings: ${coffee.source || 'Overture Maps'} and contributors`, .48, PDF_PAGE.footerLine - .10, { url: new URL('./coffee-data-sources.html', import.meta.url).href });
+  doc.textWithLink('Search for more coffee shops', 10.53, PDF_PAGE.footerLine - .56, { align: 'right', url: searchUrl });
+  doc.text(`Data: ${coffee.dataDate || coffee.localDataDate || 'date unavailable'}`, 10.53, PDF_PAGE.footerLine - .10, { align: 'right' });
 }

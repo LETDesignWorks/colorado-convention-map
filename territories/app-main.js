@@ -1,5 +1,7 @@
+import {createJsPdfRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
+import {TERRITORY_PDF_LAYOUT as PDF_PAGE, territoryPdfMapBox} from './pdf-page-layout.js?v=ribbons-20261107-1';
 import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-50';
-import { buildReviewedVersionPdf } from './pdf-address-review.js?v=territories-20261023-50';
+import { buildReviewedVersionPdf } from './pdf-address-review.js?v=ribbons-20261107-1';
 import { createMeetingSessionManager } from './meeting-session-service.js?v=checkout-20261023-51';
 import { sessionContentStamp, territoryStamps, sessionChanges } from './meeting-session-model.js?v=territories-20261023-50';
 import { editablePolygonFeatures, mountVertexRemoval } from './territory-vertex-tools.js?v=territories-20261023-50';
@@ -14,14 +16,14 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp, writeBatch, query, where, getDoc, getDocFromServer, getDocsFromServer, runTransaction
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
+import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=ribbons-20261107-1';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
 import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261023-50';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-50';
 import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-50';
 import { workspaceStamp as mergeWorkspaceStamp, stable as mergeStable, deletionProblem as backupDeletionProblem, nameKey as libraryNameKey } from './backup-merge-model.js?v=territories-20261023-50';
-import { HALLS } from './halls.js';
+import { HALLS } from './halls.js?v=ribbons-20261107-1';
 import {
   CCC, TERRITORY_COLORS, ASSESSOR_SOURCES, inferSourceForHall,
   parseSourceFeature, normalizeAddressKey, splitStreetSort
@@ -2975,7 +2977,7 @@ async function archiveParts(record, kind) {
   return parts;
 }
 async function renderSavedTerritoryPdf(snapshot, status) {
-  const renderer = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-50');
+  const renderer = await import('./territory-flex-grouping-pdf.js?v=ribbons-20261107-1');
   return renderer.buildTerritoryPdf(snapshot, status);
 }
 function refreshSavedPdfRecord(id, progress = () => {}) {
@@ -3308,33 +3310,33 @@ function projectStreetMapPoint(streetMap, lng, lat, mapX, mapY, mapW, mapH) {
 
 function drawPdfHeader(doc, logoData, title, subtitle = '') {
   const textX = logoData ? 1.98 : 0.45;
-  if (logoData) doc.addImage(logoData, 'PNG', 0.28, 0.10, 1.48, 0.83, undefined, 'FAST');
+  if (logoData) doc.addImage(logoData, 'PNG', 0.30, PDF_PAGE.top + 0.01, 1.34, 0.75, undefined, 'FAST');
   doc.setTextColor(11, 68, 126);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.text(title, textX, 0.43);
+  doc.text(title, textX, PDF_PAGE.headerTitle);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(70, 84, 101);
-  if (subtitle) doc.text(subtitle, textX, 0.68);
+  if (subtitle) doc.text(subtitle, textX, PDF_PAGE.headerSubtitle);
   doc.setDrawColor(176, 194, 210);
   doc.setLineWidth(.008);
-  doc.line(0.35, 0.98, 10.65, 0.98);
+  doc.line(0.35, PDF_PAGE.headerLine, 10.65, PDF_PAGE.headerLine);
 }
 function drawPdfFooter(doc, pageNumber, pageCount) {
   doc.setDrawColor(211, 220, 228);
   doc.setLineWidth(.008);
-  doc.line(0.35, 8.06, 10.65, 8.06);
+  doc.line(0.35, PDF_PAGE.footerLine, 10.65, PDF_PAGE.footerLine);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(40, 55, 72);
-  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, 8.19, { align: 'center' });
+  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, PDF_PAGE.footerWarning, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(94, 106, 119);
-  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.34);
-  doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, 8.34, { align: 'right' });
+  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, PDF_PAGE.footerNote);
+  doc.text(`Page ${pageNumber} of ${pageCount}`, 10.65, PDF_PAGE.footerNote, { align: 'right' });
 }
 function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMap = null, avoidHouses = [], options = {}) {
-  const mapX = .43, mapY = 1.17, mapW = 10.14, mapH = 6.55;
+  const { x: mapX, y: mapY, width: mapW, height: mapH } = territoryPdfMapBox();
   const viewport = streetMap || territoryStreetMapViewport(territoryHouses, geometry, avoidHouses, options);
   if (!viewport) return;
   // The tighter view may crop the true outline; all map artwork stays inside
@@ -3429,22 +3431,22 @@ function drawTerritoryPdfMap(doc, territory, territoryHouses, geometry, streetMa
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.2);
   doc.setTextColor(73, 86, 101);
-  doc.text(legend, mapX, 7.93);
+  doc.text(legend, mapX, PDF_PAGE.legendY);
   if (streetMap?.dataUrl) {
     doc.setFontSize(5.2);
-    doc.text('© OpenStreetMap contributors', mapX + mapW, 7.93, { align: 'right' });
+    doc.text('© OpenStreetMap contributors', mapX + mapW, PDF_PAGE.legendY, { align: 'right' });
   }
 }
 function addAddressListPage(doc, logoData, territory, territoryHouses, startIndex) {
   doc.addPage('letter', 'landscape');
   drawPdfHeader(doc, logoData, `${territory.name} — Address List`, `${selectedCongregation} • ${selectedHall?.name || ''}`);
-  return drawStreetAddressColumns(doc, territoryHouses, startIndex);
+  return drawStreetAddressColumns(doc, territoryHouses, startIndex, { startY: PDF_PAGE.contentTop, bottomY: PDF_PAGE.contentBottom });
 }
 
 function addAvoidAddressListPage(doc, logoData, territory, avoidHouses, startIndex) {
   doc.addPage('letter', 'landscape');
   drawPdfHeader(doc, logoData, `${territory.name} — Avoid / Do Not Visit`, `${selectedCongregation} • ${selectedHall?.name || ''}`);
-  return drawStreetAddressColumns(doc, avoidHouses, startIndex, { avoid: true });
+  return drawStreetAddressColumns(doc, avoidHouses, startIndex, { startY: PDF_PAGE.contentTop, bottomY: PDF_PAGE.contentBottom, avoid: true });
 }
 
 async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
@@ -3474,6 +3476,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       maps.push({ tight, streetMap });
     }
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
+    const ribbons = await createJsPdfRibbons(doc);
     const subtitle = `${selectedCongregation} • ${selectedHall?.name || ''} • ${territoryHouses.length} addresses${avoidHouses.length ? ` • ${avoidHouses.length} avoid` : ''}`;
     for (const { tight, streetMap } of maps) {
       if (tight) doc.addPage('letter', 'landscape');
@@ -3489,6 +3492,7 @@ async function exportTerritoryPdf(territoryId = els.pdfTerritorySelect?.value) {
       doc.setPage(page);
       drawPdfFooter(doc, page, pageCount);
     }
+    ribbons.drawAllPages();
     doc.save(`${slug(selectedCongregation)}-${slug(territory.name)}-territory.pdf`);
     toast(`${territory.name} PDF created with ${territoryHouses.length} addresses${avoidHouses.length ? ` and ${avoidHouses.length} red avoid dot${avoidHouses.length === 1 ? '' : 's'}` : ''} with overview and closer maps${maps.some(item => item.streetMap) ? ' and street labels' : ''}.`);
   } catch (error) {
@@ -3833,7 +3837,7 @@ async function libraryVersionPdf(version, progress, options = {}) {
     allowReviewCopy: Boolean(options.allowReviewCopy),
     readPdf: async record => readArchivePdf(record, await archiveParts(record, 'pdf')),
     buildPdf: async (snapshot, progress) => {
-      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=territories-20261023-50');
+      const { buildTerritoryPdf } = await import('./territory-flex-grouping-pdf.js?v=ribbons-20261107-1');
       return buildTerritoryPdf(snapshot, progress);
     }
   });

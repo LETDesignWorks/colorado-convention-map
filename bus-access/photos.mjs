@@ -1,6 +1,6 @@
 import {PHOTO_LIMIT, createDevicePhotoStore, photoError} from './photos-model.mjs';
 import {preparePhoto} from './photos-images.mjs';
-import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=photos-20261104-2';
+import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=ribbons-20261107-1';
 
 const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin, createSharedStore,

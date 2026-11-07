@@ -1,7 +1,7 @@
 // PDF copies stay in the same private store as the plans. Split payloads well
 // below the document limit; the small library record is published only last.
 // Increment when PDF contents/layout change so saved downloads rebuild too.
-export const PDF_LAYOUT_VERSION = 33;
+export const PDF_LAYOUT_VERSION = 34;
 export async function makePdfArchive(id, blob, snapshot, metadata = {}) {
   const parts = [];
   const addPart = (kind, data, index) => {

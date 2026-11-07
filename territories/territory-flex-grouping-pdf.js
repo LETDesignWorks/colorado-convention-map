@@ -1,10 +1,12 @@
-import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from './pdf-boundary-scope.js?v=territories-20261023-50';
-import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=territories-20261023-50';
-import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=territories-20261017-33';
+import {createJsPdfRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
+import {TERRITORY_PDF_LAYOUT as PDF_PAGE, territoryPdfMapBox} from './pdf-page-layout.js?v=ribbons-20261107-1';
+import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from './pdf-boundary-scope.js?v=ribbons-20261107-1';
+import { preparePdfAddressSnapshot } from './pdf-address-review.js?v=ribbons-20261107-1';
+import { PDF_LAYOUT_VERSION } from './pdf-archive.js?v=ribbons-20261107-1';
 import { pdfHouseNumber, layoutHouseLabels } from './pdf-house-labels.js?v=territories-20261013-27';
 import { compareStreetAddresses, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { layoutStreetCallouts, drawStreetCallouts } from './pdf-street-callouts.js?v=territories-20261017-31';
-import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=territories-20261017-32';
+import { loadNearbyCoffee, drawNearbyCoffeePage } from './nearby-coffee.js?v=ribbons-20261107-1';
 
 const FLEX_VERSION = 'territories-20261017-33';
 const FLEX_METHOD = 'nearby-flex';
@@ -680,35 +682,36 @@ async function imageCanvasData(url, fallback = false) {
   }
 }
 function drawLogo(doc, logo) {
-  try { doc.addImage(logo, 'PNG', 0.24, 0.08, 1.78, 0.98, undefined, 'FAST'); return true; }
+  try { doc.addImage(logo, 'PNG', 0.30, PDF_PAGE.top + 0.01, 1.36, 0.75, undefined, 'FAST'); return true; }
   catch {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(12, 79, 120); doc.text('DENVER', 0.32, 0.47);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(238, 101, 65); doc.text('2027', 1.22, 0.47);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(12, 79, 120); doc.text('DENVER', 0.32, PDF_PAGE.headerTitle);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(238, 101, 65); doc.text('2027', 1.22, PDF_PAGE.headerTitle);
     return false;
   }
 }
 function pdfHeader(doc, logo, title, subtitle) {
   const used = drawLogo(doc, logo);
   const x = used ? 2.15 : 2.02;
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(11, 68, 126); doc.text(title, x, 0.43);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(72, 87, 104); doc.text(subtitle, x, 0.70);
-  doc.setLineWidth(0.008); doc.setDrawColor(174, 193, 209); doc.line(0.35, 1.03, 10.65, 1.03);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(11, 68, 126); doc.text(title, x, PDF_PAGE.headerTitle);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(72, 87, 104); doc.text(subtitle, x, PDF_PAGE.headerSubtitle);
+  doc.setLineWidth(0.008); doc.setDrawColor(174, 193, 209); doc.line(0.35, PDF_PAGE.headerLine, 10.65, PDF_PAGE.headerLine);
 }
 function pdfFooter(doc, page, count) {
-  doc.setLineWidth(0.008); doc.setDrawColor(210, 219, 227); doc.line(0.35, 8.06, 10.65, 8.06);
+  doc.setLineWidth(0.008); doc.setDrawColor(210, 219, 227); doc.line(0.35, PDF_PAGE.footerLine, 10.65, PDF_PAGE.footerLine);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(40, 55, 72);
-  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, 8.19, { align: 'center' });
+  doc.text('ANY REMAINING HOMES ON A STREET THAT ARE NOT LISTED BELONG TO ANOTHER TERRITORY AND SHOULD NOT BE WORKED.', 5.5, PDF_PAGE.footerWarning, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(93, 106, 120);
-  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.34);
-  doc.text(`Page ${page} of ${count}`, 10.65, 8.34, { align: 'right' });
+  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, PDF_PAGE.footerNote);
+  doc.text(`Page ${page} of ${count}`, 10.65, PDF_PAGE.footerNote, { align: 'right' });
 }
 function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, hall, congregation, viewLabel) {
   pdfHeader(doc, logo, `${territory.name} — ${viewLabel}`, `${congregation} • ${hall?.name || ''} • ${houses.length} homes${avoids.length ? ` • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'}` : ''}`);
-  doc.addImage(mapResult.dataUrl, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
-  drawStreetCallouts(doc, mapResult.streetLayout, mapResult.viewport);
+  const box = territoryPdfMapBox(mapResult.viewport.width, mapResult.viewport.height);
+  doc.addImage(mapResult.dataUrl, 'JPEG', box.x, box.y, box.width, box.height, undefined, 'FAST');
+  drawStreetCallouts(doc, mapResult.streetLayout, mapResult.viewport, box);
   // Keep numbers as vector text so they remain crisp on paper and when zoomed.
-  const scaleX = 10.14 / mapResult.viewport.width, scaleY = 6.55 / mapResult.viewport.height;
-  const mapX = x => 0.43 + x * scaleX, mapY = y => 1.17 + y * scaleY;
+  const scaleX = box.width / mapResult.viewport.width, scaleY = box.height / mapResult.viewport.height;
+  const mapX = x => box.x + x * scaleX, mapY = y => box.y + y * scaleY;
   const leaders = mapResult.labelLayout.labels.filter(label => label.leader);
   // A white under-stroke separates leaders from roads and boundary shading.
   for (const halo of [true, false]) {
@@ -730,8 +733,8 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
   const textRuns = mapResult.labelLayout.labels.flatMap(label => label.lines.map((text, index) => {
     const offset = (index - (label.lines.length - 1) / 2) * label.fontSize * 1.15;
     const radians = label.angle * Math.PI / 180;
-    return { text, x: 0.43 + (label.x - Math.sin(radians) * offset) * scaleX,
-      y: 1.17 + (label.y + Math.cos(radians) * offset) * scaleY, label };
+    return { text, x: box.x + (label.x - Math.sin(radians) * offset) * scaleX,
+      y: box.y + (label.y + Math.cos(radians) * offset) * scaleY, label };
   }));
   doc.setFont('helvetica', 'bold');
   // Paint every halo before any dark text, so a halo cannot erase another number.
@@ -751,7 +754,7 @@ function drawTerritoryMapPage(doc, logo, territory, houses, avoids, mapResult, h
   }
   const legend = `Numbers = street house numbers${leaders.length ? ' • Leader dot = exact home location' : ''} • Shading = territory${avoids.length ? ' • Red X = Avoid' : ''}`;
   doc.setFont('helvetica', 'bold'); doc.setFontSize(7.3); doc.setTextColor(43, 59, 75);
-  doc.text(legend, 0.48, 7.93);
+  doc.text(legend, 0.48, PDF_PAGE.legendY);
 }
 function sortedByAddress(items) { return [...items].sort(compareStreetAddresses); }
 function addAddressListPages(doc, logo, territory, houses, startIndex, hall, congregation) {
@@ -759,7 +762,7 @@ function addAddressListPages(doc, logo, territory, houses, startIndex, hall, con
   while (index < houses.length) {
     doc.addPage('letter', 'landscape');
     pdfHeader(doc, logo, `${territory.name} — Address List`, `${congregation} • ${hall?.name || ''}`);
-    index = drawStreetAddressColumns(doc, houses, index);
+    index = drawStreetAddressColumns(doc, houses, index, { startY: PDF_PAGE.contentTop, bottomY: PDF_PAGE.contentBottom });
   }
 }
 function addAvoidPages(doc, logo, territory, territoryAvoids, hall, congregation) {
@@ -770,8 +773,8 @@ function addAvoidPages(doc, logo, territory, territoryAvoids, hall, congregation
     doc.addPage('letter', 'landscape');
     pdfHeader(doc, logo, `${territory.name} — Avoid / Do Not Visit`, `${congregation} • ${hall?.name || ''} • ${avoids.length} avoid address${avoids.length === 1 ? '' : 'es'} in this territory`);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(82, 94, 108);
-    doc.text('Only addresses inside this territory are listed below and shown as red X dots on its map.', 0.48, 1.22);
-    index = drawStreetAddressColumns(doc, avoids, index, { startY: 1.57, avoid: true });
+    doc.text('Only addresses inside this territory are listed below and shown as red X dots on its map.', 0.48, PDF_PAGE.top + .95);
+    index = drawStreetAddressColumns(doc, avoids, index, { startY: PDF_PAGE.top + 1.22, bottomY: PDF_PAGE.contentBottom, avoid: true });
   } while (index < avoids.length);
 }
 function triggerDownload(blob, filename) {
@@ -781,7 +784,7 @@ function triggerDownload(blob, filename) {
 }
 // Render only the supplied snapshot. Rebuilding an archive must never load,
 // overwrite, or save the user's currently edited plan.
-export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
+export async function buildTerritoryPdf(sourceSnapshot, status = {}, { ribbonAssets } = {}) {
   const reviewed = preparePdfAddressSnapshot(sourceSnapshot);
   if (reviewed.unresolved && !sourceSnapshot.pdfReviewCopy) throw Object.assign(new Error(`${reviewed.unresolved} possible duplicate address group(s) need review before printing. Use Address duplicate check or Create review PDF. No saved data was changed.`), { code: 'PDF_REVIEW_REQUIRED' });
   const snapshot = reviewed.snapshot;
@@ -822,6 +825,7 @@ export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
   status.textContent = 'Creating printable territory pages…';
   await sleepFrame();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
+  const ribbons = await createJsPdfRibbons(doc, { ribbonAssets });
   drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, overviewMap, hall, congregation, 'Overview');
   doc.addPage('letter', 'landscape');
   drawTerritoryMapPage(doc, logo, territory, houses, mapAvoids, closerMap, hall, congregation, 'Closer View');
@@ -837,6 +841,7 @@ export async function buildTerritoryPdf(sourceSnapshot, status = {}) {
   if (reviewCopy) stampPdfReview(doc, pageCount);
   for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); pdfFooter(doc, page, pageCount); }
   const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
+  ribbons.drawAllPages();
   snapshot.pdfLayoutVersion = PDF_LAYOUT_VERSION;
   return { blob: doc.output('blob'), filename: reviewCopy ? filename.replace(/\.pdf$/i, '-REVIEW.pdf') : filename, snapshot, reviewCopy, reviewIssues, duplicatesRemoved: reviewed.removed };
 }

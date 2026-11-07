@@ -1,3 +1,4 @@
+import {createPdfLibRibbons, ribbonLayout} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {checkoutOptions} from './territory-checkout-model.js?v=checkout-20261023-51';
 export const CHECKOUT_LOGO = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const LIBRARY = new URL('../load-tests/vendor/pdf-lib.min.js', import.meta.url).href;
@@ -32,11 +33,13 @@ function wrap(value, font, size, width) {
   if (line) output.push(line);
   return output;
 }
-export async function buildCheckoutPdf(roster, options = {}, {PDFLib, logoBytes, now = new Date()} = {}) {
+export async function buildCheckoutPdf(roster, options = {}, {PDFLib, logoBytes, ribbonAssets, now = new Date()} = {}) {
   if (!roster?.hall?.id || !Array.isArray(roster.rows)) throw Error('The meeting-place territory list is incomplete.');
   if (!PDFLib?.PDFDocument || !logoBytes?.length) throw Error('The PDF library or convention logo is unavailable. Please retry.');
   const config = checkoutOptions(options), {PDFDocument, StandardFonts, rgb} = PDFLib;
   const doc = await PDFDocument.create(), normal = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold), logo = await doc.embedPng(logoBytes);
+  const ribbons = await createPdfLibRibbons(doc, {ribbonAssets});
+  const pageRibbon = ribbonLayout(792,612), headingTop = 612-pageRibbon.top;
   const navy = rgb(.13,.25,.40), muted = rgb(.36,.41,.47), gray = rgb(.71,.76,.81), pale = rgb(.96,.97,.98), white = rgb(1,1,1);
   const safe = (value,font=normal) => printable(value,font);
   const rows = roster.rows.map(row => ({...row}));
@@ -44,12 +47,21 @@ export async function buildCheckoutPdf(roster, options = {}, {PDFLib, logoBytes,
   if (!rows.length) throw Error('No territories are available. Load territories or choose extra blank lines.');
   if (rows.length > 1000) throw Error('This register is too large. Select one congregation to print a smaller sheet.');
   const widths = [106,190,62,62,62,64,190], left = 28, tableWidth = 736;
+  const hallLines = wrap(roster.hall.name,bold,11,582);
+  const addressLines = wrap(roster.hall.address,normal,9,582);
+  const scope = roster.congregation ? `Congregation: ${roster.congregation}` : 'All congregations at this meeting place';
+  const scopeLines = wrap(scope,normal,9,582);
+  const headingBottom = headingTop-39-hallLines.length*13-addressLines.length*11-scopeLines.length*11;
+  const headingRule = Math.min(headingTop-68,headingBottom-5);
+  if (headingTop-headingRule > 104) throw Error('The meeting-place heading is too long. Shorten the location name or congregation label.');
+  const top = headingRule-55, headHeight = 27, footerY = pageRibbon.bottom+13;
+  const rowCapacity = top-headHeight-(footerY+48);
   const rowHeight = row => Math.max(36, row ? wrap(row.name,bold,9,widths[0]-12).length*11 + wrap(row.congregation,normal,7,widths[0]-12).length*9 + 10 : 36);
   const pages = []; let current = [], used = 0;
   for (const row of rows) {
     const height = rowHeight(row);
-    if (height > 360) throw Error('A territory label is too long to fit on the sheet. Shorten its name.');
-    if (current.length && used + height > 360) {pages.push(current); current = []; used = 0;}
+    if (height > rowCapacity) throw Error('A territory label is too long to fit on the sheet. Shorten its name.');
+    if (current.length && used + height > rowCapacity) {pages.push(current); current = []; used = 0;}
     current.push({row,height}); used += height;
   }
   if (current.length) pages.push(current);
@@ -60,30 +72,29 @@ export async function buildCheckoutPdf(roster, options = {}, {PDFLib, logoBytes,
   const rule = (page,x1,y1,x2,y2,color=gray,width=.6) => page.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},thickness:width,color});
   for (let p = 0; p < pages.length; p++) {
     const page = doc.addPage([792,612]);
-    const mark = logo.scale(Math.min(135/logo.width,72/logo.height)); page.drawImage(logo,{x:left,y:525,width:mark.width,height:mark.height});
-    text(page,'TERRITORY CHECK-OUT / CHECK-IN',182,578,18,bold);
-    let hy = 557;
-    for (const line of wrap(roster.hall.name,bold,11,582)) {text(page,line,182,hy,11,bold); hy -= 13;}
-    for (const line of wrap(roster.hall.address,normal,9,582)) {text(page,line,182,hy,9,normal,muted); hy -= 11;}
-    const scope = roster.congregation ? `Congregation: ${roster.congregation}` : 'All congregations at this meeting place';
-    for (const line of wrap(scope,normal,9,582)) {text(page,line,182,hy,9,normal,muted); hy -= 11;}
-    if (hy < 503) throw Error('The meeting-place heading is too long. Shorten the location name or congregation label.');
-    rule(page,left,509,764,509);
+    const mark = logo.scale(Math.min(135/logo.width,60/logo.height));
+    page.drawImage(logo,{x:left,y:headingTop-4-mark.height,width:mark.width,height:mark.height});
+    text(page,'TERRITORY CHECK-OUT / CHECK-IN',182,headingTop-18,18,bold);
+    let hy = headingTop-39;
+    for (const line of hallLines) {text(page,line,182,hy,11,bold); hy -= 13;}
+    for (const line of addressLines) {text(page,line,182,hy,9,normal,muted); hy -= 11;}
+    for (const line of scopeLines) {text(page,line,182,hy,9,normal,muted); hy -= 11;}
+    rule(page,left,headingRule,764,headingRule);
     const showDate = config.date ? config.date.slice(5,7)+'/'+config.date.slice(8,10)+'/'+config.date.slice(0,4) : '________________';
-    text(page,`Activity date: ${showDate}`,left,491,10,bold);
+    text(page,`Activity date: ${showDate}`,left,headingRule-18,10,bold);
     const sessionText=`Session / wave: ${config.session || '________________________________'}`;
-    text(page,sessionText,255,491,Math.min(10,10*509/normal.widthOfTextAtSize(safe(sessionText),10)));
+    text(page,sessionText,255,headingRule-18,Math.min(10,10*509/normal.widthOfTextAtSize(safe(sessionText),10)));
     const coordinatorText=`Coordinator: ${config.coordinator || '___________________________________'}`;
-    text(page,coordinatorText,left,472,Math.min(10,10*500/normal.widthOfTextAtSize(safe(coordinatorText),10)));
-    text(page,`${roster.rows.length ? roster.rows.length+' territories listed' : 'Blank write-in register'}  |  Page ${p+1} of ${pages.length}`,545,472,9,normal,muted);
-    const top = 454, headHeight = 27; page.drawRectangle({x:left,y:top-headHeight,width:tableWidth,height:headHeight,color:navy});
+    text(page,coordinatorText,left,headingRule-37,Math.min(10,10*500/normal.widthOfTextAtSize(safe(coordinatorText),10)));
+    text(page,`${roster.rows.length ? roster.rows.length+' territories listed' : 'Blank write-in register'}  |  Page ${p+1} of ${pages.length}`,545,headingRule-37,9,normal,muted);
+    page.drawRectangle({x:left,y:top-headHeight,width:tableWidth,height:headHeight,color:navy});
     const headings = ['Territory / host','Assigned to / phone','Time out','Due back','Time in','C / P / N','Remaining work / notes'];
     let x=left;
     headings.forEach((heading,i) => {text(page,heading,x+6,top-17,9,bold,white); x+=widths[i];});
     let y=top-headHeight;
     const entries = [...pages[p]];
     let available = entries.reduce((sum,e) => sum+e.height,0);
-    while (available + 36 <= 360) {entries.push({row:null,height:36}); available+=36;}
+    while (available + 36 <= rowCapacity) {entries.push({row:null,height:36}); available+=36;}
     for (const {row,height} of entries) {
       const bottom=y-height;
       if (row) page.drawRectangle({x:left,y:bottom,width:widths[0],height,color:pale});
@@ -102,10 +113,11 @@ export async function buildCheckoutPdf(roster, options = {}, {PDFLib, logoBytes,
       text(page,'Phone:',personX,bottom+8,7,normal,muted); rule(page,personX+25,bottom+5,personX+widths[1]-12,bottom+5);
       y=bottom;
     }
-    text(page,'Issued: ______    Returned: ______    Outstanding: ______    Checked by: __________________________',left,51,9,bold);
-    text(page,'C = Complete   P = Partial   N = Not worked. Record unworked streets/homes in notes. Follow the territory avoid-address instructions.',left,36,8,normal,muted);
-    text(page,`Prepared ${stamp}  |  Location ID: ${roster.hall.id}  |  Paper register - entries do not update the website.`,left,21,7,normal,muted);
+    text(page,'Issued: ______    Returned: ______    Outstanding: ______    Checked by: __________________________',left,footerY+30,9,bold);
+    text(page,'C = Complete   P = Partial   N = Not worked. Record unworked streets/homes in notes. Follow the territory avoid-address instructions.',left,footerY+15,8,normal,muted);
+    text(page,`Prepared ${stamp}  |  Location ID: ${roster.hall.id}  |  Paper register - entries do not update the website.`,left,footerY,7,normal,muted);
   }
+  ribbons.drawAllPages();
   const name=safe(roster.hall.name).replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90)||'meeting-place';
   return {blob:new Blob([await doc.save()],{type:'application/pdf'}),filename:`${name}${config.date?'-'+config.date:''}-territory-check-out-in.pdf`,pages:pages.length};
 }

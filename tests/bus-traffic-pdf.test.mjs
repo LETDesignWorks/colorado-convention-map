@@ -5,6 +5,7 @@ import {layoutViewport,projectPoint,tileJobs,wrapText,buildTrafficPdf,PDF_LOGO_U
 import {createRequire} from 'node:module';
 import {readFileSync} from 'node:fs';
 const require=createRequire(import.meta.url),PDFLib=require('../load-tests/vendor/pdf-lib.min.js');
+const ribbonAssets={header:readFileSync('assets/print-header-sky.png'),footer:readFileSync('assets/print-footer-hills.png')};
 const plan=()=>newTrafficPlan({id:'sample',name:'Sample location',address:'Synthetic test only',lat:39.6,lng:-105});
 test('the official convention logo is reused, not replaced with plain text',()=>assert.match(PDF_LOGO_URL,/assets\/denver-2027-territory-logo\.png$/));
 test('full-layout fit includes off-screen items and every route point',()=>{
@@ -20,7 +21,7 @@ test('text wrapping splits unbroken text without dropping characters',async()=>{
 test('PDF export fails clearly when the required logo is unavailable',async()=>{await assert.rejects(buildTrafficPdf(plan(),{PDFLib}),/logo/);});
 test('PDF export is independent of live objects and paginates long notes and names',async()=>{
  const p=plan();p.name='W'.repeat(160);p.locationName='Long location name '.repeat(8);p.notes=('Long setup note with clear pedestrian access.\n').repeat(50);p.items=[{id:'c',kind:'cone',label:'',point:[39.6,-105]},{id:'r',kind:'route',routeType:'bus',label:'Arrival',points:[[39.5999,-105],[39.6001,-105.0001]]},{id:'p',kind:'pin',pinType:'entry',label:'Entrance label',point:[39.6001,-105.0001]}];
- const before=JSON.stringify(p);const built=await buildTrafficPdf(p,{PDFLib,logoBytes:readFileSync('assets/denver-2027-territory-logo.png'),mapImage:async()=>readFileSync('load-tests/assets/bible.jpg'),unsaved:true});
+ const before=JSON.stringify(p);const built=await buildTrafficPdf(p,{PDFLib,ribbonAssets,logoBytes:readFileSync('assets/denver-2027-territory-logo.png'),mapImage:async()=>readFileSync('load-tests/assets/bible.jpg'),unsaved:true});
  assert.equal(JSON.stringify(p),before);assert.equal(built.blob.type,'application/pdf');const doc=await PDFLib.PDFDocument.load(await built.blob.arrayBuffer());assert.ok(doc.getPageCount()>=3);assert.ok(built.filename.endsWith('-traffic-plan.pdf'));
 });
-test('map failure cannot silently produce a PDF with blank imagery',async()=>{await assert.rejects(buildTrafficPdf(plan(),{PDFLib,logoBytes:readFileSync('assets/denver-2027-territory-logo.png'),mapImage:async()=>{throw Error('missing tile');}}),/missing tile/);});
+test('map failure cannot silently produce a PDF with blank imagery',async()=>{await assert.rejects(buildTrafficPdf(plan(),{PDFLib,ribbonAssets,logoBytes:readFileSync('assets/denver-2027-territory-logo.png'),mapImage:async()=>{throw Error('missing tile');}}),/missing tile/);});

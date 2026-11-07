@@ -1,4 +1,5 @@
-import {LOCATIONS,SOURCES} from './locations.js';
+import {mountPrintRibbons,waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
+import {LOCATIONS,SOURCES} from './locations.js?v=ribbons-20261107-1';
 import {calculate,routePoints,validPoint,conflicts,decodeRecord,encodeRecord,RECORD_TYPE,wallTime} from './model.mjs?v=20261020-3';
 
 const $=id=>document.getElementById(id), esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -110,7 +111,19 @@ $('mapStop').onclick=()=>{if(!map){message('The map is unavailable. Add a custom
 for(const id of [...fields,'roundTrip'])$(id).addEventListener('input',invalidate);
 $('routeForm').onsubmit=calculateRoute;$('newRoute').onclick=()=>{if(current||editingId){if(!confirm('Start a new route? Save or export any changes you want to keep first.'))return;}newPlan();};
 $('legs').addEventListener('change',event=>{if(!current||event.target.dataset.leg==null)return;const i=event.target.dataset.leg;current.plan.overrides[i]=event.target.value;try{current.summary=calculate(current.plan,current.legs);renderResults();renderReview();}catch(error){current=null;$('results').hidden=true;message(error.message+' Recalculate to continue.',true);}});
-$('saveLocal').onclick=saveLocal;$('saveShared').onclick=saveShared;$('print').onclick=()=>{if(!current)return;const details=$('timeline').parentElement;details.open=true;window.print();};
+mountPrintRibbons(document);
+$('saveLocal').onclick=saveLocal;$('saveShared').onclick=saveShared;
+$('print').onclick=async()=>{
+  if(!current||$('print').disabled)return;
+  const button=$('print'),label=button.textContent,snapshot=current,token=revision;
+  button.disabled=true;button.textContent='Preparing print…';
+  try{
+    await waitForPrintRibbons(document);
+    if(current!==snapshot||revision!==token)return;
+    $('timeline').parentElement.open=true;window.print();
+  }catch(error){if(current===snapshot&&revision===token)message(error.message,true);}
+  finally{button.disabled=false;button.textContent=label;}
+};
 for(const id of ['showAll','showTerritories'])$(id).onchange=()=>drawMap(true);$('fitMap').onclick=fitMap;
 for(const id of ['dateFilter','textFilter'])$(id).oninput=()=>{renderReview();drawMap();};
 $('routeList').onclick=event=>{const load=event.target.closest('[data-load]'),remove=event.target.closest('[data-remove]');if(load)loadRoute(load.dataset.load);if(remove&&confirm('Remove this route from this device? Export plans first if you need a backup.')){try{saveDeviceList(local.filter(r=>r.id!==remove.dataset.remove));if(editingId===remove.dataset.remove){editingId=null;editingShared=false;}renderReview();drawMap();}catch(error){message(error.message,true);}}};

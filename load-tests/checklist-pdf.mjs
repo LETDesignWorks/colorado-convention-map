@@ -1,8 +1,9 @@
+import {createPdfLibRibbons,ribbonLayout} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {dateText} from './model.mjs?v=20261019-3';
-import {timeText} from './report.mjs';
+import {timeText} from './report.mjs?v=ribbons-20261107-1';
 import {workbookFor,CHECKS,LITERATURE} from './workbook.mjs?v=20261019-3';
 
-const assetNames=['brand_sky.png','brand_mountains.png','packaging_photo.png',...LITERATURE.map(l=>l.image)];
+const assetNames=['packaging_photo.png',...LITERATURE.map(l=>l.image)];
 export async function fetchChecklistAssets(){
   return Object.fromEntries(await Promise.all(assetNames.map(async name=>{
     const response=await fetch(new URL(`./assets/${name}`,import.meta.url));
@@ -11,10 +12,11 @@ export async function fetchChecklistAssets(){
   })));
 }
 // Builds real AcroForm fields, including appearances for printing and saved values.
-export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,PDFLib=globalThis.PDFLib}={}){
+export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,ribbonAssets,PDFLib=globalThis.PDFLib}={}){
   if(!PDFLib)throw new Error('The editable PDF tools have not loaded. Reload this page and try again.');
-  const {PDFDocument,StandardFonts,rgb,PDFName,PDFString}=PDFLib;
+  const {PDFDocument,StandardFonts,rgb,PDFName,PDFString,degrees}=PDFLib;
   const pdf=await PDFDocument.create(),form=pdf.getForm();
+  const ribbons=await createPdfLibRibbons(pdf,{ribbonAssets});
   const regular=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const color=hex=>rgb(parseInt(hex.slice(1,3),16)/255,parseInt(hex.slice(3,5),16)/255,parseInt(hex.slice(5,7),16)/255);
   const navy=color('#17364B'),teal=color('#247C81'),ink=color('#243B4B'),muted=color('#536575'),line=color('#CCD9DF'),pale=color('#F0F7FC'),white=rgb(1,1,1);
@@ -38,8 +40,6 @@ export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,PDFL
   function heading(value,y){text(value,36,y,11,bold,teal);}
   function newPage(title,subtitle){
     page=pdf.addPage([612,792]);branded.push(page);
-    page.drawImage(images['brand_sky.png'],{x:0,y:741.12,width:612,height:50.88});
-    page.drawImage(images['brand_mountains.png'],{x:0,y:0,width:612,height:94.523});
     text('DENVER INTERNATIONAL CONVENTION 2027',36,83,8.5,bold,teal);
     const size=Math.min(24,540/bold.widthOfTextAtSize(clean(title),1));text(title,36,111,size,bold,navy);
     text(subtitle||dateText(test.date),36,127,Math.min(9.5,540/regular.widthOfTextAtSize(clean(subtitle||dateText(test.date)),1)),regular,muted);
@@ -206,10 +206,25 @@ export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,PDFL
   if(test.sampleTerritory&&scope!=='overall'){
     if(!sampleBytes)throw new Error('The saved sample territory could not be loaded. Try again before exporting.');
     const sample=await PDFDocument.load(sampleBytes);if(sample.getPageCount()>30)throw new Error('Use a sample territory with 30 pages or fewer.');
-    const pages=await pdf.copyPages(sample,sample.getPageIndices());
-    for(const p of pages){pdf.addPage(p);const {width,height}=p.getSize();
-      p.drawRectangle({x:18,y:height-19,width:width-36,height:16,color:white});
-      p.drawText('SAMPLE TERRITORY | Reference only; confirm local assignments.',{x:24,y:height-14,size:8,font:bold,color:teal});
+    // Bake existing form appearances into this in-memory copy before embedding.
+    // This does not write back to the uploaded sample or its editable original.
+    if(sample.getForm().getFields().length)sample.getForm().flatten({updateFieldAppearances:false});
+    // Reference pages are embedded as vector snapshots. The separate sample download
+    // retains its original fields; the editable checklist fields above stay untouched.
+    for(const source of sample.getPages()){
+      const crop=source.getCropBox(),rotation=((source.getRotation().angle%360)+360)%360;
+      const embedded=await pdf.embedPage(source,{left:crop.x,bottom:crop.y,right:crop.x+crop.width,top:crop.y+crop.height});
+      const sideways=rotation===90||rotation===270,width=sideways?crop.height:crop.width,height=sideways?crop.width:crop.height;
+      const p=pdf.addPage([width,height]),bands=ribbonLayout(width,height);
+      const availableHeight=height-bands.top-bands.bottom-26,scale=Math.min((width-36)/width,availableHeight/height);
+      const left=(width-width*scale)/2,bottom=bands.bottom+(availableHeight-height*scale)/2;
+      let x=left,y=bottom;
+      if(rotation===90)y+=crop.width*scale;
+      else if(rotation===180){x+=crop.width*scale;y+=crop.height*scale;}
+      else if(rotation===270)x+=crop.height*scale;
+      p.drawPage(embedded,{x,y,width:crop.width*scale,height:crop.height*scale,rotate:degrees(-rotation)});
+      const label='SAMPLE TERRITORY | Reference snapshot; confirm local assignments.';
+      p.drawText(label,{x:18,y:height-bands.top-11,size:Math.min(8,(width-36)/bold.widthOfTextAtSize(label,1)),font:bold,color:teal});
     }
   }
   const total=pdf.getPageCount();branded.forEach(p=>{
@@ -220,5 +235,6 @@ export async function makeChecklistPdf(test,scope,dirty,{assets,sampleBytes,PDFL
   form.updateFieldAppearances(regular);form.acroForm.dict.set(PDFName.of('NeedAppearances'),pdf.context.obj(false));
   pdf.setTitle(`${test.name} | ${scope==='all'?'All locations':sites[0].name||'Test coordination'} | Editable checklist`);
   pdf.setAuthor('Denver International Convention 2027');pdf.setSubject('Location confirmation, territory handoff, packet log, literature and volunteers');
+  ribbons.drawAllPages();
   return pdf.save();
 }

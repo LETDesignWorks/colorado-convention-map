@@ -1,3 +1,4 @@
+import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=sitewide-circles-20260926-2';
 import './bus-access-status-sync.js?v=bus-status-sync-20260927-1';
 import './location-address-autofill.js?v=20260910-3';
@@ -175,6 +176,7 @@ function addSmpwLink() {
 }
 
 function applyDenver2027Branding() {
+  mountPrintRibbons(document);
   addBrandingStyles();
   addHeaderLogo();
   addSouthDtcRailLink();

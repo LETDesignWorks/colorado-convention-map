@@ -1,11 +1,11 @@
-import { mountTrafficPlanner } from './traffic-planner.mjs?v=traffic-20261023-48';
-import { mountLocationPhotos } from './photos.mjs?v=photos-20261104-2';
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=ribbons-20261107-1';
+import { mountLocationPhotos } from './photos.mjs?v=ribbons-20261107-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=traffic-20261023-48';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { HALLS } from './data.js';
+import { HALLS } from './data.js?v=ribbons-20261107-1';
 import { CONVENTION_CENTER } from './planning-center.mjs?v=bus-center-20261023-53';
 import { DRIVE_TIME_AREA, driveTimeEstimateFor } from './drive-time-area.mjs?v=bus-drive-time-20261023-54';
 import { mountPlanningBoundary } from './rounded-boundary.mjs?v=bus-boundary-20261023-55';

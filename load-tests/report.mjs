@@ -1,3 +1,4 @@
+import {createJsPdfRibbons,ribbonLayout} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import { dateText,progress } from './model.mjs';
 export const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -15,11 +16,12 @@ function taskLines(t){return [`${t.status==='Complete'?'[x]':'[ ]'} ${t.title}`,
 export function reportHtml(test,scope,dirty){return `<div class="print-report">${selected(test,scope).map(site=>{
   const p=progress(test,site.id);return `<section class="print-site"><header class="print-header"><p>DENVER 2027 · FIELD SERVICE</p><h1>${e(test.name)}</h1><p>${e(dateText(test.date))} · ${e(site.name||'Test coordination')} · ${p.done}/${p.total} complete</p><p class="print-meta">${dirty?'UNSAVED DRAFT · ':''}Prepared ${e(new Date().toLocaleString())}</p></header>${placeLines(site).map(l=>`<p>${e(l)}</p>`).join('')}${test.notes?`<p class="print-note">${e(test.notes)}</p>`:''}${site.notes?`<p class="print-note">${e(site.notes)}</p>`:''}<h2>Contacts & responsibilities</h2>${site.contacts.length?site.contacts.map(c=>`<div class="print-contact">${contactLines(c).map((l,i)=>`<p${i?' class="print-meta"':''}>${e(l)}</p>`).join('')}</div>`).join(''):'<p>Contacts to confirm.</p>'}<h2>Checklist</h2>${site.tasks.length?site.tasks.map(t=>`<div class="print-task">${taskLines(t).map((l,i)=>`<p${i?' class="print-meta"':''}>${e(l)}</p>`).join('')}</div>`).join(''):'<p>No checklist items.</p>'}</section>`;}).join('')}</div>`;}
 // Render selectable text with line wrapping and page breaks, including long notes.
-export function makePdf(test,scope,dirty,JsPDF=globalThis.jspdf?.jsPDF){
+export async function makePdf(test,scope,dirty,JsPDF=globalThis.jspdf?.jsPDF,{ribbonAssets}={}){
   if(!JsPDF)throw new Error('PDF download is unavailable. Use Print / Save PDF, or reload and try again.');
-  const pdf=new JsPDF({unit:'pt',format:'letter'});const margin=42,width=528,bottom=744;let y=42;
+  const pdf=new JsPDF({unit:'pt',format:'letter'}),ribbons=await createJsPdfRibbons(pdf,{ribbonAssets});
+  const bands=ribbonLayout(612,792),margin=42,width=528,top=bands.top+16,bottom=792-bands.bottom-28;let y=top;
   const clean=s=>String(s).replace(/[–—]/g,' - ').replace(/[“”]/g,'"').replace(/[‘’]/g,"'").replace(/→/g,' > ');
-  function nextPage(){pdf.addPage();y=42;}
+  function nextPage(){pdf.addPage();y=top;}
   function text(value,size=10,bold=false,color='#23394b'){
     pdf.setFont('helvetica',bold?'bold':'normal');pdf.setFontSize(size);pdf.setTextColor(color);
     const lines=pdf.splitTextToSize(clean(value),width);for(const line of lines){if(y+size*1.4>bottom)nextPage();pdf.text(line,margin,y);y+=size*1.4;}y+=3;
@@ -31,6 +33,7 @@ export function makePdf(test,scope,dirty,JsPDF=globalThis.jspdf?.jsPDF){
     if(y+120>bottom)nextPage();text('Contacts & responsibilities',14,true,'#0b5b9f');if(!site.contacts.length)text('Contacts to confirm.');site.contacts.forEach(c=>block(contactLines(c)));
     if(y+150>bottom)nextPage();text('Checklist',14,true,'#0b5b9f');site.tasks.forEach(t=>block(taskLines(t)));
   });
-  const pages=pdf.getNumberOfPages();for(let n=1;n<=pages;n++){pdf.setPage(n);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#647583');pdf.text(`Prepared ${new Date().toLocaleDateString()}  |  ${test.date}  |  Private planning checklist`,margin,768);pdf.text(`${n} / ${pages}`,570,768,{align:'right'});}
+  const pages=pdf.getNumberOfPages();for(let n=1;n<=pages;n++){pdf.setPage(n);pdf.setFont('helvetica','normal');pdf.setFontSize(8);pdf.setTextColor('#647583');pdf.text(`Prepared ${new Date().toLocaleDateString()}  |  ${test.date}  |  Private planning checklist`,margin,792-bands.bottom-12);pdf.text(`${n} / ${pages}`,570,792-bands.bottom-12,{align:'right'});}
+  ribbons.drawAllPages();
   return pdf;
 }

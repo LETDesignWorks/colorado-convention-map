@@ -1,5 +1,5 @@
 import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS} from './traffic-model.mjs?v=traffic-20261023-48';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=traffic-20261023-48';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=ribbons-20261107-1';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};

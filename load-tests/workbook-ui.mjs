@@ -1,4 +1,4 @@
-import {escapeHtml as e,timeText} from './report.mjs';
+import {escapeHtml as e,timeText} from './report.mjs?v=ribbons-20261107-1';
 import {DETAIL_SECTIONS,CHECKS,LITERATURE,workbookFor} from './workbook.mjs?v=20261019-3';
 export function scheduleHtml(site){return `<div class="day-strip" aria-label="Day-of schedule"><div><strong>${e(timeText(site.openTime))}</strong><span>Hall opens; territory delivered</span></div><div><strong>${e(timeText(site.delegateTime))}</strong><span>Delegates arrive</span></div><div><strong>${e(site.closeTime?timeText(site.closeTime):(site.closeLabel||'After lunch').toUpperCase())}</strong><span>Hall closes</span></div></div>`;}
 export function workbookHtml(site){

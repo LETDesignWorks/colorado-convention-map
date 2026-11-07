@@ -1,3 +1,5 @@
+import {TERRITORY_PDF_LAYOUT as PDF_PAGE} from './pdf-page-layout.js?v=ribbons-20261107-1';
+
 // A trimmed boundary can leave older address assignments behind. Report those
 // records in a review appendix rather than preventing the whole PDF from opening.
 export function scopePdfAddresses(snapshot, geometry, { isMapped, contains, houseNumber }) {
@@ -29,11 +31,11 @@ export function addPdfReviewPages(doc, issues, header) {
   function newPage() {
     doc.addPage('letter', 'landscape'); header();
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(150, 38, 30);
-    doc.text('REVIEW COPY - resolve these address issues before ministry use.', 0.48, 1.27);
+    doc.text('REVIEW COPY - resolve these address issues before ministry use.', 0.48, PDF_PAGE.contentTop);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(60, 70, 85);
-    doc.text('No saved addresses, assignments, boundaries, or earlier PDFs were changed.', 0.48, 1.49);
-    doc.text('Outside and unmapped records are not on the maps or work list. Possible duplicates remain until reviewed.', 0.48, 1.69);
-    y = 2.05;
+    doc.text('No saved addresses, assignments, boundaries, or earlier PDFs were changed.', 0.48, PDF_PAGE.contentTop + .22);
+    doc.text('Outside and unmapped records are not on the maps or work list. Possible duplicates remain until reviewed.', 0.48, PDF_PAGE.contentTop + .42);
+    y = PDF_PAGE.contentTop + .78;
   }
   newPage();
   for (let index = 0; index < issues.length; index++) {
@@ -41,7 +43,7 @@ export function addPdfReviewPages(doc, issues, header) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
     const lines = doc.splitTextToSize(`${index + 1}. ${issue.address}${issue.avoid ? ' [AVOID / DO NOT VISIT]' : ''} - ${issue.reason}`, 9.95);
     for (const line of lines) {
-      if (y > 7.70) newPage();
+      if (y > PDF_PAGE.contentBottom) newPage();
       doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(40, 55, 72);
       doc.text(line, 0.48, y); y += 0.17;
     }
@@ -51,6 +53,6 @@ export function addPdfReviewPages(doc, issues, header) {
 export function stampPdfReview(doc, pageCount) {
   for (let page = 1; page <= pageCount; page++) {
     doc.setPage(page); doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(150, 38, 30);
-    doc.text('REVIEW COPY - address issues listed at the end; resolve before ministry use.', 2.15, 0.91);
+    doc.text('REVIEW COPY - address issues listed at the end; resolve before ministry use.', 2.15, PDF_PAGE.headerReview);
   }
 }

@@ -1,6 +1,6 @@
 try {
   await import('../assets/location-address-autofill.js?v=20260910-3');
-  await import('./app.js?v=automatic-address-coordinates-20260910-1');
+  await import('./app.js?v=ribbons-20261107-1');
 } catch (error) {
   console.error(error);
   const host = document.querySelector('.control-panel, .map-column') || document.body;

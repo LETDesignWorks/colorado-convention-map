@@ -1,3 +1,5 @@
+import {createJsPdfRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
+import {TERRITORY_PDF_LAYOUT as PDF_PAGE, territoryPdfMapBox} from './pdf-page-layout.js?v=ribbons-20261107-1';
 const VERSION = 'territories-20261012-24';
 const LOGO_URL = new URL('../assets/denver-2027-territory-logo.png', import.meta.url).href;
 const MODE_KEY = 'denver2027-territory-workflow-mode';
@@ -512,21 +514,21 @@ async function imageDataUrl(url) {
 }
 function safeAddLogo(doc, logo) {
   if (!logo) return false;
-  try { doc.addImage(logo, 'PNG', 0.30, 0.12, 1.55, 0.86, undefined, 'FAST'); return true; }
+  try { doc.addImage(logo, 'PNG', 0.30, PDF_PAGE.top + 0.01, 1.35, 0.75, undefined, 'FAST'); return true; }
   catch (error) { console.warn('Territory PDF logo could not be drawn.', error); return false; }
 }
 function addPdfHeader(doc, logo, title, subtitle) {
   const usedLogo = safeAddLogo(doc, logo);
   const x = usedLogo ? 2.02 : 0.45;
-  doc.setTextColor(11, 68, 126); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, x, 0.44);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(76, 91, 107); doc.text(subtitle, x, 0.69);
-  doc.setLineWidth(0.008); doc.setDrawColor(176, 194, 210); doc.line(0.35, 1.00, 10.65, 1.00);
+  doc.setTextColor(11, 68, 126); doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(title, x, PDF_PAGE.headerTitle);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(76, 91, 107); doc.text(subtitle, x, PDF_PAGE.headerSubtitle);
+  doc.setLineWidth(0.008); doc.setDrawColor(176, 194, 210); doc.line(0.35, PDF_PAGE.headerLine, 10.65, PDF_PAGE.headerLine);
 }
 function addPdfFooter(doc, page, count) {
-  doc.setLineWidth(0.008); doc.setDrawColor(211, 220, 228); doc.line(0.35, 8.13, 10.65, 8.13);
+  doc.setLineWidth(0.008); doc.setDrawColor(211, 220, 228); doc.line(0.35, PDF_PAGE.footerLine, 10.65, PDF_PAGE.footerLine);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(94, 106, 119);
-  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, 8.33);
-  doc.text(`Page ${page} of ${count}`, 10.65, 8.33, { align: 'right' });
+  doc.text('Denver 2027 Convention ministry territory — verify addresses, access, and boundaries locally before use.', 0.35, PDF_PAGE.footerNote);
+  doc.text(`Page ${page} of ${count}`, 10.65, PDF_PAGE.footerNote, { align: 'right' });
 }
 function sortedHouses(houses) {
   return [...houses].sort((a, b) => clean(a.address).localeCompare(clean(b.address), undefined, { numeric: true }));
@@ -538,12 +540,12 @@ function addAddressPages(doc, logo, territory, houses, hall, congregation, start
     addPdfHeader(doc, logo, `${territory.name} — Address List`, `${congregation} • ${hall?.name || ''}`);
     const xs = [0.48, 5.55];
     for (let column = 0; column < 2 && index < houses.length; column += 1) {
-      let y = 1.25;
-      while (index < houses.length && y < 7.88) {
+      let y = PDF_PAGE.contentTop;
+      while (index < houses.length && y < PDF_PAGE.contentBottom) {
         const text = `${startIndex + index + 1}. ${houses[index].address}`;
         const lines = doc.splitTextToSize(text, 4.55);
         const need = Math.max(0.22, lines.length * 0.17 + 0.07);
-        if (y + need > 7.88) break;
+        if (y + need > PDF_PAGE.contentBottom) break;
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3); doc.setTextColor(40, 55, 72); doc.text(lines, xs[column], y);
         y += need; index += 1;
       }
@@ -557,14 +559,14 @@ function addAvoidAddressPages(doc, logo, territory, avoids, hall, congregation) 
     doc.addPage('letter', 'landscape');
     addPdfHeader(doc, logo, `${territory.name} — Avoid / Do Not Visit`, `${congregation} • ${hall?.name || ''}`);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(177, 43, 35);
-    doc.text('Do not visit these addresses. Red X marks them on both territory maps.', 0.48, 1.25);
+    doc.text('Do not visit these addresses. Red X marks them on both territory maps.', 0.48, PDF_PAGE.top + .95);
     for (const x of [0.48, 5.55]) {
-      let y = 1.58;
-      while (index < addresses.length && y < 7.88) {
+      let y = PDF_PAGE.top + 1.22;
+      while (index < addresses.length && y < PDF_PAGE.contentBottom) {
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3);
         const lines = doc.splitTextToSize(`${index + 1}. ${addresses[index].address}`, 4.55);
         const need = Math.max(0.22, lines.length * 0.17 + 0.07);
-        if (y + need > 7.88) break;
+        if (y + need > PDF_PAGE.contentBottom) break;
         doc.text(lines, x, y);
         y += need; index += 1;
       }
@@ -611,6 +613,7 @@ async function generateReliablePdf(territoryId, button) {
     const hall = selectedHall();
     const congregation = selectedCongregation();
     const doc = new jsPDF({ orientation: 'landscape', unit: 'in', format: 'letter', compress: true });
+    const ribbons = await createJsPdfRibbons(doc);
     const subtitle = `${congregation} • ${hall?.name || ''} • ${houses.length} addresses${avoids.length ? ` • ${avoids.length} avoid` : ''}`;
     const hasListNumber = houses.some(house => !clean(house.address).match(/^\s*(\d+[A-Za-z]?)/));
     const legend = `Numbers = street numbers${hasListNumber ? ' • # = address list entry' : ''} • Red X = Avoid`;
@@ -618,13 +621,15 @@ async function generateReliablePdf(territoryId, button) {
       if (closer) doc.addPage('letter', 'landscape');
       addPdfHeader(doc, logo, `${territory.name} — ${closer ? 'Closer View' : 'Overview'}`, subtitle);
       const mapImage = buildVectorMap(territory, houses, avoids, geometry, { closer });
-      if (mapImage) doc.addImage(mapImage, 'JPEG', 0.43, 1.17, 10.14, 6.55, undefined, 'FAST');
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3); doc.setTextColor(64, 86, 109); doc.text(legend, 0.48, 7.93);
+      const box = territoryPdfMapBox(1200, 760);
+      if (mapImage) doc.addImage(mapImage, 'JPEG', box.x, box.y, box.width, box.height, undefined, 'FAST');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.3); doc.setTextColor(64, 86, 109); doc.text(legend, 0.48, PDF_PAGE.legendY);
     }
     addAddressPages(doc, logo, territory, houses, hall, congregation);
     addAvoidAddressPages(doc, logo, territory, avoids, hall, congregation);
     const pageCount = doc.getNumberOfPages();
     for (let page = 1; page <= pageCount; page += 1) { doc.setPage(page); addPdfFooter(doc, page, pageCount); }
+    ribbons.drawAllPages();
     status.textContent = 'Downloading PDF…';
     const filename = `${clean(congregation || 'congregation').toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${clean(territory.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-territory.pdf`;
     triggerBlobDownload(doc.output('blob'), filename);

@@ -1,3 +1,4 @@
+import {PDF_LAYOUT_VERSION} from './pdf-archive.js?v=ribbons-20261107-1';
 import { scanDuplicateAddresses, cleanDuplicateAddresses } from './address-duplicates.js?v=territories-20261023-50';
 
 // Operate on a detached print snapshot, never the live map or original archive.
@@ -21,7 +22,8 @@ export function preparePdfAddressSnapshot(sourceSnapshot) {
 export async function buildReviewedVersionPdf(version, hall, progress, { readPdf, buildPdf, allowReviewCopy = false }) {
   const report = scanDuplicateAddresses(version.houses || [], [version.territory]);
   let archiveReadFailed = false;
-  if (version.pdfRecord && !report.groups.length) {
+  const currentLayout = Number(version.pdfRecord?.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION;
+  if (version.pdfRecord && currentLayout && !report.groups.length) {
     try { return { blob: await readPdf(version.pdfRecord), filename: version.pdfRecord.filename || 'territory.pdf', regenerated: false }; }
     catch { archiveReadFailed = true; if (progress) progress.textContent = 'The archived file could not be read. Rebuilding from the saved territory data…'; }
   }

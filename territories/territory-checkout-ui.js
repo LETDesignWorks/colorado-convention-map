@@ -1,4 +1,4 @@
-import {buildCheckoutPdf, loadCheckoutLibrary, CHECKOUT_LOGO} from './territory-checkout-pdf.js?v=checkout-20261023-51';
+import {buildCheckoutPdf, loadCheckoutLibrary, CHECKOUT_LOGO} from './territory-checkout-pdf.js?v=ribbons-20261107-1';
 import {checkoutOptions} from './territory-checkout-model.js?v=checkout-20261023-51';
 export async function exportCheckoutPdf(roster, options) {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(),15000);

@@ -1,4 +1,4 @@
-import { mount } from './ui.mjs?v=20261019-3';
+import { mount } from './ui.mjs?v=ribbons-20261107-1';
 import { validateTest } from './model.mjs?v=20261019-3';
 import {packAttachment,unpackAttachment} from './attachments.mjs?v=20261019-3';
 

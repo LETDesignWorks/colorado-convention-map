@@ -18,7 +18,7 @@ try {
   document.head.appendChild(style);
   document.body.innerHTML = template;
   // Start independently: other optional tools must not delay this visible card.
-  import('./territory-checkout-ui.js?v=checkout-20261023-52')
+  import('./territory-checkout-ui.js?v=ribbons-20261107-1')
     .then(module => module.initializeCheckoutSheet())
     .catch(error => {
       console.warn('Check-in sheet unavailable',error);
@@ -27,15 +27,15 @@ try {
       notice.textContent='Territory check-out / check-in sheet could not load. Save any unsaved work, then refresh the planner to retry.';
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
-  await import('../assets/branding.js?v=bus-status-sync-20260927-1');
-  await import('./app-main.js?v=checkout-20261023-51');
+  await import('../assets/branding.js?v=ribbons-20261107-1');
+  await import('./app-main.js?v=ribbons-20261107-1');
   await import('./address-duplicates-ui.js?v=territories-20261023-50');
-  await import('./directions.js?v=territories-20261023-50');
+  await import('./directions.js?v=ribbons-20261107-1');
   await import('./bulk-addresses.js?v=territories-20261023-50');
   await import('./avoid-address-upload.js?v=territories-20261023-50');
   await import('./hall-address-sets.js?v=territories-20261023-50');
-  await import('./territory-workflow-ui.js?v=territories-20261023-50');
-  await import('./territory-flex-grouping-pdf.js?v=territories-20261023-50');
+  await import('./territory-workflow-ui.js?v=ribbons-20261107-1');
+  await import('./territory-flex-grouping-pdf.js?v=ribbons-20261107-1');
   await import('./address-source-merge.js?v=territories-20261023-50');
   await import('./assessor-scan-direct.js?v=territories-20261023-50');
   await import('./assessor-full-boundary.js?v=territories-20261023-50');

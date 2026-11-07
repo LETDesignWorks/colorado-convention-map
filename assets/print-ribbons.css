@@ -1,0 +1,14 @@
+/* Images print even with the browser's background-graphics option disabled. */
+.convention-print-header,.convention-print-footer {display:none!important;}
+@media print {
+  @page {margin:.65in .35in .8in;}
+  .convention-print-header,.convention-print-footer {
+    display:block!important;position:fixed!important;left:-.35in!important;
+    width:calc(100% + .7in)!important;max-width:none!important;max-height:none!important;
+    height:auto!important;margin:0!important;padding:0!important;border:0!important;
+    object-fit:contain!important;z-index:2147483640!important;pointer-events:none;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .convention-print-header {top:-.65in!important;bottom:auto!important;}
+  .convention-print-footer {bottom:-.8in!important;top:auto!important;}
+}

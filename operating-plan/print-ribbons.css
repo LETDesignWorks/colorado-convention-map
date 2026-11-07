@@ -1,0 +1,10 @@
+/* The shared fixed ribbons repeat on every printed page. Allow the original
+   cover content to flow within their reserved margins at either language size. */
+@media print {
+  .print-book .top-art, .print-book .bottom-art { display: none !important; }
+  .print-book .cover { height: auto; min-height: 0; margin: 0; break-after: page; }
+  .print-book .cover-inner { padding: 0; }
+  .print-book .document-heading, .print-book .template-note,
+  .print-book .cover-footer { break-inside: avoid; }
+  .print-book .print-section { break-before: page; }
+}

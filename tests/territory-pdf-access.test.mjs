@@ -1,3 +1,5 @@
+import {createJsPdfRibbons as drawRibbons} from '../assets/pdf-ribbons.mjs';
+import {PDF_LAYOUT_VERSION} from '../territories/pdf-archive.js';
 import { inflateSync } from 'node:zlib';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,11 +12,12 @@ import { createSavedPdfView } from '../territories/saved-pdf-view.js';
 import { scopePdfAddresses, duplicatePdfIssues, addPdfReviewPages, stampPdfReview } from '../territories/pdf-boundary-scope.js';
 import { buildReviewedVersionPdf, preparePdfAddressSnapshot } from '../territories/pdf-address-review.js';
 
+const ribbonAssets = {header:fs.readFileSync('assets/print-header-sky.png'),footer:fs.readFileSync('assets/print-footer-hills.png')};
 const shape = { type:'Polygon', coordinates:[[[-105.01,39.54],[-105,39.54],[-105,39.55],[-105.01,39.55],[-105.01,39.54]]] };
 const home=(id,extra={})=>({id,address:`${10000+Number(id||0)} Example St`,territoryId:'24',included:true,lat:39.545,lng:-105.005,...extra});
 const snapshot=(houses=[home('1')])=>({hall:{id:'21',name:'Test meeting place'},congregation:'Test congregation',territory:{id:'24',name:'Territory 24',geometry:shape,houseIds:houses.filter(h=>!h.avoid).map(h=>h.id)},houses});
 const options={isMapped:h=>h.lat!=null&&h.lng!=null&&Number.isFinite(+h.lat)&&Number.isFinite(+h.lng),contains:(h,g)=>turf.booleanPointInPolygon(turf.point([h.lng,h.lat]),g),houseNumber:h=>/^\d+/.exec(h.address)?.[0]};
-const version=()=>({id:'version-24',hallId:'21',congregation:'Test',territory:snapshot().territory,houses:snapshot().houses,pdfRecord:{id:'archive',filename:'original.pdf'}});
+const version=()=>({id:'version-24',hallId:'21',congregation:'Test',territory:snapshot().territory,houses:snapshot().houses,pdfRecord:{id:'archive',filename:'original.pdf',pdfLayoutVersion:PDF_LAYOUT_VERSION}});
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 function harness(buildPdf=async()=>({blob:new Blob(['pdf']),filename:'24.pdf'}),readPdf=async()=>new Blob(['old'])) {
  const dom=new JSDOM('<main></main>'),d=dom.window.document;let active=true;const revoked=[];let serial=0;
@@ -89,9 +92,9 @@ test('review appendix paginates long records without clipping the footer',()=>{
 test('production renderer builds a review PDF for a clipped tail without altering any source record',async()=>{
  const source=fs.readFileSync('territories/territory-flex-grouping-pdf.js','utf8');const start=source.indexOf('export async function buildTerritoryPdf(');const end=source.indexOf('\nasync function generateTerritoryPdf(',start);const code=source.slice(start,end).replace('export async function','async function');
  const s=snapshot([home('1'),home('2',{lat:39.56}),home('3',{avoid:true,included:false,territoryId:null,lat:39.56})]),before=JSON.stringify(s),mapCalls=[];
- const context={preparePdfAddressSnapshot,scopePdfAddresses,duplicatePdfIssues,addPdfReviewPages,stampPdfReview,JSON,sortedByAddress:h=>h,validCoordinates:options.isMapped,pdfHouseNumber:options.houseNumber,territoryGeometry:t=>t.geometry,geometryRings:g=>g.coordinates,pointInsideGeometry:options.contains,
+ const context={createJsPdfRibbons:doc=>drawRibbons(doc,{ribbonAssets}),preparePdfAddressSnapshot,scopePdfAddresses,duplicatePdfIssues,addPdfReviewPages,stampPdfReview,JSON,sortedByAddress:h=>h,validCoordinates:options.isMapped,pdfHouseNumber:options.houseNumber,territoryGeometry:t=>t.geometry,geometryRings:g=>g.coordinates,pointInsideGeometry:options.contains,
   globalThis:{jspdf:{jsPDF}},LOGO_URL:'test',imageCanvasData:async()=>'',buildStreetMapImage:async(t,h,a)=>{mapCalls.push([h.map(x=>x.id),a.map(x=>x.id)]);return{dataUrl:'test-map'};},loadNearbyCoffee:async()=>({shops:[]}),sleepFrame:async()=>{},
-  drawTerritoryMapPage:(doc,logo,t,h,a,map,hall,congregation,label)=>{doc.text(label,1,1.4);doc.text(`${h.length} homes`,1,1.7);},addAddressListPages:(doc,logo,t,h)=>{doc.addPage();doc.text(h.map(x=>x.address),1,1.4);},addAvoidPages(){},pdfHeader(){},drawNearbyCoffeePage(){},pdfFooter(){},clean:v=>String(v||'').trim(),PDF_LAYOUT_VERSION:33};
+  drawTerritoryMapPage:(doc,logo,t,h,a,map,hall,congregation,label)=>{doc.text(label,1,1.4);doc.text(`${h.length} homes`,1,1.7);},addAddressListPages:(doc,logo,t,h)=>{doc.addPage();doc.text(h.map(x=>x.address),1,1.4);},addAvoidPages(){},pdfHeader(){},drawNearbyCoffeePage(){},pdfFooter(){},clean:v=>String(v||'').trim(),PDF_LAYOUT_VERSION};
  vm.createContext(context);vm.runInContext(code+'\nthis.build=buildTerritoryPdf;',context);const built=await context.build(s,{});assert.equal(JSON.stringify(s),before);assert.equal(built.reviewCopy,true);assert.match(built.filename,/-REVIEW.pdf$/);assert.equal(built.reviewIssues.length,2);assert.equal(built.snapshot.houses.length,1);assert.equal(mapCalls.length,2);assert.ok(mapCalls.every(([h,a])=>h.length===1&&a.length===0));
  const bytes=Buffer.from(await built.blob.arrayBuffer());const streams=[...bytes.toString('latin1').matchAll(/stream\r?\n([\s\S]*?)\r?\nendstream/g)].map(m=>inflateSync(Buffer.from(m[1],'latin1')).toString('latin1')).join('\n');assert.match(streams,/REVIEW COPY/);assert.match(streams,/DO NOT VISIT/);fs.mkdirSync('test-results',{recursive:true});fs.writeFileSync('test-results/territory24-review-fixture.pdf',bytes);
 });
@@ -108,4 +111,25 @@ test('review-copy success explicitly warns that duplicates remain and retains cl
  const dom=new JSDOM('<button id="view"></button><button id="review"></button><button id="resolve"></button><p id="status"></p><div id="links"></div>'),d=dom.window.document;
  const viewer=createSavedPdfView({document:d,isActive:()=>true,reviewDuplicates:async()=>{},readPdf:async()=>{},buildPdf:async(v,p,o)=>{if(!o.allowReviewCopy)throw Object.assign(Error('14 duplicates'),{code:'PDF_REVIEW_REQUIRED'});return{blob:new Blob(['review']),filename:'review.pdf',reviewCopy:true};},urlApi:{revokeObjectURL(){},createObjectURL(){return 'blob:test'}}});
  const nodes={button:d.getElementById('view'),reviewButton:d.getElementById('review'),resolveButton:d.getElementById('resolve'),status:d.getElementById('status'),links:d.getElementById('links')};viewer.bind(version(),nodes);nodes.button.click();await tick();nodes.reviewButton.click();await tick();assert.equal(nodes.resolveButton.hidden,false);assert.match(nodes.status.textContent,/unresolved duplicate rows may still be included/);dom.window.close();
+});
+
+// Earlier generated files must rebuild for the new page artwork; the explicit
+// original-archive action continues to use readPdf directly in saved-pdf-view.
+test('ordinary saved-PDF view rebuilds earlier layouts while keeping the original archive',async()=>{
+ for(const layout of [undefined,PDF_LAYOUT_VERSION-1]){
+  const v=version();v.pdfRecord.pdfLayoutVersion=layout;let reads=0,builds=0;
+  const result=await buildReviewedVersionPdf(v,{id:'21'}, {},{
+   readPdf:async()=>{reads++;return 'old';},
+   buildPdf:async()=>{builds++;return {blob:'with-ribbons',filename:'new.pdf'};}
+  });
+  assert.equal(reads,0);assert.equal(builds,1);assert.equal(result.regenerated,true);
+  assert.equal(result.originalArchiveRetained,true);assert.equal(result.blob,'with-ribbons');
+ }
+});
+test('ordinary saved-PDF view may reuse an archive already carrying current artwork',async()=>{
+ let builds=0,reads=0;
+ const result=await buildReviewedVersionPdf(version(),{id:'21'}, {},{
+  readPdf:async()=>{reads++;return 'current';},buildPdf:async()=>{builds++;}
+ });
+ assert.equal(reads,1);assert.equal(builds,0);assert.equal(result.regenerated,false);
 });

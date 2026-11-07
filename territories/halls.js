@@ -2,7 +2,7 @@ import {
   HALLS as BASE_HALLS,
   DTC_BOUNDARY,
   DTC
-} from '../bus-access/data.js?v=territories-20260923-4';
+} from '../bus-access/data.js?v=ribbons-20261107-1';
 
 const CCC_ONLY_ADDITIONS = [
   {
