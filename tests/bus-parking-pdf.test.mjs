@@ -55,7 +55,8 @@ function assertFrames(record){
     for(const rectangle of p.rectangles)assert.ok(rectangle.y>=frame.bottom&&rectangle.y+rectangle.height<=top+.001,'badges and labels stay between the artwork');
   }
   const first=record.pages[0],stats=first.texts.find(entry=>/cones\s+\|/.test(entry.value)),parking=first.texts.find(entry=>entry.value.startsWith('Parking spaces:'));
-  assert.ok(stats.options.x+stats.options.font.widthOfTextAtSize(stats.value,stats.options.size)<parking.options.x-8,'parking total is separate from traffic counts');
+  assert.ok(parking,'the parking total remains on the map page');
+  if(stats)assert.ok(stats.options.x+stats.options.font.widthOfTextAtSize(stats.value,stats.options.size)<parking.options.x-8,'parking total is separate from traffic counts');
 }
 async function render(source){
   const record=recordDrawing(),viewports=[];
@@ -69,6 +70,15 @@ async function output(result,name){
   mkdirSync(process.env.PARKING_PDF_QA_OUTPUT,{recursive:true});
   writeFileSync(join(process.env.PARKING_PDF_QA_OUTPUT,name),new Uint8Array(await result.blob.arrayBuffer()));
 }
+function assertParkingOnly({record,result}){
+  assert.equal(result.pages,1,'parking-only exports contain exactly one map page');
+  assert.equal(record.pages.length,1,'no detail pages were generated');
+  const text=printed(record);
+  assert.ok(record.pages[0].texts.some(entry=>entry.value==='PARKING SPACES'));
+  assert.ok(text.includes('1 / 1'));
+  assert.doesNotMatch(text,/Setup notes|item key|Before use|Notes.*follow|R = route|L = location|\d+ cones|\d+ routes|\d+ labels/i);
+  assert.ok(!record.pages[0].texts.some(entry=>['Cone','Bus','Car','Pedestrian'].includes(entry.value)),'unused traffic legends are omitted');
+}
 
 test('full-layout bounds include every parking-row point even when the saved view is elsewhere',()=>{
   const p=plan();p.view={...p.view,lat:40,lng:-104,zoom:22};
@@ -81,19 +91,17 @@ test('full-layout bounds include every parking-row point even when the saved vie
   }
 });
 
-test('parking PDF draws exact space dots with numeric tags and preserves corrections without changing the plan',async()=>{
+test('parking-only PDF keeps exact dots and corrected counts on one map page without changing the plan',async()=>{
   const p=plan();p.items=[row('East row',90),row('West row',180,{countOverride:17,points:[[39.6,-105.0005],[39.6+north(180),-105.0005]]})];p.parking={totalOverride:25};
+  p.notes='Saved setup notes stay in the layout and do not appear in the parking-only PDF.';
   const original=JSON.stringify(p),{record,result,viewports}=await render(p),text=printed(record),map=firstPageText(record);
   assert.equal(JSON.stringify(p),original,'export is a detached snapshot');
+  assertParkingOnly({record,result});
   assert.match(map,/Parking spaces: 25/);
-  assert.match(map,/0 cones\s+\|\s+0 routes\s+\|\s+0 labels/);
   assert.deepEqual(numericTags(record),['10','17']);
   assert.doesNotMatch(map,/\b(?:P\d+|estimated?|adjusted)\b/i);
-  assert.ok(text.includes('The overall total was entered manually.'));
-  assert.ok(text.includes('2 marked parking rows total 27 spaces before the overall adjustment.'));
-  assert.ok(text.includes('Calculated count before row corrections: 30 spaces.'));
-  assert.ok(text.includes('Row 1 - East row: 10 spaces (calculated from row length; 9 ft per space along the row).'));
-  assert.ok(text.includes('Row 2 - West row: 17 spaces (entered manually; calculated count: 20 spaces; 9 ft per space along the row).'));
+  assert.ok(!text.includes(p.notes));assert.ok(!text.includes('East row'));assert.ok(!text.includes('West row'));
+  assert.doesNotMatch(text,/entered manually|Calculated count|before the overall adjustment/);
   assert.ok(record.pages[0].texts.some(entry=>entry.value==='Parking spaces'));
   assert.ok(!text.includes('P = parking row'));assert.doesNotMatch(text,/\bestimat(?:e|ed|es)\b/i);
   const first=record.pages[0],dots=mapCircles(record),bounds=mapBounds(record);
@@ -110,32 +118,40 @@ test('parking PDF draws exact space dots with numeric tags and preserves correct
 test('calculated rows and corrected zero use simple totals and draw the corresponding number of dots',async()=>{
   const calculated=plan();calculated.items=[row('One row',90),row('Second row',180)];
   const a=await render(calculated);assert.match(firstPageText(a.record),/Parking spaces: 30/);
-  assert.ok(printed(a.record).includes('Total from 2 marked parking rows.'));
+  assertParkingOnly(a);
   assert.equal(mapCircles(a.record).length,30);assert.deepEqual(numericTags(a.record),['10','20']);
   assert.doesNotMatch(printed(a.record),/\bestimat(?:e|ed|es)\b/i);
   const corrected=plan();corrected.items=[row('Closed row',90,{countOverride:0})];
   const b=await render(corrected);assert.match(firstPageText(b.record),/Parking spaces: 0/);
+  assertParkingOnly(b);
   assert.deepEqual(numericTags(b.record),['0']);assert.equal(mapCircles(b.record).length,0,'an explicit zero does not produce an anchor dot');
-  assert.ok(printed(b.record).includes('Calculated count before row corrections: 10 spaces.'));
-  assert.ok(printed(b.record).includes('including corrected row counts'));
+  assert.ok(!printed(b.record).includes('Calculated count before row corrections'));
   await output(a.result,'parking-calculated-total.pdf');await output(b.result,'parking-corrected-zero.pdf');
 });
 
 test('legacy uncounted layouts remain unknown while a manually entered zero stays zero',async()=>{
-  const legacy=plan();delete legacy.parking;
+  const legacy=plan();delete legacy.parking;legacy.notes='Saved notes do not add a page to an empty layout.';
   const before=JSON.stringify(legacy),a=await render(legacy),text=printed(a.record);
   assert.equal(JSON.stringify(legacy),before);assert.match(firstPageText(a.record),/Parking spaces: Not counted/);
-  assert.ok(text.includes('No parking-space count has been entered for this layout.'));
+  assertParkingOnly(a);assert.ok(!text.includes(legacy.notes));assert.ok(text.includes('No parking rows marked.'));
   assert.ok(!text.includes('Parking spaces: 0'));assert.equal(mapCircles(a.record).length,0);
-  const manual=plan();manual.parking={totalOverride:0};
+  const manual=plan();manual.parking={totalOverride:0};manual.notes='A manually entered total still needs only the map page.';
+  const manualBefore=JSON.stringify(manual);
   const b=await render(manual);assert.match(firstPageText(b.record),/Parking spaces: 0/);assert.equal(mapCircles(b.record).length,0);
-  assert.ok(printed(b.record).includes('The total was entered manually; no parking rows are marked in this layout.'));
+  assertParkingOnly(b);assert.equal(JSON.stringify(manual),manualBefore);assert.ok(!printed(b.record).includes(manual.notes));
+  manual.parking.totalOverride=23;
+  const c=await render(manual);assertParkingOnly(c);assert.match(firstPageText(c.record),/Parking spaces: 23/);assert.equal(mapCircles(c.record).length,0);
   await output(a.result,'parking-not-counted.pdf');await output(b.result,'parking-manual-zero.pdf');
 });
 
-test('numeric parking tags do not remove route and location anchor markers',async()=>{
+test('mixed parking and traffic keeps detail pages, route keys, and location anchor markers',async()=>{
   const p=plan();p.items=[row('Parking row',90),{id:'route',kind:'route',routeType:'bus',label:'Bus entrance',points:[[39.6,-105.0005],[39.6+north(90),-105.0005]]},{id:'entry',kind:'pin',pinType:'entry',label:'Entrance',point:[39.6,-104.9995]}];
-  const {record}=await render(p),map=firstPageText(record),circles=mapCircles(record);
+  p.notes='Keep this traffic setup note with the mixed layout.';
+  const original=JSON.stringify(p),{record,result}=await render(p),map=firstPageText(record),circles=mapCircles(record),text=printed(record);
+  assert.ok(result.pages>=2);assert.equal(JSON.stringify(p),original);
+  assert.ok(text.includes('SETUP NOTES & ITEM KEY'));assert.ok(text.includes(p.notes));
+  assert.ok(text.includes('Row 1 - Parking row: 10 spaces (calculated from row length; 9 ft per space along the row).'));
+  assert.ok(text.includes('R1 - Bus: Bus entrance'));assert.ok(text.includes('L1 - Entrance: Entrance'));assert.ok(text.includes('Before use'));
   assert.match(map,/0 cones\s+\|\s+1 routes\s+\|\s+1 labels/);
   assert.ok(map.includes('R1'));assert.ok(map.includes('L1 Entrance'));
   assert.deepEqual(numericTags(record),['10']);assert.equal(circles.filter(circle=>teal(circle.color)).length,10);
@@ -143,15 +159,54 @@ test('numeric parking tags do not remove route and location anchor markers',asyn
   assert.equal(record.pages[0].lines.filter(line=>white(line.color)).length,2,'only route and location tags keep leader lines');
 });
 
-test('long row names and setup notes paginate completely while the largest allowed parking total fits the summary',async()=>{
-  const p=plan();p.name='Parking-count continuation check';
+test('a cone, route, or location marker independently keeps complete parking-count details',async()=>{
+  const trafficItems=[
+    {id:'cone',kind:'cone',point:[39.6,-105.0005]},
+    {id:'route',kind:'route',routeType:'bus',label:'Bus path',points:[[39.6,-105.0005],[39.6+north(90),-105.0005]]},
+    {id:'pin',kind:'pin',pinType:'loading',label:'Loading point',point:[39.6,-105.0005]}
+  ];
+  for(const item of trafficItems){
+    const p=plan();p.items=[row('Corrected parking row',90,{countOverride:7}),item];p.parking={totalOverride:9};p.notes='Retain this note for '+item.kind;
+    const original=JSON.stringify(p),{record,result}=await render(p),text=printed(record);
+    assert.ok(result.pages>=2,item.kind+' retains details');assert.equal(JSON.stringify(p),original);
+    assert.ok(text.includes(p.notes));assert.ok(text.includes('The overall total was entered manually.'));
+    assert.ok(text.includes('1 marked parking row totals 7 spaces before the overall adjustment.'));
+    assert.ok(text.includes('Calculated count before row corrections: 10 spaces.'));
+    assert.ok(text.includes('Row 1 - Corrected parking row: 7 spaces (entered manually; calculated count: 10 spaces; 9 ft per space along the row).'));
+  }
+});
+
+test('long saved notes and row labels cannot create parking-only continuation pages',async()=>{
+  const p=plan();p.name='Parking map with long saved notes';
   p.parking={totalOverride:MAX_PARKING_SPACES};
   p.notes=Array.from({length:35},(_,i)=>`Setup note ${i+1}: Keep this complete sentence in the PDF. END-NOTE-${i+1}`).join('\n');
   p.items=Array.from({length:18},(_,i)=>row(`Row ${i+1} - ${'W'.repeat(75)} END-${i+1}`,90,{id:'row-'+i,points:[[39.6,-105+i*.0001],[39.6+north(90),-105+i*.0001]]}));
   const before=JSON.stringify(p),{record,result}=await render(p),text=printed(record);
-  assert.equal(JSON.stringify(p),before);assert.ok(result.pages>2);
+  assert.equal(JSON.stringify(p),before);assertParkingOnly({record,result});
   assert.match(firstPageText(record),/Parking spaces: 100,000/);
-  for(let i=1;i<=18;i++)assert.ok(text.includes(`END-${i}`),`row ${i} complete`);
-  for(let i=1;i<=35;i++)assert.ok(text.includes(`END-NOTE-${i}`),`note ${i} complete`);
-  await output(result,'parking-count-overflow.pdf');
+  assert.ok(!text.includes('END-'));assert.ok(!text.includes('END-NOTE-'));
+  const mixed=JSON.parse(before);mixed.items.push({id:'cone',kind:'cone',point:[39.6,-105]});
+  const b=await render(mixed),mixedText=printed(b.record);
+  assert.ok(b.result.pages>2,'long traffic details still paginate instead of losing their last pages');
+  assert.deepEqual(mapBounds(record),mapBounds(b.record),'parking-only mode keeps the same map dimensions as the traffic layout');
+  for(let i=1;i<=18;i++)assert.ok(mixedText.includes(`END-${i}`),`traffic row ${i} complete`);
+  for(let i=1;i<=35;i++)assert.ok(mixedText.includes(`END-NOTE-${i}`),`traffic note ${i} complete`);
+  await output(result,'parking-long-notes-map-only.pdf');
+});
+
+test('omitted text cannot trigger parking-only text warnings, while printed header replacements stay on one page',async()=>{
+  const p=plan();p.items=[row('駐車場の行',90)];p.notes='未印刷の保存されたメモ';
+  const original=JSON.stringify(p),a=await render(p);
+  assertParkingOnly(a);assert.equal(a.result.textWarning,false);assert.ok(!printed(a.record).includes('Text notice:'));assert.equal(JSON.stringify(p),original);
+  p.name='Parking 東京';p.locationName='Meeting place 京都';
+  const headerOriginal=JSON.stringify(p),b=await render(p),text=printed(b.record);
+  assertParkingOnly(b);assert.equal(b.result.textWarning,true);assert.equal(JSON.stringify(p),headerOriginal);
+  assert.ok(text.includes('Parking ??'));assert.ok(text.includes('Meeting place ??'));
+  const notice=b.record.pages[0].texts.find(entry=>entry.value.startsWith('Text notice:'));
+  const caption=b.record.pages[0].texts.find(entry=>entry.value==='Full layout fitted to page.');
+  const footer=b.record.pages[0].texts.find(entry=>entry.value==='PLANNING SKETCH - VERIFY ON SITE');
+  assert.ok(notice);assert.ok(notice.options.y+notice.options.size<caption.options.y);assert.ok(notice.options.y>footer.options.y+footer.options.size);
+  const mixed=JSON.parse(original);mixed.items.push({id:'cone',kind:'cone',point:[39.6,-105]});
+  const c=await render(mixed);assert.ok(c.result.pages>=2);assert.equal(c.result.textWarning,true);assert.ok(printed(c.record).includes('Text notice:'));
+  await output(b.result,'parking-header-text-notice.pdf');
 });

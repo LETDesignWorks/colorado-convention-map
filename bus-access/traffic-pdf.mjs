@@ -109,7 +109,7 @@ export function wrapText(text,font,size,width) {
 }
 function dateLabel(date){return new Intl.DateTimeFormat('en-US',{timeZone:'America/Denver',dateStyle:'medium',timeStyle:'short'}).format(date)+' MT';}
 export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress=()=>{},now=new Date(),unsaved=false,ribbonAssets}={}) {
-  const plan=validatePlan(source,source.locationId);
+  const plan=validatePlan(source,source.locationId),parkingOnly=plan.items.every(item=>item.kind==='parking-row');
   if(!PDFLib?.PDFDocument)throw Error('The PDF library is not available.');
   if(!logoBytes?.length)throw Error('The convention logo could not load. No unbranded PDF was created. Please retry.');
   const {PDFDocument,StandardFonts,rgb}=PDFLib,doc=await PDFDocument.create();
@@ -121,7 +121,7 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   const parking=parkingSummary(plan),number=value=>Number(value).toLocaleString('en-US');
   const spaces=value=>`${number(value)} ${value===1?'space':'spaces'}`;
   const parkingTotal=`Parking spaces: ${parking.total===null?'Not counted':number(parking.total)}`;
-  doc.setTitle(`${plan.name} - Traffic patterns and cones`);doc.setSubject('2027 Denver Convention parking-lot planning sketch');doc.setCreator('Denver 2027 Bus Review');doc.setCreationDate(now);
+  doc.setTitle(`${plan.name} - ${parkingOnly?'Parking spaces':'Traffic patterns and cones'}`);doc.setSubject('2027 Denver Convention parking-lot planning sketch');doc.setCreator('Denver 2027 Bus Review');doc.setCreationDate(now);
   const text=(page,value,x,y,size=10,weight=font,color=ink)=>page.drawText(printable(value,weight),{x,y,size,font:weight,color});
   const lines=(page,value,x,y,size,width,weight=font,color=ink)=>{for(const line of wrapText(value,weight,size,width)){if(line)text(page,line,x,y,size,weight,color);y-=size+3;}return y;};
   function header(page,section){
@@ -132,9 +132,9 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
     const lower=Math.min(contentTop-80,y-8);page.drawLine({start:{x:24,y:lower},end:{x:768,y:lower},thickness:.7,color:rgb(.75,.80,.85)});
     return lower-18;
   }
-  let page=doc.addPage([792,612]),top=header(page,'Traffic patterns & cones');
+  let page=doc.addPage([792,612]),top=header(page,parkingOnly?'Parking spaces':'Traffic patterns & cones');
   const counts={cones:plan.items.filter(i=>i.kind==='cone').length,routes:plan.items.filter(i=>i.kind==='route').length,labels:plan.items.filter(i=>i.kind==='pin').length};
-  text(page,`${counts.cones} cones   |   ${counts.routes} routes   |   ${counts.labels} labels`,24,top,10,bold);
+  if(!parkingOnly)text(page,`${counts.cones} cones   |   ${counts.routes} routes   |   ${counts.labels} labels`,24,top,10,bold);
   const parkingWidth=bold.widthOfTextAtSize(parkingTotal,10)+16;
   page.drawRectangle({x:768-parkingWidth,y:top-5,width:parkingWidth,height:20,color:rgb(.91,.97,.94),borderColor:rgb(.65,.83,.75),borderWidth:.6});
   text(page,parkingTotal,776-parkingWidth,top,10,bold,parking.total===null?muted:parkingInk);
@@ -169,8 +169,8 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
     page.drawRectangle({x:x-7*size,y:y-7*size,width:14*size,height:2*size,color:orange,borderColor:navy,borderWidth:.4});
   }
   plan.items.filter(i=>i.kind==='cone').forEach(item=>{const p=pos(item.point);cone(p.x,p.y,.8);});
-  // Short numbered tags keep long custom descriptions off the map. Full text is
-  // always printed in the accompanying item key, never truncated or discarded.
+  // Short tags keep long descriptions off the map. Traffic layouts include the
+  // descriptions in their item key; parking-only exports keep just the counts.
   const placed=[];
   function tag(point,value,color=navy,anchor=true){
     const p=pos(point),width=bold.widthOfTextAtSize(value,8)+10,height=15;
@@ -188,42 +188,50 @@ export async function buildTrafficPdf(source,{PDFLib,logoBytes,mapImage,progress
   text(page,'N',map.x+map.width-22,map.y+map.height-20,9,bold,navy);
   const nx=map.x+map.width-18,ny=map.y+map.height-27;line({x:nx,y:ny-11},{x:nx,y:ny},1.2,navy);line({x:nx-3,y:ny-4},{x:nx,y:ny},1.2,navy);line({x:nx+3,y:ny-4},{x:nx,y:ny},1.2,navy);
   const legendY=footerLineY+52;
-  let lx=32;cone(lx,legendY+3,.7);text(page,'Cone',lx+12,legendY,9);lx=113;
-  for(const type of ['bus','car','walk']){line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},5,navy);line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,legendY,9);lx+=type==='walk'?135:95;}
-  if(parkingRows.length){
-    page.drawCircle({x:489,y:legendY+3,size:2.2,color:parkingColor,borderColor:parkingOutline,borderWidth:.7});text(page,'Parking spaces',508,legendY,9);
-  }else text(page,'R = route key     L = location label key',477,legendY,9);
-  const attribution=plan.view.base==='street'?STREET_ATTRIBUTION:`${SATELLITE_ATTRIBUTION} | ${STREET_NAMES_ATTRIBUTION}`;
-  text(page,attribution,24,footerLineY+35,7,font,muted);text(page,parkingRows.length?'Full layout fitted to page. R = route; L = location. Notes and item key follow.':'Full layout fitted to page. Notes and item key follow.',24,footerLineY+22,8,font,muted);
-  if(!plan.items.length)text(page,'No traffic items in this layout.',map.x+20,map.y+20,11,bold,navy);
-  // Notes/key pages paginate by measured text width and available height.
-  let y=0;
-  function detailsPage(){page=doc.addPage([792,612]);y=header(page,'Setup notes & item key');}
-  function paragraph(value,size=10,weight=font,color=ink){for(const entry of wrapText(value,weight,size,744)){
-    if(y<footerLineY+size+13)detailsPage();if(entry)text(page,entry,24,y,size,weight,color);y-=size+4;}y-=7;}
-  detailsPage();paragraph(plan.locationName,14,bold,navy);paragraph(plan.locationAddress,10);
-  paragraph(unsaved?'CURRENT DRAFT EXPORT - not saved to the cloud by exporting.':'Exported layout snapshot. Exporting does not create or update a saved layout.',9,bold,navy);
-  paragraph(`Prepared ${dateLabel(now)}. ${counts.cones} cones; ${counts.routes} routes; ${counts.labels} location labels.`,9);
-  paragraph('Parking spaces',12,bold,navy);paragraph(parkingTotal,11,bold,parking.total===null?muted:parkingInk);
-  if(parking.totalOverride!==null){
-    paragraph(parking.rowCount?`The overall total was entered manually. The ${parking.rowCount} marked parking ${parking.rowCount===1?'row totals':'rows total'} ${spaces(parking.rowTotal)} before the overall adjustment.`:'The total was entered manually; no parking rows are marked in this layout.',9);
-  }else if(parking.rowCount){
-    paragraph(`Total from ${parking.rowCount} marked parking ${parking.rowCount===1?'row':'rows'}${parking.adjusted?', including corrected row counts':''}.`,9);
-  }else paragraph('No parking-space count has been entered for this layout.',9);
-  if(parkingRows.length){
-    paragraph(`Calculated count before row corrections: ${spaces(parking.estimatedTotal)}. Calculations use the measured map lengths and feet per space entered for each row.`,9);
-    for(const [i,item]of parkingRows.entries()){
-      const calculated=estimateParkingRow(item),count=parkingRowCount(item),adjusted=item.countOverride!==null;
-      paragraph(`Row ${i+1}${item.label?` - ${item.label}`:''}: ${spaces(count)} (${adjusted?`entered manually; calculated count: ${spaces(calculated)}`:'calculated from row length'}; ${item.spaceWidthFeet} ft per space along the row).`,10);
-    }
+  if(!parkingOnly){
+    let lx=32;cone(lx,legendY+3,.7);text(page,'Cone',lx+12,legendY,9);lx=113;
+    for(const type of ['bus','car','walk']){line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},5,navy);line({x:lx,y:legendY+3},{x:lx+24,y:legendY+3},2.8,c(ROUTES[type].color),type==='walk'?[6,3]:null);text(page,ROUTES[type].label,lx+31,legendY,9);lx+=type==='walk'?135:95;}
   }
-  paragraph('Setup notes',12,bold,navy);paragraph(plan.notes||'No setup notes entered.');
-  if(routes.length){paragraph('Route key',12,bold,navy);routes.forEach((item,i)=>paragraph(`R${i+1} - ${ROUTES[item.routeType].label}: ${item.label||'Unnamed route'}`,10));}
-  if(pins.length){paragraph('Location label key',12,bold,navy);pins.forEach((item,i)=>paragraph(`L${i+1} - ${PINS[item.pinType]}: ${item.label||PINS[item.pinType]}`,10));}
-  paragraph('Before use',12,bold,navy);paragraph(WARNING,9);paragraph('Aerial imagery may be outdated. Enlarging imagery does not add detail. Cone quantities and spacing are user-defined, not calculated safety recommendations. Map orientation is north-up; the printed layout is not to a fixed scale.',9);
-  const allText=[plan.name,plan.locationName,plan.locationAddress,plan.notes,...plan.items.map(i=>i.label)].join('\n');
+  if(parkingRows.length){
+    page.drawCircle({x:parkingOnly?32:489,y:legendY+3,size:2.2,color:parkingColor,borderColor:parkingOutline,borderWidth:.7});text(page,'Parking spaces',parkingOnly?44:508,legendY,9);
+  }else if(!parkingOnly)text(page,'R = route key     L = location label key',477,legendY,9);
+  const attribution=plan.view.base==='street'?STREET_ATTRIBUTION:`${SATELLITE_ATTRIBUTION} | ${STREET_NAMES_ATTRIBUTION}`;
+  const mapCaption=parkingOnly?'Full layout fitted to page.':parkingRows.length?'Full layout fitted to page. R = route; L = location. Notes and item key follow.':'Full layout fitted to page. Notes and item key follow.';
+  text(page,attribution,24,footerLineY+35,7,font,muted);text(page,mapCaption,24,footerLineY+22,8,font,muted);
+  if(!plan.items.length)text(page,'No parking rows marked.',map.x+20,map.y+20,11,bold,navy);
+  const allText=[plan.name,plan.locationName,plan.locationAddress,...(parkingOnly?[]:[plan.notes,...routes.map(i=>i.label),...pins.map(i=>i.label),...parkingRows.map(i=>i.label)])].join('\n');
   const unsupported=[...new Set([...allText].filter(ch=>{if(/[\n\r\t‐‑‒–—…\u00a0]/.test(ch))return false;try{font.encodeText(ch);return false;}catch{return true;}}))];
-  if(unsupported.length)paragraph('Text notice: Some non-Western characters were replaced with ? for this PDF. The original layout and JSON retain the complete text.',9,bold);
+  if(parkingOnly){
+    if(unsupported.length)text(page,'Text notice: Unsupported characters were replaced with ?. The saved layout retains the original text.',24,footerLineY+8,8,font,muted);
+  }else{
+    // Traffic details paginate completely; parking-only exports never enter
+    // this block, regardless of the saved notes or row-label lengths.
+    let y=0;
+    function detailsPage(){page=doc.addPage([792,612]);y=header(page,'Setup notes & item key');}
+    function paragraph(value,size=10,weight=font,color=ink){for(const entry of wrapText(value,weight,size,744)){
+      if(y<footerLineY+size+13)detailsPage();if(entry)text(page,entry,24,y,size,weight,color);y-=size+4;}y-=7;}
+    detailsPage();paragraph(plan.locationName,14,bold,navy);paragraph(plan.locationAddress,10);
+    paragraph(unsaved?'CURRENT DRAFT EXPORT - not saved to the cloud by exporting.':'Exported layout snapshot. Exporting does not create or update a saved layout.',9,bold,navy);
+    paragraph(`Prepared ${dateLabel(now)}. ${counts.cones} cones; ${counts.routes} routes; ${counts.labels} location labels.`,9);
+    paragraph('Parking spaces',12,bold,navy);paragraph(parkingTotal,11,bold,parking.total===null?muted:parkingInk);
+    if(parking.totalOverride!==null){
+      paragraph(parking.rowCount?`The overall total was entered manually. The ${parking.rowCount} marked parking ${parking.rowCount===1?'row totals':'rows total'} ${spaces(parking.rowTotal)} before the overall adjustment.`:'The total was entered manually; no parking rows are marked in this layout.',9);
+    }else if(parking.rowCount){
+      paragraph(`Total from ${parking.rowCount} marked parking ${parking.rowCount===1?'row':'rows'}${parking.adjusted?', including corrected row counts':''}.`,9);
+    }else paragraph('No parking-space count has been entered for this layout.',9);
+    if(parkingRows.length){
+      paragraph(`Calculated count before row corrections: ${spaces(parking.estimatedTotal)}. Calculations use the measured map lengths and feet per space entered for each row.`,9);
+      for(const [i,item]of parkingRows.entries()){
+        const calculated=estimateParkingRow(item),count=parkingRowCount(item),adjusted=item.countOverride!==null;
+        paragraph(`Row ${i+1}${item.label?` - ${item.label}`:''}: ${spaces(count)} (${adjusted?`entered manually; calculated count: ${spaces(calculated)}`:'calculated from row length'}; ${item.spaceWidthFeet} ft per space along the row).`,10);
+      }
+    }
+    paragraph('Setup notes',12,bold,navy);paragraph(plan.notes||'No setup notes entered.');
+    if(routes.length){paragraph('Route key',12,bold,navy);routes.forEach((item,i)=>paragraph(`R${i+1} - ${ROUTES[item.routeType].label}: ${item.label||'Unnamed route'}`,10));}
+    if(pins.length){paragraph('Location label key',12,bold,navy);pins.forEach((item,i)=>paragraph(`L${i+1} - ${PINS[item.pinType]}: ${item.label||PINS[item.pinType]}`,10));}
+    paragraph('Before use',12,bold,navy);paragraph(WARNING,9);paragraph('Aerial imagery may be outdated. Enlarging imagery does not add detail. Cone quantities and spacing are user-defined, not calculated safety recommendations. Map orientation is north-up; the printed layout is not to a fixed scale.',9);
+    if(unsupported.length)paragraph('Text notice: Some non-Western characters were replaced with ? for this PDF. The original layout and JSON retain the complete text.',9,bold);
+  }
   for(const[p,index]of doc.getPages().map((p,i)=>[p,i])){
     p.drawLine({start:{x:24,y:footerLineY},end:{x:768,y:footerLineY},thickness:.6,color:rgb(.8,.83,.87)});
     text(p,'PLANNING SKETCH - VERIFY ON SITE',24,footerY,8,bold,navy);text(p,dateLabel(now),340,footerY,8,font,muted);text(p,`${index+1} / ${doc.getPageCount()}`,727,footerY,8,font,muted);

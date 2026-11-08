@@ -51,6 +51,27 @@ test('separate parking export uses its existing renderer and does not read locat
   assert.equal(result.blob,parking.blob);assert.equal(result.filename,parking.filename);
 });
 
+test('a parking-spaces-only packet appends one map page and preserves every review and photo page',async()=>{
+  const plan=newTrafficPlan(location(),now);plan.name='Parking spaces only';
+  plan.notes=('Saved setup notes must not add parking pages.\n').repeat(45);
+  plan.items=[{id:'spaces',kind:'parking-row',label:'Saved row description',spaceWidthFeet:9,countOverride:null,points:[[39.6,-105],[39.6+90*.3048/6371008.8*180/Math.PI,-105]]}];
+  const before=JSON.stringify(plan);
+  const review=await buildPhotoPdf({report:publicPhotoReport(location(),{status:'Approved'}),notes:'These notes belong to the location review.',overviewPhotoId:'outside',photos:[photo('inside'),photo('outside')],loadImage:async()=>new Blob([jpeg],{type:'image/jpeg'})},{PDFLib,ribbonAssets,logoBytes,now});
+  const reviewBytes=new Uint8Array(await review.blob.arrayBuffer());let parking;
+  const result=await buildParkingPdfPacket(plan,{combined:true,
+    getLocationPdf:async()=>({...review,isCurrent:()=>true}),
+    exportPdf:async captured=>{parking=await buildTrafficPdf(captured,{PDFLib,ribbonAssets,logoBytes,mapImage:async()=>jpeg,now});return parking;},
+    mergePdfs:(documents,options)=>mergePdfDocuments(documents,{...options,PDFLib})});
+  assert.equal(parking.pages,1);assert.equal(result.pages,review.pages+1);
+  assert.equal(JSON.stringify(plan),before,'export keeps the saved setup notes');
+  assert.deepEqual(new Uint8Array(await review.blob.arrayBuffer()),reviewBytes,'the review PDF is not shortened or modified');
+  const output=await PDFLib.PDFDocument.load(await result.blob.arrayBuffer());
+  assert.deepEqual(output.getPages().map(page=>page.getSize()),[
+    ...Array.from({length:review.pages},()=>({width:960,height:540})),
+    {width:792,height:612}]);
+  assert.equal(result.isCurrent(),true);
+});
+
 test('combined export fails before map work when review photos are unavailable and never returns a partial packet',async()=>{
   const plan=newTrafficPlan(location(),now);let maps=0;
   await assert.rejects(buildParkingPdfPacket(plan,{combined:true,getLocationPdf:async()=>{throw Error('Photo library is still loading.');},exportPdf:async()=>{maps++;return pdfResult();}}),/loading/);

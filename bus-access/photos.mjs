@@ -1,6 +1,6 @@
 import {PHOTO_LIMIT, createDevicePhotoStore, photoError} from './photos-model.mjs';
 import {preparePhoto} from './photos-images.mjs';
-import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=parking-dots-20261108-1';
+import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=parking-map-only-20261108-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 import {PDF_NOTES_LIMIT, createPhotoReportDraftStore, photoReportScope, reportNotes, pdfPhotos, selectedOverviewPhotoId} from './photos-report-draft.mjs?v=photo-selection-20261107-1';
 

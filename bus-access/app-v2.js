@@ -1,5 +1,5 @@
-import { mountTrafficPlanner } from './traffic-planner.mjs?v=auto-parking-20261108-1';
-import { mountLocationPhotos } from './photos.mjs?v=parking-dots-20261108-1';
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=parking-map-only-20261108-1';
+import { mountLocationPhotos } from './photos.mjs?v=parking-map-only-20261108-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=parking-dots-20261108-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';

@@ -1,5 +1,5 @@
 import {createPdfLibRibbons, ribbonLayout} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
-import {loadPdfLibrary, wrapText, printable, PDF_LOGO_URL} from './traffic-pdf.mjs?v=parking-dots-20261108-1';
+import {loadPdfLibrary, wrapText, printable, PDF_LOGO_URL} from './traffic-pdf.mjs?v=parking-map-only-20261108-1';
 
 export const PHOTO_PDF_PAGE = Object.freeze({width:960, height:540});
 

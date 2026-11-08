@@ -1,5 +1,5 @@
 import {newTrafficPlan,validatePlan,clone,point as checkedPoint,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSpacePoints,parkingSummary} from './traffic-model.mjs?v=parking-dots-20261108-1';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-dots-20261108-1';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-map-only-20261108-1';
 import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 import {createTrafficBasemap} from './traffic-basemap.mjs?v=street-names-20261107-1';
@@ -365,7 +365,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
         finally{if(state===s&&presentation.isConnected)presentation.disabled=false;}
       });
       s.nodes.pdfLinks.append(open,download,presentation);
-      say(`PDF ready (${built.pages||'multiple'} pages). ${combined?'Bus Access Review and selected photos come first, followed by the parking-lot layout and notes.':'Includes the convention logo, full parking-lot layout, and notes.'} The sky header and hills footer appear on every page. Exporting does not save your layout to the cloud.${built.textWarning?' Some text characters need review; see the PDF text notice.':''}`);
+      say(`PDF ready (${built.pages||'multiple'} ${built.pages===1?'page':'pages'}). ${combined?'Bus Access Review and selected photos come first, followed by the parking map. ':''}Parking spaces alone use one map page. Traffic layouts also include setup notes and item details. The sky header and hills footer appear on every page. Exporting does not save your layout to the cloud.${built.textWarning?' Some text characters need review; see the PDF text notice.':''}`);
     }catch(error){if(state===s&&permitted())say(`PDF was not created: ${error.message} Your layout and saved work are unchanged.`);}
     finally{if(state===s){s.busy=false;render();}}
   }
@@ -431,7 +431,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <p data-dirty class="traffic-dirty"></p><button class="btn blue" data-save>Save layout — new copy</button>
       <button type="button" class="btn blue" data-export-pdf>Export parking-lot PDF</button>
       <button type="button" class="btn blue" data-export-combined>Export bus review + parking PDF</button>
-      <small>Both options include the sky header and hills footer. The combined PDF starts with the saved Bus Access Review and the photos included by your Location photos &amp; PDF settings, then includes this parking-lot layout and notes.</small>
+      <small>Parking spaces alone use one map page. Traffic layouts include setup notes and item details. Combined PDFs start with the saved Bus Access Review and included location photos, followed by the parking map and any traffic details. Both options keep the sky header and hills footer.</small>
       <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
