@@ -4,12 +4,12 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <meta name="theme-color" content="#083f73"/>
-  <title>Hotel-to-Field-Service Bus Route Planner</title>
+  <title>Bus &amp; RTD Departure Planner</title>
   <link rel="apple-touch-icon" href="../apple-touch-icon.png"/>
   <link rel="preconnect" href="https://unpkg.com"/>
   <link rel="preconnect" href="https://tile.openstreetmap.org"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="styles.css"/>
+  <link rel="stylesheet" href="styles.css?v=rtd-20261108-1"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=packets-20261107-1"></script>
 </head>
@@ -18,8 +18,8 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="brand">
-        <h1>Hotel-to-Field-Service Bus Route Planner</h1>
-        <p>Choose a hotel and meeting location, estimate travel time, calculate departure time, and save the plan.</p>
+        <h1>Bus &amp; RTD Departure Planner</h1>
+        <p>Choose a starting location, calculate when to leave, and share a travel plan with friends.</p>
       </div>
       <nav class="navlinks" aria-label="Planning site navigation">
         <a class="btn ghost" href="../">Full Planning Map</a>
@@ -35,18 +35,23 @@
     <section class="control-panel">
       <div class="card intro-card">
         <div class="eyebrow">Route setup</div>
-        <h2>Plan a hotel departure</h2>
+        <h2>Plan when to leave</h2>
         <p>The route estimate uses the road network without live traffic or bus-specific restrictions. Add a travel allowance and an early-arrival buffer before using the departure time operationally.</p>
       </div>
 
       <form class="card planner-form" id="plannerForm">
+        <div class="field full">
+          <label for="tripPurpose">Trip type</label>
+          <select id="tripPurpose"><option value="meeting">Bus to a meeting location</option><option value="rtd">Starting location → RTD station</option></select>
+          <small id="tripScope">Plan the drive to your meeting location.</small>
+        </div>
         <div class="field full">
           <label for="routeName">Route name</label>
           <input id="routeName" maxlength="140" name="routeName" placeholder="Example: H17 to Highlands Ranch morning field service"/>
         </div>
 
         <div class="field full">
-          <label for="hotelSelect">Starting hotel</label>
+          <label for="hotelSelect">Starting location</label>
           <select id="hotelSelect" name="hotelId" required></select>
           <small id="hotelAddress"></small>
         </div>
@@ -57,10 +62,30 @@
         </div>
 
         <div class="field full">
-          <label for="destinationSelect">Meeting for field service location</label>
+          <label for="destinationSelect" id="destinationLabel">Meeting for field service location</label>
           <select id="destinationSelect" name="destinationId" required></select>
           <small id="destinationAddress">Select a Kingdom Hall, saved meeting area, planning landmark, or custom point.</small>
         </div>
+
+        <section id="rtdSetup" class="rtd-setup" hidden>
+          <div id="stationAdvice" class="station-advice"></div>
+          <details id="stationEditor">
+            <summary>Add an RTD station</summary>
+            <p>Enter the station's address and use the map to place its parking or drop-off point, or enter verified coordinates.</p>
+            <div class="form-grid">
+              <div class="field full"><label for="stationName">Station name</label><input id="stationName" maxlength="140"/></div>
+              <div class="field full"><label for="stationAddress">Station street address</label><input id="stationAddress" maxlength="220" placeholder="Street, city, state and ZIP"/></div>
+              <div class="field"><label for="stationLat">Station latitude</label><input id="stationLat" type="number" step="any" min="-90" max="90"/></div>
+              <div class="field"><label for="stationLng">Station longitude</label><input id="stationLng" type="number" step="any" min="-180" max="180"/></div>
+              <div class="field full"><label for="stationParking">Parking / drop-off instructions</label><textarea id="stationParking" maxlength="1500"></textarea></div>
+              <div class="field full"><label for="stationSource">Official station or parking link (optional)</label><input id="stationSource" type="url" placeholder="https://…"/></div>
+            </div>
+            <div class="form-actions"><button class="btn outline" id="inspectStation" type="button">Check address in Google Maps</button><button class="btn primary" id="addStation" type="button">Add Station</button></div>
+            <small>Administrator additions are saved to this planning site. Otherwise, additions stay in this browser.</small>
+          </details>
+          <div class="field"><label for="parkingNotes">Parking and meeting-point notes for friends</label><textarea id="parkingNotes" maxlength="1500" placeholder="Entrance to use, carpool arrangement, exact gathering spot…"></textarea></div>
+          <div class="field"><label for="ticketMethod">How friends will get a ticket</label><select id="ticketMethod"><option value="mobile">RTD NextRide / MyRide</option><option value="machine">Station ticket machine</option><option value="contactless">Tap-n-Ride contactless payment</option><option value="pass">Already have a pass / ticket</option></select></div>
+        </section>
 
         <div class="custom-destination" id="customDestinationWrap" hidden>
           <div class="pick-banner" id="pickBanner">Tap the map to place the meeting point.</div>
@@ -85,9 +110,9 @@
         </div>
 
         <div class="field full">
-          <label for="meetingAt">Meeting for field service date and time</label>
+          <label for="meetingAt" id="meetingAtLabel">Meeting for field service date and time</label>
           <input id="meetingAt" name="meetingAt" required type="datetime-local"/>
-          <small>Enter the meeting time in Denver local time.</small>
+          <small id="meetingHelp">Enter the meeting time in Denver local time. All schedule times use America/Denver.</small>
         </div>
 
         <div class="allowance-grid">
@@ -96,7 +121,7 @@
             <div class="number-unit"><input id="travelAllowance" min="0" max="180" name="travelAllowance" type="number" value="15"/><span>min</span></div>
           </div>
           <div class="field">
-            <label for="arrivalBuffer">Arrive before meeting</label>
+            <label for="arrivalBuffer" id="arrivalBufferLabel">Arrive before meeting</label>
             <div class="number-unit"><input id="arrivalBuffer" min="0" max="180" name="arrivalBuffer" type="number" value="15"/><span>min</span></div>
           </div>
           <div class="field">
@@ -104,6 +129,9 @@
             <div class="number-unit"><input id="boardingBuffer" min="0" max="180" name="boardingBuffer" type="number" value="15"/><span>min</span></div>
           </div>
         </div>
+
+        <div class="field full"><label for="reminderLeadMinutes">Preparation reminder before friends report</label><div class="number-unit"><input id="reminderLeadMinutes" type="number" min="0" max="1440" value="30"/><span>min</span></div><small>Shown only in the travel plan. No notifications are sent.</small></div>
+        <div class="field full"><label for="extraReminders">Other reminders</label><textarea id="extraReminders" maxlength="2000" placeholder="One per line: bring water, charge phone, bring any discount eligibility documents…"></textarea></div>
 
         <div class="field full">
           <label for="routeNotes">Route notes</label>
@@ -124,10 +152,10 @@
 
     <section class="map-column">
       <div class="map-card">
-        <div id="map" aria-label="Hotel to field service route map" role="application"></div>
+        <div id="map" aria-label="Driving route to a meeting or RTD station" role="application"></div>
         <div class="map-legend">
-          <div><span class="legend-symbol hotel-symbol">H</span> Selected hotel</div>
-          <div><span class="legend-symbol destination-symbol">M</span> Meeting location</div>
+          <div><span class="legend-symbol hotel-symbol">S</span> Starting location</div>
+          <div><span class="legend-symbol destination-symbol">M</span> Meeting / RTD station</div>
           <div><span class="legend-line"></span> Calculated route</div>
         </div>
         <div class="map-note">Planning estimate only. Verify the final route, live traffic, road restrictions, turning clearance, and motorcoach access before operation.</div>
@@ -142,25 +170,27 @@
           <article><span>Road distance</span><strong id="distanceResult">—</strong></article>
           <article><span>Base drive estimate</span><strong id="baseTimeResult">—</strong></article>
           <article><span>Planned travel time</span><strong id="plannedTimeResult">—</strong></article>
-          <article><span>Total time before meeting</span><strong id="totalLeadResult">—</strong></article>
+          <article><span>Report-to-meeting time</span><strong id="totalLeadResult">—</strong></article>
         </div>
         <div class="timeline">
-          <div class="timeline-item"><span class="time-dot report"></span><div><small>Passengers report at hotel</small><strong id="reportTimeResult">—</strong></div></div>
-          <div class="timeline-item"><span class="time-dot depart"></span><div><small>Bus leaves hotel</small><strong id="departureTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot report"></span><div><small>Friends report at starting location</small><strong id="reportTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot depart"></span><div><small>Leave starting location</small><strong id="departureTimeResult">—</strong></div></div>
           <div class="timeline-item"><span class="time-dot arrive"></span><div><small>Expected arrival</small><strong id="arrivalTimeResult">—</strong></div></div>
-          <div class="timeline-item"><span class="time-dot meeting"></span><div><small>Meeting for field service</small><strong id="meetingTimeResult">—</strong></div></div>
+          <div class="timeline-item"><span class="time-dot meeting"></span><div><small id="meetingResultLabel">Meeting for field service</small><strong id="meetingTimeResult">—</strong></div></div>
         </div>
+        <div id="travelPlanDetails" class="travel-plan-details"></div>
         <div class="route-warning" id="coordinateNotice"></div>
         <div class="result-actions">
           <a class="btn outline" id="googleDirections" target="_blank" rel="noopener">Open in Google Maps</a>
           <a class="btn outline" id="appleDirections" target="_blank" rel="noopener">Open in Apple Maps</a>
+          <button class="btn outline" id="printPlan" type="button">Print / Save PDF</button>
           <button class="btn primary" id="saveRouteButton" disabled type="button">Sign In to Save</button>
         </div>
       </section>
 
       <section class="card saved-card">
         <div class="saved-head">
-          <div><div class="eyebrow">Firebase route records</div><h2>Saved bus routes</h2></div>
+          <div><div class="eyebrow">Saved plans</div><h2>Bus &amp; RTD travel plans</h2></div>
           <span class="private-chip">Administrator only</span>
         </div>
         <div id="savedRouteStatus" class="saved-empty">Sign in to view and manage saved routes.</div>
@@ -184,6 +214,6 @@
 </div>
 
 <div class="toast" id="toast" aria-live="polite" role="status"></div>
-<script type="module" src="app.js?v=pin-audit-20261108-1"></script>
+<script type="module" src="app.js?v=rtd-20261108-1"></script>
 </body>
 </html>

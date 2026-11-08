@@ -3,6 +3,12 @@
   --line:#d2dce6;--bg:#edf3f7;--card:#fff;--orange:#e77b18;--purple:#6c4dc2;
   --green:#0e9453;--red:#c9362b;--shadow:0 10px 28px rgba(10,48,82,.13)
 }
+[hidden]{display:none!important}
+.rtd-setup{grid-column:1/-1;display:grid;gap:13px;border:1px solid #bcd4c9;border-radius:12px;background:#f3faf6;padding:13px}
+.station-advice{font-size:12px;line-height:1.5;color:#315a47}.station-advice a,.travel-plan-details a{color:#075a97;text-decoration:underline}
+.rtd-setup details{border-top:1px solid #c8ded3;padding-top:10px}.rtd-setup summary{font-weight:800;color:#174b37;cursor:pointer}.rtd-setup details p,.rtd-setup details .form-grid{margin:10px 0}.rtd-setup small{font-size:11px;color:#526176}
+.travel-plan-details{display:grid;gap:12px;margin-top:14px;font-size:12px;line-height:1.5}.travel-plan-details section{border:1px solid #d5e0e9;border-radius:10px;padding:12px}.travel-plan-details p{white-space:pre-line;overflow-wrap:anywhere}.travel-plan-details ul{padding-left:20px;margin:8px 0}.travel-plan-details .reminder-time{font-weight:800;color:#174f7d}.travel-plan-details .plan-endpoints{font-size:13px}
+@media print{body{background:#fff}.topbar,.control-panel,.map-card,.saved-card,.result-actions,.modal,.toast{display:none!important}.workspace,.map-column{display:block;padding:0;max-width:none}.result-card{box-shadow:none;border:0;margin:0;padding:0}.result-card h2{font-size:20px}.timeline,.metric-grid{display:grid;grid-template-columns:repeat(4,1fr)}.timeline-item,.metric-grid article,.travel-plan-details section{break-inside:avoid}.travel-plan-details{gap:8px}.travel-plan-details section{padding:8px}.estimate-chip{display:none}.route-warning{font-size:10px}a{color:#000}}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
 body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
