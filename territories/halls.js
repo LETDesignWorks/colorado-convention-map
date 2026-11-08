@@ -2,7 +2,7 @@ import {
   HALLS as BASE_HALLS,
   DTC_BOUNDARY,
   DTC
-} from '../bus-access/data.js?v=packets-20261107-1';
+} from '../bus-access/data.js?v=pin-audit-20261108-1';
 
 const CCC_ONLY_ADDITIONS = [
   {
@@ -16,8 +16,8 @@ const CCC_ONLY_ADDITIONS = [
       'North - Westminster',
       'Spanish - Broomfield'
     ],
-    lat: 39.90666,
-    lng: -105.05271,
+    lat: 39.9068377,
+    lng: -105.0518144,
     cccDriveMinutes: 25,
     cccDriveGroup: 'Within 45 minutes'
   },
@@ -33,8 +33,8 @@ const CCC_ONLY_ADDITIONS = [
       'South Spanish - Brighton',
       'South Spanish - Fort Lupton'
     ],
-    lat: 39.9582,
-    lng: -104.81,
+    lat: 39.9979441,
+    lng: -104.7984543,
     cccDriveMinutes: 38,
     cccDriveGroup: 'Within 45 minutes'
   }

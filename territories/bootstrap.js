@@ -28,7 +28,7 @@ try {
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
   await import('../assets/branding.js?v=packets-20261107-1');
-  await import('./app-main.js?v=packets-20261107-1');
+  await import('./app-main.js?v=pin-audit-20261108-1');
   await import('./address-duplicates-ui.js?v=territories-20261023-50');
   await import('./directions.js?v=ribbons-20261107-1');
   await import('./bulk-addresses.js?v=territories-20261023-50');

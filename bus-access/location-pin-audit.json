@@ -1,0 +1,614 @@
+{
+  "checkedDate": "2026-11-08",
+  "method": "Full address searched in Google Maps; visible result address checked. Destination coordinates taken from the place record, not the camera center. Existing points within 25 metres retained. Changes align markers to address points, not necessarily vehicle entrances.",
+  "locations": [
+    {
+      "address": "2135 E 22nd Ave, Denver CO 80205",
+      "id": "1",
+      "label": "1",
+      "name": "22nd Ave - Denver",
+      "originalPoint": [
+        39.74975,
+        -104.96132
+      ],
+      "verifiedPoint": [
+        39.7497456,
+        -104.9613122
+      ],
+      "offsetMeters": 1,
+      "sourceUrl": "https://www.google.com/maps/place/2135+E+22nd+Ave,+Denver,+CO+80205/@39.7497456,-104.9613122,17z/data=!3m1!4b1!4m6!3m5!1s0x876c794830866db9:0x50ee5f821b6fce37!8m2!3d39.7497456!4d-104.9613122!16s%2Fg%2F11bw41qsw8?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"2135 E 22nd Ave\" [level=1]: 2135 E 22nd Ave\n    - generic: Building\n    - button \"Address 2135 E 22nd Ave, Denver, CO 80205 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "2675 W 56th Ave, Denver CO 80221",
+      "id": "2",
+      "label": "2",
+      "name": "Sloans Lake - 56th Ave",
+      "originalPoint": [
+        39.79869,
+        -105.01958
+      ],
+      "verifiedPoint": [
+        39.7995376,
+        -105.0197627
+      ],
+      "offsetMeters": 96,
+      "sourceUrl": "https://www.google.com/maps/place/2675+W+56th+Ave,+Denver,+CO+80221/@39.7993104,-105.0198193,17z/data=!3m1!4b1!4m6!3m5!1s0x876c78121d6f9fbf:0x32494892aca1e3e1!8m2!3d39.7995376!4d-105.0197627!16s%2Fg%2F11b8vfql2f?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"2675 W 56th Ave\" [level=1]: 2675 W 56th Ave\n    - button \"Address 2675 W 56th Ave, Denver, CO 80221 Copy address\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "2685 W 56th Ave, Denver CO 80221",
+      "id": "3",
+      "label": "3",
+      "name": "North Denver - 56th Ave",
+      "originalPoint": [
+        39.79858,
+        -105.02075
+      ],
+      "verifiedPoint": [
+        39.7987069,
+        -105.0196603
+      ],
+      "offsetMeters": 94,
+      "sourceUrl": "https://www.google.com/maps/place/2685+W+56th+Ave,+Denver,+CO+80221/@39.7987069,-105.0196603,17z/data=!3m1!4b1!4m6!3m5!1s0x876c78120e652f67:0x36ecdf9034e85edd!8m2!3d39.7987069!4d-105.0196603!16s%2Fg%2F11c214xmqm?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"2685 W 56th Ave\" [level=1]: 2685 W 56th Ave\n    - button \"Address 2685 W 56th Ave, Denver, CO 80221 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "2779 W Wesley Ave, Denver CO 80219",
+      "id": "4",
+      "label": "4",
+      "name": "Wesley Ave - Denver",
+      "originalPoint": [
+        39.67376,
+        -105.02175
+      ],
+      "verifiedPoint": [
+        39.6736702,
+        -105.0217712
+      ],
+      "offsetMeters": 10,
+      "sourceUrl": "https://www.google.com/maps/place/2779+W+Wesley+Ave,+Denver,+CO+80219/@39.6736702,-105.0217712,17z/data=!3m1!4b1!4m6!3m5!1s0x876c7f8d4f4a6c33:0xcff4c95f10df3e4f!8m2!3d39.6736702!4d-105.0217712!16s%2Fg%2F11bw4pgc_1?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"2779 W Wesley Ave\" [level=1]: 2779 W Wesley Ave\n    - generic: Building\n    - button \"Address 2779 W Wesley Ave, Denver, CO 80219 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Athmar, Valverde, Westwood, & Ruby Hill Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Athmar, Valverde, Westwood, & Ruby Hill Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "951 Milky Way, Thornton CO 80260",
+      "id": "5",
+      "label": "5",
+      "name": "Thornton - Milky Way",
+      "originalPoint": [
+        39.85335,
+        -104.9981
+      ],
+      "verifiedPoint": [
+        39.8533894,
+        -104.9980864
+      ],
+      "offsetMeters": 5,
+      "sourceUrl": "https://www.google.com/maps/place/951+Milky+Way,+Thornton,+CO+80260/@39.8533894,-104.9980864,17z/data=!3m1!4b1!4m6!3m5!1s0x876c77b211ceb905:0xb4b62ba046a86f50!8m2!3d39.8533894!4d-104.9980864!16s%2Fg%2F11bw402kh3?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"951 Milky Way\" [level=1]: 951 Milky Way\n    - generic: Building\n    - button \"Address 951 Milky Way, Thornton, CO 80260 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Federal Heights, Sherrelwood, Welby Spanish, & Westminster Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Federal Heights, Sherrelwood, Welby Spanish, & Westminster Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "13607 W 8th Ave, Golden CO 80401",
+      "id": "6",
+      "label": "6",
+      "name": "Golden - 8th Ave",
+      "originalPoint": [
+        39.72961,
+        -105.15242
+      ],
+      "verifiedPoint": [
+        39.729761,
+        -105.152744
+      ],
+      "offsetMeters": 32,
+      "sourceUrl": "https://www.google.com/maps/place/13607+W+8th+Ave,+Golden,+CO+80401/@39.729761,-105.152744,17z/data=!3m1!4b1!4m6!3m5!1s0x876b846c5b9843bb:0x9dc5a3cadfef548!8m2!3d39.729761!4d-105.152744!16s%2Fg%2F11c4s96qk7?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"13607 W 8th Ave\" [level=1]: 13607 W 8th Ave\n    - generic: Building\n    - button \"Address 13607 W 8th Ave, Golden, CO 80401 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Barnum, Golden, & Alameda Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Barnum, Golden, & Alameda Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "7891 W 44th Ave, Wheat Ridge CO 80033",
+      "id": "7",
+      "label": "7",
+      "name": "Wheat Ridge - 44th Ave",
+      "originalPoint": [
+        39.77715,
+        -105.08439
+      ],
+      "verifiedPoint": [
+        39.7771724,
+        -105.0844663
+      ],
+      "offsetMeters": 7,
+      "sourceUrl": "https://www.google.com/maps/place/7891+W+44th+Ave,+Wheat+Ridge,+CO+80033/@39.7771724,-105.0844663,17z/data=!3m1!4b1!4m6!3m5!1s0x876b864ddd016d87:0xc00d5f009ac39cf5!8m2!3d39.7771724!4d-105.0844663!16s%2Fg%2F11b8yczxvl?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"7891 W 44th Ave\" [level=1]: 7891 W 44th Ave\n    - button \"Address 7891 W 44th Ave, Wheat Ridge, CO 80033 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Wheat Ridge English, Wheat Ridge Spanish, & Mile High Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Wheat Ridge English, Wheat Ridge Spanish, & Mile High Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "10081 E 25th Ave, Aurora CO 80010",
+      "id": "8",
+      "label": "8",
+      "name": "Aurora - 25th Ave",
+      "originalPoint": [
+        39.75302,
+        -104.87154
+      ],
+      "verifiedPoint": [
+        39.7535651,
+        -104.8712011
+      ],
+      "offsetMeters": 67,
+      "sourceUrl": "https://www.google.com/maps/place/10081+E+25th+Ave,+Aurora,+CO+80010/@39.7535651,-104.8712011,17z/data=!3m1!4b1!4m6!3m5!1s0x876c7b6029031b0f:0xbc68236388b4bbda!8m2!3d39.7535651!4d-104.8712011!16s%2Fg%2F11bw3zl3f9?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"10081 E 25th Ave\" [level=1]: 10081 E 25th Ave\n    - generic: Building\n    - button \"Address 10081 E 25th Ave, Aurora, CO 80010 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Monaco Pkwy, Montview, Cntrl Prk Spnsh, & Montbello Spnsh (Amharic group)\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Monaco Pkwy, Montview, Cntrl Prk Spnsh, & Montbello Spnsh (Amharic group)\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "10251 E Jewell Ave, Aurora CO 80247",
+      "id": "9",
+      "label": "9",
+      "name": "Aurora - Jewell Ave",
+      "originalPoint": [
+        39.68269,
+        -104.86878
+      ],
+      "verifiedPoint": [
+        39.6826857,
+        -104.8687866
+      ],
+      "offsetMeters": 1,
+      "sourceUrl": "https://www.google.com/maps/place/10251+E+Jewell+Ave,+Aurora,+CO+80247/@39.6826857,-104.8687866,17z/data=!3m1!4b1!4m6!3m5!1s0x876c7d5d5622a0f3:0x14167dbd5152b546!8m2!3d39.6826857!4d-104.8687866!16s%2Fg%2F11bw3x707_?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"10251 E Jewell Ave\" [level=1]: 10251 E Jewell Ave\n    - generic: Building\n    - button \"Address 10251 E Jewell Ave, Aurora, CO 80247 Copy address\":\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Aurora Cntrl Engsh, Chry Crk South, Chry Crk Spnsh, & Jewell Spnsh (French group)\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Aurora Cntrl Engsh, Chry Crk South, Chry Crk Spnsh, & Jewell Spnsh (French group)\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "10480 Heinz Way, Commerce City CO 80022",
+      "id": "10",
+      "label": "10",
+      "name": "Commerce City - Heinz Way",
+      "originalPoint": [
+        39.884,
+        -104.875
+      ],
+      "verifiedPoint": [
+        39.8725305,
+        -104.8664363
+      ],
+      "offsetMeters": 1470,
+      "sourceUrl": "https://www.google.com/maps/place/10480+Heinz+Way,+Henderson,+CO+80640/@39.8725305,-104.8664363,17z/data=!3m1!4b1!4m6!3m5!1s0x876c703506f90f77:0x3c355af15a08388d!8m2!3d39.8725305!4d-104.8664363!16s%2Fg%2F11bw40fv8j?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"10480 Heinz Way\" [level=1]: 10480 Heinz Way\n    - generic: Building\n    - button \"Address 10480 Heinz Way, Henderson, CO 80640 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Eagle Creek & Commerce City Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Eagle Creek & Commerce City Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "6767 E Orchard Rd, Greenwood Village CO 80111",
+      "id": "11",
+      "label": "11",
+      "name": "Greenwood Village - Orchard Rd",
+      "originalPoint": [
+        39.6094,
+        -104.9104
+      ],
+      "verifiedPoint": [
+        39.6101558,
+        -104.9106538
+      ],
+      "offsetMeters": 87,
+      "sourceUrl": "https://www.google.com/maps/place/6767+E+Orchard+Rd,+Greenwood+Village,+CO+80111/@39.6101558,-104.9106538,17z/data=!3m1!4b1!4m6!3m5!1s0x876c86eb90863dd9:0xe00301a83b527608!8m2!3d39.6101558!4d-104.9106538!16s%2Fg%2F11c2d7033w?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"6767 E Orchard Rd\" [level=1]: 6767 E Orchard Rd\n    - generic: Building\n    - button \"Address 6767 E Orchard Rd, Greenwood Village, CO 80111 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Greenwood Village, Aurora Central Portuguese, Denver Russian, & Loretto Heights Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Greenwood Village, Aurora Central Portuguese, Denver Russian, & Loretto Heights Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "14500 Andrews Dr, Denver, CO 80239",
+      "id": "13",
+      "label": "13",
+      "name": "Andrews Dr - Denver",
+      "originalPoint": [
+        39.7883,
+        -104.8172
+      ],
+      "verifiedPoint": [
+        39.7797429,
+        -104.8259231
+      ],
+      "offsetMeters": 1209,
+      "sourceUrl": "https://www.google.com/maps/place/14500+Andrews+Dr,+Denver,+CO+80239/@39.7797429,-104.8259231,17z/data=!3m1!4b1!4m6!3m5!1s0x876c64c09c9cacd7:0x141d6c6d407c9894!8m2!3d39.7797429!4d-104.8259231!16s%2Fg%2F11b8v6873s?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"14500 Andrews Dr\" [level=1]: 14500 Andrews Dr\n    - generic: Building\n    - button \"Address 14500 Andrews Dr, Denver, CO 80239 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Green Valley English, Montbello English, & Parkfield\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Green Valley English, Montbello English, & Parkfield\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "11650 W 76th Ave, Arvada CO 80005",
+      "id": "14",
+      "label": "14",
+      "name": "Arvada - 76th Ave",
+      "originalPoint": [
+        39.8334,
+        -105.1325
+      ],
+      "verifiedPoint": [
+        39.8360475,
+        -105.1300162
+      ],
+      "offsetMeters": 363,
+      "sourceUrl": "https://www.google.com/maps/place/11650+W+76th+Ave,+Arvada,+CO+80005/@39.8360475,-105.1300162,17z/data=!3m1!4b1!4m6!3m5!1s0x876b8f2b93f14b09:0x5057927394f0f2b1!8m2!3d39.8360475!4d-105.1300162!16s%2Fg%2F11b8vfhnc0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"11650 W 76th Ave\" [level=1]: 11650 W 76th Ave\n    - generic: Building\n    - button \"Address 11650 W 76th Ave, Arvada, CO 80005 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Arvada West & Standley Lake\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Arvada West & Standley Lake\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "350 Laredo St, Aurora CO 80011",
+      "id": "15",
+      "label": "15",
+      "name": "Aurora - Laredo St",
+      "originalPoint": [
+        39.7205,
+        -104.793
+      ],
+      "verifiedPoint": [
+        39.7215271,
+        -104.7989903
+      ],
+      "offsetMeters": 525,
+      "sourceUrl": "https://www.google.com/maps/place/Kingdom+Hall+of+Jehovah's+Witnesses,+350+N+Laredo+St,+Aurora,+CO+80011/@39.7215271,-104.7989903,17z/data=!3m1!4b1!4m6!3m5!1s0x876c62fff679abd7:0x831f26840f1bc13d!8m2!3d39.7215271!4d-104.7989903!16s%2Fg%2F11c26j9sl2?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - combobox: Kingdom Hall of Jehovah's Witnesses\n    - heading \"Kingdom Hall of Jehovah's Witnesses\" [level=1]: Kingdom Hall of Jehovah's Witnesses\n    - generic: Building\n    - region \"Actions for Kingdom Hall of Jehovah's Witnesses\":\n    - button \"Address Kingdom Hall of Jehovah's Witnesses, 350 N Laredo St, Aurora, CO 80011 Copy address\":\n      - generic: Kingdom Hall of Jehovah's Witnesses, 350 N Laredo St, Aurora, CO 80011\n    - button \"Suggest an edit on Kingdom Hall of Jehovah's Witnesses\":\n      - generic: Suggest an edit on Kingdom Hall of Jehovah's Witnesses\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Morris Heights, Springhill, Sunridge, Altura Spnsh, Green Valley Spnsh, & Laredo Spnsh\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Morris Heights, Springhill, Sunridge, Altura Spnsh, Green Valley Spnsh, & Laredo Spnsh\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "8740 W Chatfield Ave, Littleton CO 80128",
+      "id": "16",
+      "label": "16",
+      "name": "Platte Canyon - Chatfield Ave",
+      "originalPoint": [
+        39.5682,
+        -105.0911
+      ],
+      "verifiedPoint": [
+        39.5656827,
+        -105.0959485
+      ],
+      "offsetMeters": 501,
+      "sourceUrl": "https://www.google.com/maps/place/8740+W+Chatfield+Ave,+Littleton,+CO+80128/@39.5656827,-105.0959485,17z/data=!3m1!4b1!4m6!3m5!1s0x876b7e9c3b324927:0x34ee89480eb3f9fe!8m2!3d39.5656827!4d-105.0959485!16s%2Fg%2F11b8z43lf4?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"8740 W Chatfield Ave\" [level=1]: 8740 W Chatfield Ave\n    - generic: Building\n    - button \"Address 8740 W Chatfield Ave, Littleton, CO 80128 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses-- Platte Canyon\"\n      - generic: Kingdom Hall of Jehovah's Witnesses-- Platte Canyon\n      - generic: Jehovah's Witness Kingdom Hall\n      - button \"Get directions to Kingdom Hall of Jehovah's Witnesses-- Platte Canyon\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "12760 Quebec St, Brighton CO 80601",
+      "id": "17",
+      "label": "17",
+      "name": "Northglenn/Thornton - Quebec St",
+      "originalPoint": [
+        39.9288,
+        -104.9036
+      ],
+      "verifiedPoint": [
+        39.9280698,
+        -104.9023326
+      ],
+      "offsetMeters": 135,
+      "sourceUrl": "https://www.google.com/maps/place/12760+Quebec+St,+Brighton,+CO+80602/@39.9280698,-104.9023326,17z/data=!3m1!4b1!4m6!3m5!1s0x876c73c85fe0a6dd:0x7ae0f86040b0a9f6!8m2!3d39.9280698!4d-104.9023326!16s%2Fg%2F11c4vvb7s1?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"12760 Quebec St\" [level=1]: 12760 Quebec St\n    - generic: Building\n    - button \"Address 12760 Quebec St, Brighton, CO 80602 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Northglenn, Thorncreek, Welby Hills, and Eastlake Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Northglenn, Thorncreek, Welby Hills, and Eastlake Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "4287 S Eldridge St, Morrison CO 80465",
+      "id": "18",
+      "label": "18",
+      "name": "Morrison - Eldridge St",
+      "originalPoint": [
+        39.6355,
+        -105.1525
+      ],
+      "verifiedPoint": [
+        39.6359205,
+        -105.1582002
+      ],
+      "offsetMeters": 490,
+      "sourceUrl": "https://www.google.com/maps/place/4287+S+Eldridge+St,+Morrison,+CO+80465/@39.6359205,-105.1582002,17z/data=!3m1!4b1!4m6!3m5!1s0x876b8277cb17491d:0x3b27592618b2a967!8m2!3d39.6359205!4d-105.1582002!16s%2Fg%2F11bw3zsnws?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"4287 S Eldridge St\" [level=1]: 4287 S Eldridge St\n    - generic: Building\n    - button \"Address 4287 S Eldridge St, Morrison, CO 80465 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Green Mountain, Red Rocks, & Denver Southwest Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Green Mountain, Red Rocks, & Denver Southwest Spanish\n      - generic: Jehovah's Witness Kingdom Hall\n      - button \"Get directions to Kingdom Hall of Jehovah's Witnesses--Green Mountain, Red Rocks, & Denver Southwest Spanish\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "17701 E Yale Ave, Aurora CO 80013",
+      "id": "19",
+      "label": "19",
+      "name": "Aurora - Yale Ave",
+      "originalPoint": [
+        39.6678328,
+        -104.7806396
+      ],
+      "verifiedPoint": [
+        39.6678328,
+        -104.7806396
+      ],
+      "offsetMeters": 0,
+      "sourceUrl": "https://www.google.com/maps/place/17701+E+Yale+Ave,+Aurora,+CO+80013/@39.6678328,-104.7806396,17z/data=!3m1!4b1!4m6!3m5!1s0x876c89c137731a79:0x7e2fee61a9495b11!8m2!3d39.6678328!4d-104.7806396!16s%2Fg%2F11b8zdrz_p?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"17701 E Yale Ave\" [level=1]: 17701 E Yale Ave\n    - generic: Building\n    - button \"Address 17701 E Yale Ave, Aurora, CO 80013 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Meadowood Park, Smoky Hill, Aurora Korean, & Olympia Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Meadowood Park, Smoky Hill, Aurora Korean, & Olympia Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "16300 E Costilla Ave, Foxfield CO 80016",
+      "id": "20",
+      "label": "20",
+      "name": "Foxfield - Costilla Ave",
+      "originalPoint": [
+        39.5822,
+        -104.7865
+      ],
+      "verifiedPoint": [
+        39.5908056,
+        -104.7984489
+      ],
+      "offsetMeters": 1401,
+      "sourceUrl": "https://www.google.com/maps/place/16300+E+Costilla+Ave,+Foxfield,+CO+80016/@39.5908056,-104.7984489,17z/data=!3m1!4b1!4m6!3m5!1s0x876c8ed806973453:0xb4ee90e550829499!8m2!3d39.5908056!4d-104.7984489!16s%2Fg%2F11b8yjgt5z?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"16300 E Costilla Ave\" [level=1]: 16300 E Costilla Ave\n    - generic: Building\n    - button \"Address 16300 E Costilla Ave, Foxfield, CO 80016 Copy address\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "8200 S Ogden Cir, Littleton CO 80122",
+      "id": "21",
+      "label": "21",
+      "name": "Highlands Ranch / Southpark",
+      "originalPoint": [
+        39.56779,
+        -104.97601
+      ],
+      "verifiedPoint": [
+        39.5677907,
+        -104.9760232
+      ],
+      "offsetMeters": 1,
+      "sourceUrl": "https://www.google.com/maps/place/8200+S+Ogden+Cir,+Littleton,+CO+80122/@39.5677907,-104.9760232,17z/data=!3m1!4b1!4m6!3m5!1s0x876c83cfd999d7f1:0x2998487fc45712c!8m2!3d39.5677907!4d-104.9760232!16s%2Fg%2F11c286fpxs?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"8200 S Ogden Cir\" [level=1]: 8200 S Ogden Cir\n    - generic: Building\n    - button \"Address 8200 S Ogden Cir, Littleton, CO 80122 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "keep",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "7075 Talon Trl, Parker CO 80138",
+      "id": "23",
+      "label": "23",
+      "name": "Parker - Talon Trl",
+      "originalPoint": [
+        39.506,
+        -104.737
+      ],
+      "verifiedPoint": [
+        39.5227652,
+        -104.7544639
+      ],
+      "offsetMeters": 2392,
+      "sourceUrl": "https://www.google.com/maps/place/7075+Talon+Trail,+Parker,+CO+80138/@39.5228047,-104.7544442,17z/data=!3m1!4b1!4m6!3m5!1s0x876c91ff1afcbaa1:0xd84a9d78db203265!8m2!3d39.5227652!4d-104.7544639!16s%2Fg%2F11b8ylcp_m?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"7075 Talon Trail\" [level=1]: 7075 Talon Trail\n    - button \"Address 7075 Talon Trail, Parker, CO 80138 Copy address\":\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Parker & Parker South Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Parker & Parker South Spanish\n      - generic: Jehovah's Witness Kingdom Hall\n      - button \"Get directions to Kingdom Hall of Jehovah's Witnesses--Parker & Parker South Spanish\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "1203 Lake Gulch Rd, Castle Rock CO 80104",
+      "id": "26",
+      "label": "26",
+      "name": "Castle Rock - Lake Gulch Rd",
+      "originalPoint": [
+        39.3485,
+        -104.83
+      ],
+      "verifiedPoint": [
+        39.3442656,
+        -104.83046
+      ],
+      "offsetMeters": 473,
+      "sourceUrl": "https://www.google.com/maps/place/1203+Lake+Gulch+Rd,+Castle+Rock,+CO+80104/@39.3442656,-104.83046,17z/data=!3m1!4b1!4m6!3m5!1s0x876cbd5b2ea49695:0x44dafea3debe2107!8m2!3d39.3442656!4d-104.83046!16s%2Fg%2F11c1f345ll?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"1203 Lake Gulch Rd\" [level=1]: 1203 Lake Gulch Rd\n    - generic: Building\n    - button \"Address 1203 Lake Gulch Rd, Castle Rock, CO 80104 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "5885 Jay Rd Boulder CO 80301",
+      "id": "CfyEAuCekRm82F859GdG",
+      "label": "26",
+      "name": "Boulder KH",
+      "originalPoint": [
+        40.051062,
+        -105.214513
+      ],
+      "verifiedPoint": [
+        40.0517344,
+        -105.2171077
+      ],
+      "offsetMeters": 233,
+      "sourceUrl": "https://www.google.com/maps/place/5885+Jay+Rd,+Boulder,+CO+80301/@40.0517344,-105.2171077,17z/data=!3m1!4b1!4m6!3m5!1s0x876bf1dfa90f9675:0xdf4011e007b6f044!8m2!3d40.0517344!4d-105.2171077!16s%2Fg%2F11bw41_084?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"5885 Jay Rd\" [level=1]: 5885 Jay Rd\n    - generic: Building\n    - button \"Address 5885 Jay Rd, Boulder, CO 80301 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "7913 Citation Trail, Evergreen, CO 80439",
+      "id": "WjsmB0p2I0K3LayEhnfh",
+      "label": "27",
+      "name": "Evergreen KH",
+      "originalPoint": [
+        39.573013,
+        -105.314566
+      ],
+      "verifiedPoint": [
+        39.5733635,
+        -105.3145118
+      ],
+      "offsetMeters": 39,
+      "sourceUrl": "https://www.google.com/maps/place/7913+Citation+Trail,+Evergreen,+CO+80439/@39.5733635,-105.3145118,17z/data=!3m1!4b1!4m6!3m5!1s0x876b742ab5a2e729:0xc0d7dc9917f1e1c9!8m2!3d39.5733635!4d-105.3145118!16s%2Fg%2F11cpqfkr0g?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"7913 Citation Trail\" [level=1]: 7913 Citation Trail\n    - generic: Building\n    - button \"Address 7913 Citation Trail, Evergreen, CO 80439 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "337 Co Rd 308, Dumont, CO 80436",
+      "id": "TIxQFIWYCHd1vgawzIhe",
+      "label": "28",
+      "name": "Clear Creek/Dumont",
+      "originalPoint": [
+        39.764747,
+        -105.60079
+      ],
+      "verifiedPoint": [
+        39.7652753,
+        -105.6011331
+      ],
+      "offsetMeters": 66,
+      "sourceUrl": "https://www.google.com/maps/place/337+Co+Rd+308,+Dumont,+CO+80436/@39.7652753,-105.6011331,17z/data=!3m1!4b1!4m6!3m5!1s0x876bb070b8e4cbb1:0x105808cd38ae22c1!8m2!3d39.7652753!4d-105.6011331!16s%2Fg%2F11c28xv2gj?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"337 Co Rd 308\" [level=1]: 337 Co Rd 308\n    - button \"Address 337 Co Rd 308, Dumont, CO 80436 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Clear Creek\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Clear Creek\n      - generic: Jehovah's Witness Kingdom Hall\n      - button \"Get directions to Kingdom Hall of Jehovah's Witnesses--Clear Creek\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "11580 Sheridan Blvd, Westminster, CO 80020",
+      "id": "v7fIJgtw2xclQMQBYV5G",
+      "label": "28",
+      "name": "North Westminster, Coal Creek, Broomfield Spanish",
+      "originalPoint": [
+        39.906674,
+        -105.052898
+      ],
+      "verifiedPoint": [
+        39.9068377,
+        -105.0518144
+      ],
+      "offsetMeters": 94,
+      "sourceUrl": "https://www.google.com/maps/place/11580+Sheridan+Blvd,+Westminster,+CO+80020/@39.9067925,-105.0518372,17z/data=!3m1!4b1!4m6!3m5!1s0x876b8a143965f3a7:0xcaf6665c68912361!8m2!3d39.9068377!4d-105.0518144!16s%2Fg%2F11bw3_wjcg?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"11580 Sheridan Blvd\" [level=1]: 11580 Sheridan Blvd\n    - button \"Address 11580 Sheridan Blvd, Westminster, CO 80020 Copy address\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "1531 Vista View Dr, Longmont, CO 80504",
+      "id": "c0ZUyDgFdFvnskS6FxqP",
+      "label": "29",
+      "name": "Sunset Park/South Spanish Longmon",
+      "originalPoint": [
+        40.15963,
+        -105.026442
+      ],
+      "verifiedPoint": [
+        40.1599127,
+        -105.0262508
+      ],
+      "offsetMeters": 35,
+      "sourceUrl": "https://www.google.com/maps/place/1531+Vista+View+Dr,+Longmont,+CO+80504/@40.1599127,-105.0262508,17z/data=!3m1!4b1!4m6!3m5!1s0x876c078c01c77d13:0xc47a4a598bc38c54!8m2!3d40.1599127!4d-105.0262508!16s%2Fg%2F11b8v62z4y?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"1531 Vista View Dr\" [level=1]: 1531 Vista View Dr\n    - generic: Building\n    - button \"Address 1531 Vista View Dr, Longmont, CO 80504 Copy address\":\n    - heading \"Photos\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "2218 17th Ave Longmont CO  80501-9762",
+      "id": "uFjmjt0cSXI4xi7V5wVv",
+      "label": "30",
+      "name": "Long's Peak/Westview Spanish-Longmont/North Spanish-Longmont",
+      "originalPoint": [
+        40.188632,
+        -105.127974
+      ],
+      "verifiedPoint": [
+        40.1890099,
+        -105.1284893
+      ],
+      "offsetMeters": 61,
+      "sourceUrl": "https://www.google.com/maps/place/Kingdom+Hall+of+Jehovah's+Witnesses--Longs+Peak,+Longmont+East+Spanish,+%26+Longmont+North+Spanish/@40.1890099,-105.1284893,17z/data=!3m1!4b1!4m6!3m5!1s0x876bfbe3ab780e8f:0x94149fbdb95dca33!8m2!3d40.1890099!4d-105.1284893!16s%2Fg%2F1v4pth8g?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - combobox: Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\n  - main \"Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n    - button \"Photo of Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\" [active]:\n    - heading \"Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\" [level=1]: Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\n    - button \"Jehovah's Witness Kingdom Hall\"\n      - tab \"Overview of Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\" [selected]:\n      - tab \"Reviews for Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n      - tab \"About Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n    - region \"Actions for Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n    - region \"Information for Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n      - 'button \"Address: 2218 17th Ave, Longmont, CO 80501\"':\n    - heading \"Add missing information\" [level=2]\n    - heading \"Photos & videos\" [level=2]\n    - region \"Photos of Kingdom Hall of Jehovah's Witnesses--Longs Peak, Longmont East Spanish, & Longmont North Spanish\":\n    - heading \"Review summary\" [level=2]\n    - heading \"Reviews\" [level=2]\n    - heading \"People also search for\" [level=2]\n    - link \"Kingdom Hall of Jehovah’s Witnesses--Boulder South, Foothills, & Boulder Spanish · 4.5 stars · 17 reviews · Jehovah's Witness Kingdom Hall\":\n      - generic: Kingdom Hall of Jehovah’s Witnesses--Boulder South, Foothills, & Boulder Spanish\n      - generic: Jehovah's Witness Kingdom Hall\n    - link \"Salón del Reino · 0.0 stars · Jehovah's Witness Kingdom Hall\":\n      - generic: Jehovah's Witness Kingdom Hall\n    - link \"Kingdom Hall of Jehovah’s Witnesses · 4.4 stars · 14 reviews · Jehovah's Witness Kingdom Hall\":\n      - generic: Kingdom Hall of Jehovah’s Witnesses\n      - generic: Jehovah's Witness Kingdom Hall\n    - heading \"Web results\" [level=2]",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "7400 S Oak Hill Way, Aurora, CO 80016",
+      "id": "EsVDTxjHu1JYLv4W7921",
+      "label": "AH",
+      "name": "Assembly Hall",
+      "originalPoint": [
+        39.583573,
+        -104.682552
+      ],
+      "verifiedPoint": [
+        39.5822794,
+        -104.6830307
+      ],
+      "offsetMeters": 150,
+      "sourceUrl": "https://www.google.com/maps/place/7400+S+Oak+Hill+Way,+Aurora,+CO+80016/@39.5822794,-104.6830307,17z/data=!3m1!4b1!4m6!3m5!1s0x876c8ce7691b13ab:0x5d716a01aee1af13!8m2!3d39.5822794!4d-104.6830307!16s%2Fg%2F11bw4lcb65?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"7400 S Oak Hill Way\" [level=1]: 7400 S Oak Hill Way\n    - generic: Building\n    - button \"Address 7400 S Oak Hill Way, Aurora, CO 80016 Copy address\":\n    - heading \"Photos\" [level=2]\n    - heading \"At this place\" [level=2]\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "address": "500 Fairgrounds Rd, Castle Rock, CO 80104",
+      "id": "eSrIsd55mpr1U3ZESZSG",
+      "label": "DCC",
+      "name": "Douglas County Fairgrounds",
+      "originalPoint": [
+        39.363253,
+        -104.856434
+      ],
+      "verifiedPoint": [
+        39.3654756,
+        -104.8549477
+      ],
+      "offsetMeters": 278,
+      "sourceUrl": "https://www.google.com/maps/place/500+Fairgrounds+Rd,+Castle+Rock,+CO+80104/@39.3650976,-104.8549685,17z/data=!3m1!4b1!4m6!3m5!1s0x876c9819f4d4c395:0x50c57373e15762b!8m2!3d39.3654756!4d-104.8549477!16s%2Fg%2F11c21bypqd?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - combobox: 500 Fairgrounds Rd\n    - heading \"500 Fairgrounds Rd\" [level=1]: 500 Fairgrounds Rd\n    - region \"Actions for 500 Fairgrounds Rd\":\n    - button \"Address 500 Fairgrounds Rd, Castle Rock, CO 80104 Copy address\":\n      - generic: 500 Fairgrounds Rd, Castle Rock, CO 80104\n    - heading \"Directory\" [level=2]\n      - button \"Douglas County Fairgrounds and Event Center\"\n      - generic: Douglas County Fairgrounds and Event Center\n      - generic: Fairground\n      - generic: Fairground",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "id": "territory-12",
+      "label": 12,
+      "name": "Westminster - Sheridan Blvd",
+      "address": "11580 Sheridan Blvd, Westminster CO 80020",
+      "originalPoint": [
+        39.90666,
+        -105.05271
+      ],
+      "verifiedPoint": [
+        39.9068377,
+        -105.0518144
+      ],
+      "offsetMeters": 79,
+      "sourceUrl": "https://www.google.com/maps/place/11580+Sheridan+Blvd,+Westminster,+CO+80020/@39.9067925,-105.0518372,17z/data=!3m1!4b1!4m6!3m5!1s0x876b8a143965f3a7:0xcaf6665c68912361!8m2!3d39.9068377!4d-105.0518144!16s%2Fg%2F11bw3_wjcg?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"11580 Sheridan Blvd\" [level=1]: 11580 Sheridan Blvd\n    - button \"Address 11580 Sheridan Blvd, Westminster, CO 80020 Copy address\":",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    },
+    {
+      "id": "territory-22",
+      "label": 22,
+      "name": "Brighton - Jennifer Ct",
+      "address": "1955 Jennifer Ct, Brighton CO 80601",
+      "originalPoint": [
+        39.9582,
+        -104.81
+      ],
+      "verifiedPoint": [
+        39.9979441,
+        -104.7984543
+      ],
+      "offsetMeters": 4528,
+      "sourceUrl": "https://www.google.com/maps/place/1955+Jennifer+Ct,+Brighton,+CO+80601/@39.9979441,-104.7984543,17z/data=!3m1!4b1!4m6!3m5!1s0x876c6cd6218194d9:0xd3e5da636342d839!8m2!3d39.9979441!4d-104.7984543!16s%2Fg%2F11c27b9mz7?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+      "evidence": "    - heading \"1955 Jennifer Ct\" [level=1]: 1955 Jennifer Ct\n    - generic: Building\n    - button \"Address 1955 Jennifer Ct, Brighton, CO 80601 Copy address\":\n    - heading \"At this place\" [level=2]\n      - button \"Kingdom Hall of Jehovah's Witnesses--Platte Valley, Brighton North Spanish, Brighton South Spanish, & Ft. Lupton Spanish\"\n      - generic: Kingdom Hall of Jehovah's Witnesses--Platte Valley, Brighton North Spanish, Brighton South Spanish, & Ft. Lupton Spanish\n      - generic: Jehovah's Witness Kingdom Hall",
+      "action": "correct",
+      "checkedDate": "2026-11-08"
+    }
+  ]
+}

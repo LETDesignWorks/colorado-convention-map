@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { HALLS, DTC_BOUNDARY, DTC } from 'https://letdesignworks.github.io/colorado-convention-map/bus-access/data.js?v=south-dtc-rail-20260910-1';
+import { HALLS, DTC_BOUNDARY, DTC } from 'https://letdesignworks.github.io/colorado-convention-map/bus-access/data.js?v=pin-audit-20261108-1';
 import { HOTELS } from 'https://letdesignworks.github.io/colorado-convention-map/routes/hotels.js?v=south-dtc-rail-20260910-1';
 import {
   DTC_HOTEL_IDS, SOUTH_BASE_IDS, RAIL_STATIONS,
