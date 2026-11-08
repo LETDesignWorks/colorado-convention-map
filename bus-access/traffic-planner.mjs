@@ -1,5 +1,5 @@
-import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSummary} from './traffic-model.mjs?v=parking-count-20261107-1';
-import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-count-20261107-1';
+import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSpacePoints,parkingSummary} from './traffic-model.mjs?v=parking-dots-20261108-1';
+import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-dots-20261108-1';
 import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 import {createTrafficBasemap} from './traffic-basemap.mjs?v=street-names-20261107-1';
@@ -8,7 +8,7 @@ const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PARKING_COLOR='#36d7b7';
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
-const cssUrl=new URL('./traffic-planner.css?v=parking-count-20261107-1',import.meta.url).href;
+const cssUrl=new URL('./traffic-planner.css?v=parking-dots-20261108-1',import.meta.url).href;
 // Reuse the two existing renderers so individual and combined exports share
 // the same artwork, selected photos, geometry, and privacy rules.
 export async function buildParkingPdfPacket(source,{combined=false,getLocationPdf,exportPdf=exportTrafficPdf,mergePdfs=mergePdfDocuments,exportOptions={},isCurrent=()=>true}={}){
@@ -49,7 +49,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   const say=message=>{if(state)state.nodes.status.textContent=message;};
   function optionalParkingCount(value,badInput=false,label='Adjusted parking total'){
     const raw=String(value??'').trim();
-    if(badInput)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}, or leave it blank to use the estimate.`);
+    if(badInput)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}, or leave it blank to use the calculated count.`);
     if(raw==='')return null;
     const count=Number(raw);
     if(!Number.isInteger(count)||count<0||count>MAX_PARKING_SPACES)throw Error(`${label} must be a whole number from 0 to ${MAX_PARKING_SPACES.toLocaleString('en-US')}.`);
@@ -95,11 +95,11 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   function renderParkingSummary(){
     const s=state;
     try{
-      const summary=parkingSummary(parkingInputPlan()),value=summary.total===null?'Parking: Not counted':`Parking: ${summary.total.toLocaleString('en-US')} spaces (${summary.adjusted?'adjusted':'estimated'})`;
+      const summary=parkingSummary(parkingInputPlan()),value=summary.total===null?'Parking spaces: Not counted':`Parking spaces: ${summary.total.toLocaleString('en-US')}`;
       s.nodes.parkingSummary.textContent=value;s.nodes.parkingMapCount.textContent=value;s.nodes.parkingSummary.classList.remove('traffic-count-invalid');
-      s.nodes.parkingDetails.textContent=summary.rowCount?`${summary.rowCount} marked row${summary.rowCount===1?'':'s'}: ${summary.rowTotal.toLocaleString('en-US')} spaces.${summary.rowTotal!==summary.estimatedTotal?' Includes row adjustments.':''}${summary.totalOverride!==null?' The adjusted total is used in the PDF.':''}`:summary.totalOverride!==null?'Adjusted total entered without marked rows.':'Mark parking rows to estimate a count, or enter an adjusted total.';
+      s.nodes.parkingDetails.textContent=summary.rowCount?`${summary.rowCount} marked row${summary.rowCount===1?'':'s'}: ${summary.rowTotal.toLocaleString('en-US')} spaces.${summary.totalOverride!==null?' Your entered total is used in the PDF.':''}`:summary.totalOverride!==null?'Total entered without marked rows.':'Mark parking rows to count spaces, or enter a total.';
     }catch(error){
-      s.nodes.parkingSummary.textContent='Parking count needs attention';s.nodes.parkingMapCount.textContent='Parking: check the entered count';s.nodes.parkingDetails.textContent=error.message;s.nodes.parkingSummary.classList.add('traffic-count-invalid');
+      s.nodes.parkingSummary.textContent='Parking count needs attention';s.nodes.parkingMapCount.textContent='Parking spaces: check the entered count';s.nodes.parkingDetails.textContent=error.message;s.nodes.parkingSummary.classList.add('traffic-count-invalid');
     }
     s.nodes.parkingReset.disabled=s.busy||(s.nodes.parkingTotal.value.trim()===''&&!s.nodes.parkingTotal.validity?.badInput);
     s.nodes.parkingActions.hidden=s.mode!=='parking-row';
@@ -107,7 +107,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     s.nodes.parkingCancel.disabled=s.busy||s.mode!=='parking-row'||!s.draft;
     s.nodes.parkingDraft.textContent='';
     if(s.mode==='parking-row'&&s.draft?.points.length>=2){
-      try{const width=parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput));s.nodes.parkingDraft.textContent=`Current row estimate: ${estimateParkingRow({points:s.draft.points,spaceWidthFeet:width}).toLocaleString('en-US')} spaces. Choose Finish row to add it.`;}
+      try{const width=parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput));s.nodes.parkingDraft.textContent=`Current row: ${estimateParkingRow({points:s.draft.points,spaceWidthFeet:width}).toLocaleString('en-US')} spaces. Choose Finish row to add the dots.`;}
       catch(error){s.nodes.parkingDraft.textContent=error.message;}
     }
   }
@@ -158,18 +158,18 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     const s=state;if(!s?.map)return;
     s.items.clearLayers();s.handles.clearLayers();
     const interactive=editable()&&s.mode==='select';
-    let parkingNumber=0;
     for(const item of s.plan.items){
       const selected=item.id===s.selected;
       if(item.kind==='route'||item.kind==='parking-row'){
-        const parking=item.kind==='parking-row',color=parking?PARKING_COLOR:COLORS[item.routeType],pointName=parking?'Parking row':'Route';
-        if(parking)parkingNumber++;
-        L.polyline(item.points,{color:'#142736',weight:selected?10:8,opacity:.85,interactive:false}).addTo(s.items);
-        const line=L.polyline(item.points,{color,weight:selected?6:4,opacity:1,dashArray:parking?'4 5':item.routeType==='walk'?'10 6':null,bubblingMouseEvents:false}).addTo(s.items);
-        line.bindTooltip(escape(parking?`${item.label||`Parking row P${parkingNumber}`}: ${parkingRowCount(item)} spaces${item.countOverride!==null?' (adjusted)':''}`:item.label||`${item.routeType} route`));line.on('click',()=>selectItem(item.id));
+        const parking=item.kind==='parking-row',pointName=parking?'Parking row':'Route';
         if(parking){
-          L.marker(item.points[0],{bubblingMouseEvents:false,icon:icon(`<span class="traffic-label traffic-parking-label${selected?' traffic-selected':''}">P${parkingNumber} · ${parkingRowCount(item).toLocaleString('en-US')} spaces</span>`,[1,1],[-8,24]),title:`Parking row P${parkingNumber}: select to adjust the count`}).addTo(s.items).on('click',()=>selectItem(item.id));
+          const selectRow=()=>selectItem(item.id),count=parkingRowCount(item).toLocaleString('en-US');
+          for(const point of parkingSpacePoints(item))L.circleMarker(point,{radius:selected?5:4,color:'#142736',weight:1.5,opacity:1,fillColor:PARKING_COLOR,fillOpacity:1,interactive,bubblingMouseEvents:false,renderer:s.parkingRenderer}).addTo(s.items).on('click',selectRow);
+          L.marker(item.points[0],{bubblingMouseEvents:false,icon:icon(`<span class="traffic-label traffic-parking-label${selected?' traffic-selected':''}">${count}</span>`,[1,1],[-8,24]),title:`Parking spaces: ${count}. Select to edit this row.`}).addTo(s.items).on('click',selectRow);
         }else{
+          L.polyline(item.points,{color:'#142736',weight:selected?10:8,opacity:.85,interactive:false}).addTo(s.items);
+          const line=L.polyline(item.points,{color:COLORS[item.routeType],weight:selected?6:4,opacity:1,dashArray:item.routeType==='walk'?'10 6':null,bubblingMouseEvents:false}).addTo(s.items);
+          line.bindTooltip(escape(item.label||`${item.routeType} route`));line.on('click',()=>selectItem(item.id));
           const projected=item.points.map(p=>s.map.latLngToLayerPoint(p));
           arrowheads(projected).forEach(a=>L.marker(s.map.layerPointToLatLng(L.point(a.x,a.y)),{interactive:false,keyboard:false,icon:icon(`<span class="traffic-arrow" style="transform:rotate(${a.angle}deg);color:${COLORS[item.routeType]}">➤</span>`,[24,24],[12,12])}).addTo(s.items));
         }
@@ -207,7 +207,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     }
     box.replaceChildren();
     s.editorId=item?.id||null;
-    if(!item){box.textContent='Choose Move / select, then click a cone, route, parking row, or label to edit it.';return;}
+    if(!item){box.textContent='Choose Move / select, then click a parking dot or number, cone, route, or label to edit it.';return;}
     const parking=item.kind==='parking-row';
     const title=d.createElement('strong');title.textContent=item.kind==='cone'?'Selected cone':item.label||(parking?'Selected parking row':'Selected route');box.append(title);
     const rememberParkingEdit=()=>{
@@ -222,18 +222,18 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     }
     const action=(label,fn)=>{const button=d.createElement('button');button.type='button';button.className='btn light';button.textContent=label;button.disabled=s.busy;button.addEventListener('click',fn);box.append(button);return button;};
     if(parking){
-      const estimate=d.createElement('p');estimate.className='traffic-row-estimate';estimate.textContent=`Row estimate: ${estimateParkingRow(item).toLocaleString('en-US')} spaces. ${item.countOverride!==null?`Adjusted row count: ${item.countOverride.toLocaleString('en-US')}.`:'Using the row estimate.'}`;box.append(estimate);
+      const rowCount=d.createElement('p');rowCount.className='traffic-row-count';rowCount.textContent=`Parking spaces: ${parkingRowCount(item).toLocaleString('en-US')}`;box.append(rowCount);
       const widthLabel=d.createElement('label');widthLabel.textContent='Feet per space along this row';const width=d.createElement('input');width.type='number';width.min='1';width.max='100';width.step='0.1';width.value=item.spaceWidthFeet;width.dataset.parkingRowWidth='';width.disabled=s.busy;widthLabel.append(width);box.append(widthLabel);
-      const countLabel=d.createElement('label');countLabel.textContent='Adjusted row count (optional)';const count=d.createElement('input');count.type='number';count.min='0';count.max=String(MAX_PARKING_SPACES);count.step='1';count.value=item.countOverride??'';count.placeholder=`Use estimate (${estimateParkingRow(item)})`;count.dataset.parkingRowCount='';count.disabled=s.busy;countLabel.append(count);box.append(countLabel);
+      const countLabel=d.createElement('label');countLabel.textContent='Adjusted row count (optional)';const count=d.createElement('input');count.type='number';count.min='0';count.max=String(MAX_PARKING_SPACES);count.step='1';count.value=item.countOverride??'';count.placeholder=`Calculated count: ${estimateParkingRow(item)}`;count.dataset.parkingRowCount='';count.disabled=s.busy;countLabel.append(count);box.append(countLabel);
       for(const input of [width,count])input.addEventListener('input',rememberParkingEdit);
       action('Apply row changes',()=>{if(editable()&&commitParkingInputs()){render();say('Parking row updated. Save the layout to keep this count.');}}).dataset.parkingRowApply='';
-      action('Use row estimate',()=>{if(!editable())return;count.value='';rememberParkingEdit();if(commitParkingInputs()){render();say('The row now uses its length-and-spacing estimate.');}}).dataset.parkingRowReset='';
-      const help=d.createElement('small');help.textContent='Leave the adjusted count blank to use the estimate. Enter 0 if this row has no usable spaces. Count each row separately, and verify the marked spaces on site.';box.append(help);
+      action('Use calculated count',()=>{if(!editable())return;count.value='';rememberParkingEdit();if(commitParkingInputs()){render();say('The row now uses its calculated count.');}}).dataset.parkingRowReset='';
+      const help=d.createElement('small');help.textContent='Leave the adjusted count blank to calculate it from the row length and feet per space. Enter 0 if this row has no usable spaces. Count each row separately, and verify the marked spaces on site.';box.append(help);
     }
     if(item.kind==='route'||parking){
       if(!parking)action('Reverse traffic direction',()=>recordChange(plan=>plan.items.find(x=>x.id===item.id).points.reverse()));
       action(s.removeVertex?'Done removing points':`Remove ${parking?'row':'route'} points`,()=>{if(!editable()||!commitParkingInputs())return;s.removeVertex=!s.removeVertex;render();});
-      const help=d.createElement('small');help.textContent=parking?'Drag solid points to adjust the row. Click + to insert a point; its estimate updates from the revised length.':'Drag solid points to reshape. Click + to insert a point. Arrows follow the route’s drawing direction.';box.append(help);
+      const help=d.createElement('small');help.textContent=parking?'Drag square handles to adjust the row. Click + to insert a point. The dots follow the row, and its count updates from the length unless you have entered a row count.':'Drag solid points to reshape. Click + to insert a point. Arrows follow the route’s drawing direction.';box.append(help);
     }
     action('Delete selected item',()=>{if(recordChange(plan=>{plan.items=plan.items.filter(x=>x.id!==item.id);})){s.selected=null;renderSelection();}});
   }
@@ -242,7 +242,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     if(!commitParkingInputs())return;
     if(state.draft?.points.length&&!w.confirm('Discard the unfinished line? Finished layout items will stay.'))return;
     state.mode=mode;state.draft=['route','cone-row','parking-row'].includes(mode)?{points:[]}:null;state.selected=null;state.removeVertex=false;
-    const hints={select:'Drag a cone or label to move it. Click a route or parking row to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.','parking-row':'Mark one parking row from the outside edge of its first space to the outside edge of its last space. Then choose Finish row. Use separate rows on each side of an aisle.',cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
+    const hints={select:'Drag a cone or label to move it. Click a route, parking dot, or parking number to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.','parking-row':'Mark one parking row from the outside edge of its first space to the outside edge of its last space. Choose Finish row to show the spaces as dots. Use separate rows on each side of an aisle.',cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
     say(hints[mode]);render();
   }
   function mapClick(event){
@@ -262,7 +262,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     }
     catch(error){say(error.message);return;}
     if(s.plan.items.length+items.length>MAX_ITEMS)return say(`Keep this layout to ${MAX_ITEMS} items or fewer.`);
-    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1?items[0].id:null;say(items[0].kind==='parking-row'?`Parking row added: ${parkingRowCount(items[0])} estimated spaces. Select the row to adjust its count, then save the layout.`:'Added to this draft. Save layout to keep a named copy for this meeting place.');render();}
+    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1&&items[0].kind!=='parking-row'?items[0].id:null;say(items[0].kind==='parking-row'?`Parking spaces added: ${parkingRowCount(items[0]).toLocaleString('en-US')}. Click a dot or the number to adjust the row, then save the layout.`:'Added to this draft. Save layout to keep a named copy for this meeting place.');render();}
   }
   function savedOptions(){
     const s=state,previous=s.nodes.saved.value;s.nodes.saved.replaceChildren();
@@ -382,10 +382,10 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <label>Background<select data-basemap><option value="satellite">Satellite + street names</option><option value="street">Street map</option></select></label>
       <small>Street names appear on the map and in exported PDFs. Cones, routes, and your location labels stay on top.</small>
       <section class="traffic-parking-controls" aria-labelledby="trafficParkingTitle"><h3 id="trafficParkingTitle">Parking spaces</h3>
-      <p class="traffic-parking-summary" data-parking-summary role="status" aria-live="polite">Parking: Not counted</p><small data-parking-details></small>
+      <p class="traffic-parking-summary" data-parking-summary role="status" aria-live="polite">Parking spaces: Not counted</p><small data-parking-details></small>
       <button class="btn blue" data-tool="parking-row">Mark parking row</button>
       <label>Feet per space along row<input data-parking-width type="number" min="1" max="100" step="0.1" value="${DEFAULT_PARKING_SPACE_WIDTH_FEET}" aria-describedby="trafficParkingWidthHelp"></label>
-      <small id="trafficParkingWidthHelp">${DEFAULT_PARKING_SPACE_WIDTH_FEET} ft is a starting estimate. Adjust it to match the row. Mark each row separately, from the outside edge of its first space to the outside edge of its last space.</small>
+      <small id="trafficParkingWidthHelp">Start with ${DEFAULT_PARKING_SPACE_WIDTH_FEET} ft per space and adjust it to match the row. Mark each row separately, from the outside edge of its first space to the outside edge of its last space.</small>
       <div class="traffic-pair traffic-parking-actions" data-parking-actions hidden><button type="button" class="btn blue" data-parking-finish disabled>Finish row</button><button type="button" class="btn light" data-parking-cancel disabled>Cancel row</button></div><small class="traffic-parking-draft" data-parking-draft></small>
       <label>Adjusted parking total (optional)<input data-parking-total type="number" min="0" max="${MAX_PARKING_SPACES}" step="1" placeholder="Use marked-row total" aria-describedby="trafficParkingTotalHelp"></label>
       <small id="trafficParkingTotalHelp">Leave blank to use the row total, or enter the number you want to use for this lot. An adjusted total stays in place as you edit rows. Verify spaces on site.</small><button type="button" class="btn light" data-parking-reset>Use row count</button></section>
@@ -406,12 +406,13 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <div class="traffic-pair" data-pdf-links aria-label="Generated traffic layout PDF"></div>
       <details class="traffic-saved" open><summary>Saved layouts for this location</summary><label>Choose a saved layout<select data-saved></select></label><div class="traffic-pair"><button class="btn light" data-load>Load layout</button><button class="btn light" data-refresh>Reload saved layouts</button><button class="btn light" data-new>New blank layout</button><button class="btn light" data-remove-saved>Delete saved copy</button></div></details>
       <div class="traffic-pair"><button class="btn light" data-download>Download JSON</button><button class="btn light" data-import>Import JSON</button></div><input data-file type="file" accept="application/json,.json" hidden>
-      </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><span class="traffic-parking-key">P Parking row</span><strong data-count></strong><span class="traffic-parking-map-total" data-parking-map-count>Parking: Not counted</span></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
+      </aside><div class="traffic-map-area"><div class="traffic-map" data-map aria-label="Parking lot traffic layout map" role="application"></div><div class="traffic-map-legend"><span>▲ Cone</span><span class="traffic-bus-key">➜ Bus</span><span class="traffic-car-key">➜ Car</span><span class="traffic-walk-key">➜ Pedestrian</span><span class="traffic-parking-key">● Parking spaces</span><strong data-count></strong><span class="traffic-parking-map-total" data-parking-map-count>Parking spaces: Not counted</span></div><p class="traffic-warning">Planning sketch only. Aerial imagery may be outdated; zooming beyond its native detail only enlarges it. Confirm the layout on site with the property and transportation teams, including bus turning clearance, pedestrian access, and emergency access. This is not a live-traffic layer or an approved traffic-control plan.</p><p data-status class="traffic-status" role="status" aria-live="polite"></p></div></div>`;
     d.body.append(dialog);const q=selector=>dialog.querySelector(selector);
     const nodes={dialog,name:q('[data-name]'),notes:q('[data-notes]'),dirty:q('[data-dirty]'),saved:q('[data-saved]'),load:q('[data-load]'),removeSaved:q('[data-remove-saved]'),undo:q('[data-undo]'),redo:q('[data-redo]'),finish:q('[data-finish]'),cancelDraw:q('[data-cancel-draw]'),save:q('[data-save]'),pdf:q('[data-export-pdf]'),combinedPdf:q('[data-export-combined]'),pdfLinks:q('[data-pdf-links]'),count:q('[data-count]'),status:q('[data-status]'),selected:q('[data-selected]'),routeType:q('[data-route-type]'),pinType:q('[data-pin-type]'),coneCount:q('[data-cone-count]'),itemLabel:q('[data-item-label]'),basemap:q('[data-basemap]'),parkingWidth:q('[data-parking-width]'),parkingTotal:q('[data-parking-total]'),parkingSummary:q('[data-parking-summary]'),parkingDetails:q('[data-parking-details]'),parkingReset:q('[data-parking-reset]'),parkingMapCount:q('[data-parking-map-count]'),parkingActions:q('[data-parking-actions]'),parkingFinish:q('[data-parking-finish]'),parkingCancel:q('[data-parking-cancel]'),parkingDraft:q('[data-parking-draft]')};
     state={plan:newTrafficPlan(location),nodes,records:[],mode:'select',draft:null,selected:null,editorId:null,parkingEdits:new Map(),removeVertex:false,dirty:false,busy:false,undo:[],redo:[],suppressView:true,sequence:++sequence};
     const s=state;dialog.showModal();d.body.classList.add('traffic-dialog-open');
     s.map=L.map(q('[data-map]'),{maxZoom:22,minZoom:1,zoomControl:true,doubleClickZoom:false}).setView([location.lat,location.lng],19);
+    s.parkingRenderer=typeof L.canvas==='function'?L.canvas({padding:.5,tolerance:4}):null;
     s.items=L.featureGroup().addTo(s.map);s.handles=L.featureGroup().addTo(s.map);s.sketch=L.featureGroup().addTo(s.map);
     L.control.scale({imperial:true,metric:false}).addTo(s.map);setBasemap('satellite',false);s.suppressView=false;
     s.map.on('click',mapClick);s.map.on('zoomend',()=>{if(state===s)render();});

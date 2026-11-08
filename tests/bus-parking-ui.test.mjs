@@ -111,14 +111,23 @@ async function plannerHarness(options={}){
     dispose(){planner.dispose();},signOut(){admin=false;planner.contextChanged();}};
 }
 async function addParkingRow(h,feet=90){await h.click('[data-tool="parking-row"]');h.point(0);h.point(feet);await h.click('[data-finish]');}
+const parkingLabels=h=>[...h.maps.map.layers].filter(layer=>layer.type==='marker'&&layer.options.icon?.html?.includes('traffic-parking-label'));
+const parkingDots=h=>[...h.maps.map.layers].filter(layer=>layer.type==='circle'&&layer.options.fillColor==='#36d7b7');
+async function selectParkingRow(h,index=0){const label=parkingLabels(h)[index];assert.ok(label,'parking count marker remains selectable');label.fire('click');await settle();}
 
 async function edit(h,selector,value){await h.input(selector,value);await h.query(selector).trigger('change');await settle();}
 
-test('marking a parking row produces an estimate that survives saving and reopening the layout',async()=>{
+test('finishing a parking row shows individual dots and a numeric count that survive saving and reopening',async()=>{
   const h=await plannerHarness();
   assert.deepEqual(h.notifications,[]);assert.match(h.query('[data-parking-summary]').textContent,/not counted/i);
   await addParkingRow(h);
   assert.match(h.query('[data-parking-summary]').textContent,/10/);
+  assert.doesNotMatch(h.query('[data-parking-summary]').textContent,/estimated|adjusted/i);
+  assert.equal(parkingDots(h).length,10);
+  assert.equal([...h.maps.map.layers].filter(layer=>layer.type==='polyline').length,0,'completed spaces have no connecting row line');
+  assert.equal([...h.maps.map.layers].filter(layer=>layer.options.icon?.html?.includes('traffic-handle')).length,0,'finishing a row leaves its edit handles hidden');
+  assert.match(parkingLabels(h)[0].options.icon.html,/>10<\/span>$/);
+  assert.equal(h.query('[data-parking-row-count]'),null,'click a dot or count to edit a finished row');
   await h.click('[data-save]');assert.equal(h.writes.length,1);
   assert.equal(parkingSummary(h.writes[0].plan).total,10);
   assert.equal(h.writes[0].plan.items[0].kind,'parking-row');
@@ -126,13 +135,17 @@ test('marking a parking row produces an estimate that survives saving and reopen
   await h.click('[data-new]');assert.match(h.query('[data-parking-summary]').textContent,/not counted/i);
   await h.click('[data-load]');await h.click('[data-export-pdf]');
   assert.equal(parkingSummary(h.exports.at(-1)).total,10);
+  assert.equal(parkingDots(h).length,10);
   assert.equal(h.writes.length,1,'exporting the reopened layout does not save another copy');h.dispose();
 });
 
 test('row corrections and an overall adjustment follow undo, redo, and the use-row-count control',async()=>{
-  const h=await plannerHarness();await addParkingRow(h);
+  const h=await plannerHarness();await addParkingRow(h);await selectParkingRow(h);
   await edit(h,'[data-parking-row-count]','8');
   await h.click('[data-parking-row-apply]');
+  assert.equal(parkingDots(h).length,8);
+  assert.equal([...h.maps.map.layers].filter(layer=>layer.type==='polyline').length,0,'editing finished spaces does not restore a connecting line');
+  assert.match(parkingLabels(h)[0].options.icon.html,/>8<\/span>$/);
   await edit(h,'[data-parking-total]','14');
   await h.click('[data-export-pdf]');assert.equal(parkingSummary(h.exports.at(-1)).total,14);
   await h.click('[data-undo]');await h.click('[data-export-pdf]');assert.equal(parkingSummary(h.exports.at(-1)).total,8);
@@ -163,11 +176,13 @@ test('unfinished parking rows cannot be omitted from exports and invalid row cor
   const h=await plannerHarness();await h.click('[data-tool="parking-row"]');h.point(0);
   await h.click('[data-export-pdf]');await h.click('[data-save]');
   assert.equal(h.exports.length,0);assert.equal(h.writes.length,0);
-  h.point(90);await h.click('[data-finish]');await h.input('[data-parking-row-count]','3.5');
+  h.point(90);await h.click('[data-finish]');await selectParkingRow(h);await h.input('[data-parking-row-count]','3.5');
   await h.query('[data-export-pdf]').trigger('click');await h.query('[data-save]').trigger('click');await settle();
   assert.equal(h.exports.length,0);assert.equal(h.writes.length,0);
   await edit(h,'[data-parking-row-count]','0');await h.click('[data-export-combined]');
   assert.equal(parkingSummary(h.exports.at(-1)).total,0);assert.equal(parkingSummary(h.exports.at(-1)).adjusted,true);
+  assert.equal(parkingDots(h).length,0);
+  assert.match(parkingLabels(h)[0].options.icon.html,/>0<\/span>$/);
   h.dispose();
 });
 
@@ -194,7 +209,7 @@ test('a newly entered total can be undone before saving or exporting',async()=>{
 });
 
 test('zooming retains an unfinished number in the selected-row editor until it is corrected',async()=>{
-  const h=await plannerHarness();await addParkingRow(h);
+  const h=await plannerHarness();await addParkingRow(h);parkingDots(h)[0].fire('click');await settle();
   const field=h.query('[data-parking-row-count]');field.value='';field.badInput=true;
   await field.trigger('input');h.maps.map.fire('zoomend');await settle();
   assert.equal(h.query('[data-parking-row-count]'),field,'redrawing the map retains the live numeric input');

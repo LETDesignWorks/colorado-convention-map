@@ -75,17 +75,37 @@ function parkingSpaceWidth(value){
   if((typeof raw!=='number'&&typeof raw!=='string')||raw===''||(typeof raw==='string'&&!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw))||!Number.isFinite(Number(raw))||Number(raw)<1||Number(raw)>100)throw Error('Enter feet per parking space from 1 to 100.');
   return Number(raw);
 }
-export function estimateParkingRow(row){
+function measureParkingRow(row){
   if(!Array.isArray(row?.points)||row.points.length<2||row.points.length>200)throw Error('A parking row needs 2–200 points.');
   const points=row.points.map(point),width=parkingSpaceWidth(row.spaceWidthFeet);
-  const feet=points.slice(1).reduce((sum,p,i)=>sum+distanceMeters(points[i],p),0)/0.3048;
+  const lengths=points.slice(1).map((p,i)=>distanceMeters(points[i],p)),total=lengths.reduce((sum,length)=>sum+length,0),feet=total/0.3048;
   if(!Number.isFinite(feet)||feet<=0)throw Error('A parking row must contain at least two different points.');
   const count=Math.round(feet/width);
-  if(count>MAX_PARKING_SPACES)throw Error(`A parking row cannot exceed ${MAX_PARKING_SPACES.toLocaleString('en-US')} estimated spaces. Shorten the row or increase feet per space.`);
-  return count;
+  if(count>MAX_PARKING_SPACES)throw Error(`The calculated count for a parking row cannot exceed ${MAX_PARKING_SPACES.toLocaleString('en-US')} spaces. Shorten the row or increase feet per space.`);
+  return {points,lengths,total,count};
+}
+export function estimateParkingRow(row){
+  return measureParkingRow(row).count;
 }
 export function parkingRowCount(row){
   return parkingCountOverride(row?.countOverride,'The parking-row count')??estimateParkingRow(row);
+}
+export function parkingSpacePoints(row){
+  // Measure and validate the entire row even when its count has been corrected.
+  const {points,lengths,total,count:calculatedCount}=measureParkingRow(row);
+  const count=parkingCountOverride(row.countOverride,'The parking-row count')??calculatedCount;
+  if(count===0)return [];
+  let segment=0,start=0;
+  // A single forward cursor keeps spacing continuous through bends and avoids
+  // scanning the full polyline again for every parking space.
+  return Array.from({length:count},(_,i)=>{
+    const target=(i+.5)*total/count;
+    while(segment<lengths.length-1&&(lengths[segment]===0||target>start+lengths[segment])){
+      start+=lengths[segment++];
+    }
+    const t=Math.max(0,Math.min(1,(target-start)/lengths[segment])),a=points[segment],b=points[segment+1];
+    return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  });
 }
 export function parkingSummary(plan){
   const parking=parkingValue(plan?.parking),rows=(plan?.items||[]).filter(item=>item.kind==='parking-row');

@@ -1,7 +1,7 @@
-import { mountTrafficPlanner } from './traffic-planner.mjs?v=parking-count-20261107-1';
-import { mountLocationPhotos } from './photos.mjs?v=parking-count-20261107-1';
+import { mountTrafficPlanner } from './traffic-planner.mjs?v=parking-dots-20261108-1';
+import { mountLocationPhotos } from './photos.mjs?v=parking-dots-20261108-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
-import { createTrafficStorage } from './traffic-model.mjs?v=parking-count-20261107-1';
+import { createTrafficStorage } from './traffic-model.mjs?v=parking-dots-20261108-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { getFirestore, collection, doc, getDoc, getDocFromServer, runTransaction, onSnapshot, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';

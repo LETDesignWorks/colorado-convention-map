@@ -21,11 +21,11 @@ function recordDrawing(){
   const lib={...PDFLib,PDFDocument:{create:async()=>{
     const doc=await PDFLib.PDFDocument.create(),addPage=doc.addPage.bind(doc);
     doc.addPage=(...args)=>{
-      const page=addPage(...args),record={page,texts:[],images:[],lines:[],rectangles:[]};pages.push(record);
+      const page=addPage(...args),record={page,texts:[],images:[],lines:[],rectangles:[],circles:[]};pages.push(record);
       for(const [method,key]of [['drawText','texts'],['drawImage','images']]){
         const draw=page[method].bind(page);page[method]=(value,options)=>{record[key].push({value,options});return draw(value,options);};
       }
-      for(const [method,key]of [['drawLine','lines'],['drawRectangle','rectangles']]){
+      for(const [method,key]of [['drawLine','lines'],['drawRectangle','rectangles'],['drawCircle','circles']]){
         const draw=page[method].bind(page);page[method]=options=>{record[key].push(options);return draw(options);};
       }
       return page;
@@ -36,6 +36,11 @@ function recordDrawing(){
 }
 const printed=record=>record.pages.flatMap(page=>page.texts).map(entry=>entry.value).join('\n');
 const firstPageText=record=>record.pages[0].texts.map(entry=>entry.value).join('\n');
+const mapBounds=record=>record.pages[0].images.find(image=>image.options.width===744).options;
+const mapCircles=record=>{const map=mapBounds(record);return record.pages[0].circles.filter(circle=>circle.x>=map.x&&circle.x<=map.x+map.width&&circle.y>=map.y&&circle.y<=map.y+map.height);};
+const numericTags=record=>record.pages[0].texts.filter(entry=>/^\d[\d,]*$/.test(entry.value)).map(entry=>entry.value);
+const teal=color=>Math.abs(color?.red-54/255)<.000001&&Math.abs(color?.green-215/255)<.000001&&Math.abs(color?.blue-183/255)<.000001;
+const white=color=>color?.red===1&&color?.green===1&&color?.blue===1;
 function assertFrames(record){
   for(const [index,p]of record.pages.entries()){
     const {width,height}=p.page.getSize(),frame=ribbonLayout(width,height),top=height-frame.top;
@@ -49,7 +54,7 @@ function assertFrames(record){
     }
     for(const rectangle of p.rectangles)assert.ok(rectangle.y>=frame.bottom&&rectangle.y+rectangle.height<=top+.001,'badges and labels stay between the artwork');
   }
-  const first=record.pages[0],stats=first.texts.find(entry=>/cones\s+\|/.test(entry.value)),parking=first.texts.find(entry=>entry.value.startsWith('Parking:'));
+  const first=record.pages[0],stats=first.texts.find(entry=>/cones\s+\|/.test(entry.value)),parking=first.texts.find(entry=>entry.value.startsWith('Parking spaces:'));
   assert.ok(stats.options.x+stats.options.font.widthOfTextAtSize(stats.value,stats.options.size)<parking.options.x-8,'parking total is separate from traffic counts');
 }
 async function render(source){
@@ -76,46 +81,66 @@ test('full-layout bounds include every parking-row point even when the saved vie
   }
 });
 
-test('parking PDF shows corrected totals and row provenance without changing the saved plan or traffic counts',async()=>{
+test('parking PDF draws exact space dots with numeric tags and preserves corrections without changing the plan',async()=>{
   const p=plan();p.items=[row('East row',90),row('West row',180,{countOverride:17,points:[[39.6,-105.0005],[39.6+north(180),-105.0005]]})];p.parking={totalOverride:25};
   const original=JSON.stringify(p),{record,result,viewports}=await render(p),text=printed(record),map=firstPageText(record);
   assert.equal(JSON.stringify(p),original,'export is a detached snapshot');
-  assert.match(map,/Parking: 25 spaces \(Adjusted\)/);
+  assert.match(map,/Parking spaces: 25/);
   assert.match(map,/0 cones\s+\|\s+0 routes\s+\|\s+0 labels/);
-  assert.ok(map.includes('P1 · 10 spaces'));assert.ok(map.includes('P2 · 17 spaces'));
+  assert.deepEqual(numericTags(record),['10','17']);
+  assert.doesNotMatch(map,/\b(?:P\d+|estimated?|adjusted)\b/i);
   assert.ok(text.includes('The overall total was entered manually.'));
   assert.ok(text.includes('2 marked parking rows total 27 spaces before the overall adjustment.'));
-  assert.ok(text.includes('Length-based estimate before row corrections: 30 spaces.'));
-  assert.ok(text.includes('P1 - East row: 10 spaces (estimated; 9 ft per space along the row).'));
-  assert.ok(text.includes('P2 - West row: 17 spaces (adjusted; length-based estimate: 20 spaces; 9 ft per space along the row).'));
-  assert.ok(text.includes('Parking row'));assert.ok(text.includes('P = parking row'));
-  const strokes=record.pages[0].lines.filter(line=>line.thickness===3&&Math.abs(line.color?.green-215/255)<.000001);
-  assert.equal(strokes.length,2,'each row is a simple non-directional line, with no route arrows');
+  assert.ok(text.includes('Calculated count before row corrections: 30 spaces.'));
+  assert.ok(text.includes('Row 1 - East row: 10 spaces (calculated from row length; 9 ft per space along the row).'));
+  assert.ok(text.includes('Row 2 - West row: 17 spaces (entered manually; calculated count: 20 spaces; 9 ft per space along the row).'));
+  assert.ok(record.pages[0].texts.some(entry=>entry.value==='Parking spaces'));
+  assert.ok(!text.includes('P = parking row'));assert.doesNotMatch(text,/\bestimat(?:e|ed|es)\b/i);
+  const first=record.pages[0],dots=mapCircles(record),bounds=mapBounds(record);
+  assert.equal(dots.length,27,'row corrections control dot counts; an overall correction does not redistribute rows');
+  assert.ok(dots.every(dot=>teal(dot.color)&&dot.borderWidth>0),'all map circles are bordered parking dots, without extra row-start anchors');
+  assert.equal(first.lines.filter(line=>teal(line.color)).length,0,'parking spaces and legend have no connecting strokes');
+  assert.equal(first.lines.filter(line=>white(line.color)).length,0,'numeric parking tags have no leader lines');
+  const expected=[...Array.from({length:10},(_,i)=>[39.6+north((i+.5)*9),-105]),...Array.from({length:17},(_,i)=>[39.6+north((i+.5)*180/17),-105.0005])];
+  expected.forEach((point,i)=>{const projected=projectPoint(point,viewports[0]);assert.ok(Math.abs(dots[i].x-(bounds.x+projected.x))<.001);assert.ok(Math.abs(dots[i].y-(bounds.y+bounds.height-projected.y))<.001);});
   for(const item of p.items)for(const point of item.points){const projected=projectPoint(point,viewports[0]);assert.ok(projected.x>=44&&projected.x<=viewports[0].width-44);assert.ok(projected.y>=44&&projected.y<=viewports[0].height-44);}
   await output(result,'parking-adjusted-total.pdf');
 });
 
-test('row-derived estimates, row corrections, and an explicit zero are identified separately in the PDF',async()=>{
-  const estimated=plan();estimated.items=[row('One row',90),row('Second row',180)];
-  const a=await render(estimated);assert.match(firstPageText(a.record),/Parking: 30 spaces \(Estimated\)/);
+test('calculated rows and corrected zero use simple totals and draw the corresponding number of dots',async()=>{
+  const calculated=plan();calculated.items=[row('One row',90),row('Second row',180)];
+  const a=await render(calculated);assert.match(firstPageText(a.record),/Parking spaces: 30/);
   assert.ok(printed(a.record).includes('Total from 2 marked parking rows.'));
+  assert.equal(mapCircles(a.record).length,30);assert.deepEqual(numericTags(a.record),['10','20']);
+  assert.doesNotMatch(printed(a.record),/\bestimat(?:e|ed|es)\b/i);
   const corrected=plan();corrected.items=[row('Closed row',90,{countOverride:0})];
-  const b=await render(corrected);assert.match(firstPageText(b.record),/Parking: 0 spaces \(Adjusted\)/);
-  assert.ok(firstPageText(b.record).includes('P1 · 0 spaces'));assert.ok(printed(b.record).includes('Length-based estimate before row corrections: 10 spaces.'));
+  const b=await render(corrected);assert.match(firstPageText(b.record),/Parking spaces: 0/);
+  assert.deepEqual(numericTags(b.record),['0']);assert.equal(mapCircles(b.record).length,0,'an explicit zero does not produce an anchor dot');
+  assert.ok(printed(b.record).includes('Calculated count before row corrections: 10 spaces.'));
   assert.ok(printed(b.record).includes('including corrected row counts'));
-  await output(a.result,'parking-estimated-total.pdf');await output(b.result,'parking-corrected-zero.pdf');
+  await output(a.result,'parking-calculated-total.pdf');await output(b.result,'parking-corrected-zero.pdf');
 });
 
-test('legacy uncounted layouts remain unknown while a manually entered zero stays an adjusted total',async()=>{
+test('legacy uncounted layouts remain unknown while a manually entered zero stays zero',async()=>{
   const legacy=plan();delete legacy.parking;
   const before=JSON.stringify(legacy),a=await render(legacy),text=printed(a.record);
-  assert.equal(JSON.stringify(legacy),before);assert.match(firstPageText(a.record),/Parking: Not counted/);
+  assert.equal(JSON.stringify(legacy),before);assert.match(firstPageText(a.record),/Parking spaces: Not counted/);
   assert.ok(text.includes('No parking-space count has been entered for this layout.'));
-  assert.ok(!text.includes('Parking: 0 spaces'));
+  assert.ok(!text.includes('Parking spaces: 0'));assert.equal(mapCircles(a.record).length,0);
   const manual=plan();manual.parking={totalOverride:0};
-  const b=await render(manual);assert.match(firstPageText(b.record),/Parking: 0 spaces \(Adjusted\)/);
+  const b=await render(manual);assert.match(firstPageText(b.record),/Parking spaces: 0/);assert.equal(mapCircles(b.record).length,0);
   assert.ok(printed(b.record).includes('The total was entered manually; no parking rows are marked in this layout.'));
   await output(a.result,'parking-not-counted.pdf');await output(b.result,'parking-manual-zero.pdf');
+});
+
+test('numeric parking tags do not remove route and location anchor markers',async()=>{
+  const p=plan();p.items=[row('Parking row',90),{id:'route',kind:'route',routeType:'bus',label:'Bus entrance',points:[[39.6,-105.0005],[39.6+north(90),-105.0005]]},{id:'entry',kind:'pin',pinType:'entry',label:'Entrance',point:[39.6,-104.9995]}];
+  const {record}=await render(p),map=firstPageText(record),circles=mapCircles(record);
+  assert.match(map,/0 cones\s+\|\s+1 routes\s+\|\s+1 labels/);
+  assert.ok(map.includes('R1'));assert.ok(map.includes('L1 Entrance'));
+  assert.deepEqual(numericTags(record),['10']);assert.equal(circles.filter(circle=>teal(circle.color)).length,10);
+  assert.equal(circles.filter(circle=>!teal(circle.color)).length,2,'route and location tags retain their anchor dots');
+  assert.equal(record.pages[0].lines.filter(line=>white(line.color)).length,2,'only route and location tags keep leader lines');
 });
 
 test('long row names and setup notes paginate completely while the largest allowed parking total fits the summary',async()=>{
@@ -125,7 +150,7 @@ test('long row names and setup notes paginate completely while the largest allow
   p.items=Array.from({length:18},(_,i)=>row(`Row ${i+1} - ${'W'.repeat(75)} END-${i+1}`,90,{id:'row-'+i,points:[[39.6,-105+i*.0001],[39.6+north(90),-105+i*.0001]]}));
   const before=JSON.stringify(p),{record,result}=await render(p),text=printed(record);
   assert.equal(JSON.stringify(p),before);assert.ok(result.pages>2);
-  assert.match(firstPageText(record),/Parking: 100,000 spaces \(Adjusted\)/);
+  assert.match(firstPageText(record),/Parking spaces: 100,000/);
   for(let i=1;i<=18;i++)assert.ok(text.includes(`END-${i}`),`row ${i} complete`);
   for(let i=1;i<=35;i++)assert.ok(text.includes(`END-NOTE-${i}`),`note ${i} complete`);
   await output(result,'parking-count-overflow.pdf');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {newTrafficPlan,validatePlan,clone,readLayouts,appendLayout,removeLayout,createTrafficStorage,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSummary} from '../bus-access/traffic-model.mjs';
+import {newTrafficPlan,validatePlan,clone,readLayouts,appendLayout,removeLayout,createTrafficStorage,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSpacePoints,parkingSummary} from '../bus-access/traffic-model.mjs';
 
 const location={id:'parking-test',name:'Sample meeting location',address:'Synthetic parking test',lat:39.6,lng:-105};
 const plan=()=>newTrafficPlan(location,new Date('2026-11-07T18:00:00Z'));
@@ -15,6 +15,10 @@ function destination(start,feet,bearing=0){
 function row(id='row-1',feet=90,bearing=0,patch={}){
   const start=[location.lat,location.lng];
   return {id,kind:'parking-row',label:id,points:[start,destination(start,feet,bearing)],spaceWidthFeet:DEFAULT_PARKING_SPACE_WIDTH_FEET,countOverride:null,...patch};
+}
+function nearPoint(actual,expected,message){
+  assert.equal(actual.length,2);
+  actual.forEach((value,index)=>assert.ok(Math.abs(value-expected[index])<1e-8,message||`Expected ${actual} near ${expected}`));
 }
 
 test('new and legacy layouts distinguish an uncounted lot from an explicitly adjusted zero',()=>{
@@ -47,6 +51,55 @@ test('parking rows estimate complete marked lengths in either direction, through
   assert.equal(estimateParkingRow(row('below-half',94.4)),10);
   assert.equal(estimateParkingRow(row('above-half',94.6)),11);
   assert.equal(estimateParkingRow(row('very-short',2)),0,'a short row never invents a minimum of one parking space');
+});
+
+test('parking dots sit at space centers and respect smaller or larger row corrections without mutating the row',()=>{
+  for(const bearing of [0,90,180,270]){
+    const r=row('dots',90,bearing),before=clone(r),dots=parkingSpacePoints(r);
+    assert.equal(dots.length,10);
+    dots.forEach((p,i)=>nearPoint(p,destination(r.points[0],4.5+i*9,bearing)));
+    dots[0][0]=0;
+    assert.deepEqual(r,before,'rendered dots do not share or change saved point arrays');
+  }
+  const r=row('corrected');
+  for(const count of [3,12]){
+    const corrected={...r,countOverride:String(count)},dots=parkingSpacePoints(corrected);
+    assert.equal(dots.length,count);
+    dots.forEach((p,i)=>nearPoint(p,destination(r.points[0],(i+.5)*90/count)));
+    assert.equal(corrected.countOverride,String(count),'rendering does not normalize the saved correction in place');
+  }
+});
+
+test('parking dot spacing follows the whole bent row, skips repeated points, and reverses consistently',()=>{
+  const start=[location.lat,location.lng],turn=destination(start,30),end=destination(turn,60,90);
+  const r=row('bent',90,0,{points:[start,start,turn,turn,end,end]}),before=clone(r),dots=parkingSpacePoints(r);
+  assert.equal(dots.length,10);
+  dots.forEach((p,i)=>{
+    const feet=4.5+i*9;
+    nearPoint(p,feet<30?destination(start,feet):destination(turn,feet-30,90));
+  });
+  const reversed=parkingSpacePoints({...r,points:[...r.points].reverse()});
+  reversed.forEach((p,i)=>nearPoint(p,dots[dots.length-1-i]));
+  const midpoint=parkingSpacePoints({...r,countOverride:1});
+  assert.equal(midpoint.length,1);nearPoint(midpoint[0],destination(turn,15,90),'one corrected space sits at the midpoint of the full path');
+  assert.deepEqual(r,before);
+});
+
+test('zero parking counts produce no dots while corrected counts still require valid row geometry and width',()=>{
+  assert.deepEqual(parkingSpacePoints(row('closed',90,0,{countOverride:0})),[]);
+  assert.deepEqual(parkingSpacePoints(row('closed-string',90,0,{countOverride:'0'})),[]);
+  assert.deepEqual(parkingSpacePoints(row('too-short',2)),[]);
+  const correctedShort=row('short-corrected',2,0,{countOverride:1});
+  const one=parkingSpacePoints(correctedShort);assert.equal(one.length,1);nearPoint(one[0],destination(correctedShort.points[0],1));
+  for(const countOverride of [0,1]){
+    assert.throws(()=>parkingSpacePoints(row('empty',90,0,{countOverride,points:[]})),/points/);
+    assert.throws(()=>parkingSpacePoints(row('repeated',90,0,{countOverride,points:[[39.6,-105],[39.6,-105]]})),/different points/);
+    assert.throws(()=>parkingSpacePoints(row('coordinates',90,0,{countOverride,points:[[39.6,-105],[86,-105]]})),/coordinates/);
+    assert.throws(()=>parkingSpacePoints(row('width',90,0,{countOverride,spaceWidthFeet:0})),/feet per parking space/);
+  }
+  for(const countOverride of [true,-1,1.5,'unknown',MAX_PARKING_SPACES+1]){
+    assert.throws(()=>parkingSpacePoints(row('bad-count',90,0,{countOverride})),/whole number/);
+  }
 });
 
 test('row corrections and an overall correction retain the original estimates and obey explicit zero overrides',()=>{
