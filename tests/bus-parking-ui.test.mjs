@@ -219,3 +219,52 @@ test('zooming retains an unfinished number in the selected-row editor until it i
   await h.click('[data-parking-row-apply]');await h.click('[data-export-pdf]');
   assert.equal(parkingSummary(h.exports.at(-1)).total,6);h.dispose();
 });
+
+test('auto-marking completes on the second click and its dots follow undo, save, reopen, and combined export',async()=>{
+  const h=await plannerHarness();await h.click('[data-tool="parking-auto"]');
+  h.point(0);assert.equal(parkingDots(h).length,0);
+  assert.match(h.query('[data-parking-draft]').textContent,/end|finish/i);
+  h.point(90);await settle();
+  assert.equal(parkingDots(h).length,10);
+  assert.match(parkingLabels(h)[0].options.icon.html,/>10<\/span>$/);
+  assert.equal([...h.maps.map.layers].filter(layer=>layer.type==='polyline').length,0);
+  assert.equal(h.query('[data-parking-row-count]'),null);
+  h.point(180);assert.equal(parkingDots(h).length,10,'a later click cannot extend the completed auto-marked row');
+  await h.click('[data-undo]');assert.equal(parkingDots(h).length,0);
+  await h.click('[data-redo]');assert.equal(parkingDots(h).length,10);
+  await h.click('[data-save]');assert.equal(h.writes.length,1);
+  const row=h.writes[0].plan.items[0];assert.equal(row.kind,'parking-row');
+  assert.deepEqual(row.points,[pointNorth(0),pointNorth(90)]);assert.equal(row.spaceWidthFeet,9);
+  await h.click('[data-new]');await h.click('[data-load]');
+  assert.equal(parkingDots(h).length,10);
+  await h.click('[data-export-combined]');assert.equal(parkingSummary(h.exports.at(-1)).total,10);h.dispose();
+});
+
+test('auto-marking keeps its start through invalid spacing and duplicate endpoints, then uses the corrected average width',async()=>{
+  const h=await plannerHarness();await h.click('[data-tool="parking-auto"]');h.point(0);
+  const width=h.query('[data-parking-width]');width.value='';width.badInput=true;await width.trigger('input');
+  h.point(90);await settle();assert.equal(parkingDots(h).length,0);
+  await h.click('[data-save]');await h.click('[data-export-pdf]');await h.click('[data-download]');
+  assert.equal(h.writes.length,0);assert.equal(h.exports.length,0);
+  assert.match(h.query('[data-status]').textContent,/finish|cancel/i);
+  width.badInput=false;await h.input('[data-parking-width]','10');h.point(0);
+  assert.equal(parkingDots(h).length,0,'duplicate start/end cannot create a completed row');
+  h.point(90);await settle();assert.equal(parkingDots(h).length,9);
+  await h.click('[data-export-pdf]');const row=h.exports.at(-1).items[0];
+  assert.deepEqual(row.points,[pointNorth(0),pointNorth(90)]);assert.equal(row.spaceWidthFeet,10);
+  await selectParkingRow(h);await h.input('[data-parking-row-count]','7');await h.click('[data-parking-row-apply]');
+  assert.equal(parkingDots(h).length,7);h.dispose();
+});
+
+test('cancelling auto-marking keeps the separate manual multipoint option available',async()=>{
+  const h=await plannerHarness();await h.click('[data-tool="parking-auto"]');h.point(0);
+  await h.click('[data-parking-cancel]');
+  await h.click('[data-tool="parking-row"]');h.point(90);h.point(180);
+  assert.equal(parkingDots(h).length,0,'the manual tool still waits for Finish row');
+  h.point(270);await h.click('[data-parking-finish]');assert.equal(parkingDots(h).length,20);
+  await h.click('[data-tool="parking-auto"]');h.point(360);h.point(450);await settle();
+  assert.equal(parkingDots(h).length,30);
+  await h.click('[data-export-pdf]');const rows=h.exports.at(-1).items;
+  assert.equal(rows.length,2);assert.deepEqual(rows[0].points,[pointNorth(90),pointNorth(180),pointNorth(270)]);
+  assert.deepEqual(rows[1].points,[pointNorth(360),pointNorth(450)]);h.dispose();
+});

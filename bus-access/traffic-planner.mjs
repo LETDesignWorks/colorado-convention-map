@@ -1,4 +1,4 @@
-import {newTrafficPlan,validatePlan,clone,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSpacePoints,parkingSummary} from './traffic-model.mjs?v=parking-dots-20261108-1';
+import {newTrafficPlan,validatePlan,clone,point as checkedPoint,coneRow,arrowheads,MAX_ITEMS,DEFAULT_PARKING_SPACE_WIDTH_FEET,MAX_PARKING_SPACES,estimateParkingRow,parkingRowCount,parkingSpacePoints,parkingSummary} from './traffic-model.mjs?v=parking-dots-20261108-1';
 import {exportTrafficPdf} from './traffic-pdf.mjs?v=parking-dots-20261108-1';
 import {mergePdfDocuments} from '../pdf-tools/pdf-merge.mjs?v=packets-20261107-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
@@ -6,9 +6,11 @@ import {createTrafficBasemap} from './traffic-basemap.mjs?v=street-names-2026110
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS={bus:'#25ceff',car:'#de9bff',walk:'#ffed67'};
 const PARKING_COLOR='#36d7b7';
+const isParkingTool=mode=>mode==='parking-row'||mode==='parking-auto';
+const autoParkingGuidance=hasStart=>hasStart?'Start set. Click the end of the row at the outside edge of the last space. The dots will appear automatically.':'Click the start of the row at the outside edge of the first space, then click the outside edge of the last space. The second click adds the dots automatically.';
 const PIN_LABELS={entry:'ENTRANCE',exit:'EXIT',loading:'BUS LOADING','no-entry':'NO ENTRY',note:'NOTE'};
 const CONE='<svg viewBox="0 0 28 30" width="26" height="28" aria-hidden="true"><path d="M10 2h8l6 23H4Z" fill="#fb771a" stroke="#51280d" stroke-width="1.5"/><path d="M8 9h12l1.5 5h-15Z" fill="white"/><path d="M5 20h18l1 4H4Z" fill="white"/><rect x="1" y="25" width="26" height="4" rx="1" fill="#e5680d" stroke="#51280d"/></svg>';
-const cssUrl=new URL('./traffic-planner.css?v=parking-dots-20261108-1',import.meta.url).href;
+const cssUrl=new URL('./traffic-planner.css?v=auto-parking-20261108-1',import.meta.url).href;
 // Reuse the two existing renderers so individual and combined exports share
 // the same artwork, selected photos, geometry, and privacy rules.
 export async function buildParkingPdfPacket(source,{combined=false,getLocationPdf,exportPdf=exportTrafficPdf,mergePdfs=mergePdfDocuments,exportOptions={},isCurrent=()=>true}={}){
@@ -102,11 +104,17 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       s.nodes.parkingSummary.textContent='Parking count needs attention';s.nodes.parkingMapCount.textContent='Parking spaces: check the entered count';s.nodes.parkingDetails.textContent=error.message;s.nodes.parkingSummary.classList.add('traffic-count-invalid');
     }
     s.nodes.parkingReset.disabled=s.busy||(s.nodes.parkingTotal.value.trim()===''&&!s.nodes.parkingTotal.validity?.badInput);
-    s.nodes.parkingActions.hidden=s.mode!=='parking-row';
+    const parkingMode=isParkingTool(s.mode),auto=s.mode==='parking-auto';
+    s.nodes.parkingActions.hidden=!parkingMode;s.nodes.parkingActions.dataset.auto=String(auto);
+    s.nodes.parkingFinish.hidden=auto;
     s.nodes.parkingFinish.disabled=s.busy||s.mode!=='parking-row'||!s.draft||s.draft.points.length<2;
-    s.nodes.parkingCancel.disabled=s.busy||s.mode!=='parking-row'||!s.draft;
+    s.nodes.parkingCancel.disabled=s.busy||!parkingMode||!s.draft;
     s.nodes.parkingDraft.textContent='';
-    if(s.mode==='parking-row'&&s.draft?.points.length>=2){
+    if(auto){
+      const hasStart=Boolean(s.draft?.points.length);
+      try{parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput));s.nodes.parkingDraft.textContent=autoParkingGuidance(hasStart);}
+      catch(error){s.nodes.parkingDraft.textContent=`${error.message} ${hasStart?'Your start point is kept. Correct the width, then click the end of the row.':'Correct the width, then click the start of the row.'}`;}
+    }else if(s.mode==='parking-row'&&s.draft?.points.length>=2){
       try{const width=parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput));s.nodes.parkingDraft.textContent=`Current row: ${estimateParkingRow({points:s.draft.points,spaceWidthFeet:width}).toLocaleString('en-US')} spaces. Choose Finish row to add the dots.`;}
       catch(error){s.nodes.parkingDraft.textContent=error.message;}
     }
@@ -120,7 +128,8 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     // Undo must also be available before a first edit has been committed.
     s.nodes.undo.disabled=s.busy||(!s.undo.length&&!pendingParkingChange);
     s.nodes.redo.disabled=s.busy||!s.redo.length||pendingParkingChange;
-    s.nodes.finish.disabled=s.busy||!s.draft||s.draft.points.length<2;
+    s.nodes.finish.hidden=s.mode==='parking-auto';
+    s.nodes.finish.disabled=s.busy||s.mode==='parking-auto'||!s.draft||s.draft.points.length<2;
     s.nodes.cancelDraw.disabled=s.busy||!s.draft;
     s.nodes.save.disabled=s.busy||!permitted();
     s.nodes.pdf.disabled=s.busy||!permitted();
@@ -195,6 +204,10 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
   function renderDraft(){
     const s=state;s.sketch.clearLayers();
     if(!s.draft)return;
+    if(s.mode==='parking-auto'){
+      if(s.draft.points.length)L.circleMarker(s.draft.points[0],{radius:7,color:PARKING_COLOR,weight:2,fill:false,interactive:false}).addTo(s.sketch);
+      return;
+    }
     if(s.draft.points.length>1)L.polyline(s.draft.points,{color:s.mode==='parking-row'?PARKING_COLOR:s.mode==='cone-row'?'#ff8a22':COLORS[s.nodes.routeType.value],weight:4,dashArray:'7 5',interactive:false}).addTo(s.sketch);
     s.draft.points.forEach(p=>L.circleMarker(p,{radius:5,color:'#fff',fillColor:'#ed7828',fillOpacity:1,interactive:false}).addTo(s.sketch));
   }
@@ -241,28 +254,43 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     if(!editable())return;
     if(!commitParkingInputs())return;
     if(state.draft?.points.length&&!w.confirm('Discard the unfinished line? Finished layout items will stay.'))return;
-    state.mode=mode;state.draft=['route','cone-row','parking-row'].includes(mode)?{points:[]}:null;state.selected=null;state.removeVertex=false;
-    const hints={select:'Drag a cone or label to move it. Click a route, parking dot, or parking number to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.','parking-row':'Mark one parking row from the outside edge of its first space to the outside edge of its last space. Choose Finish row to show the spaces as dots. Use separate rows on each side of an aisle.',cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
+    state.mode=mode;state.draft=['route','cone-row','parking-row','parking-auto'].includes(mode)?{points:[]}:null;state.selected=null;state.removeVertex=false;
+    const hints={select:'Drag a cone or label to move it. Click a route, parking dot, or parking number to edit its points.',route:'Click along the travel path, in the direction vehicles or pedestrians will move. Then choose Finish line.','cone-row':'Click along the proposed cone line. Choose the cone count, then Finish line.','parking-row':'Mark one parking row from the outside edge of its first space to the outside edge of its last space. Choose Finish row to show the spaces as dots. Use separate rows on each side of an aisle.','parking-auto':autoParkingGuidance(false),cone:'Click the map to place cones. Continue clicking for more, then choose Move / select.',pin:'Choose a label type and click its position on the map.'};
     say(hints[mode]);render();
   }
   function mapClick(event){
     if(!editable())return;
     if(!commitParkingInputs())return;
     const s=state,p=[event.latlng.lat,event.latlng.lng];
+    if(s.mode==='parking-auto'&&s.draft){
+      let endpoint;
+      try{endpoint=checkedPoint(p);}catch(error){say(`${error.message} ${autoParkingGuidance(Boolean(s.draft.points.length))}`);return;}
+      if(!s.draft.points.length){
+        s.draft.points=[endpoint];clearPdfLinks();renderDraft();syncButtons();say(autoParkingGuidance(true));return;
+      }
+      const start=s.draft.points[0];
+      s.draft.points=[start,endpoint];
+      if(!finishLine()){
+        s.draft.points=[start];renderDraft();syncButtons();
+        say(`${s.nodes.status.textContent} Your start point is kept. Correct the width if needed, then click the end of the row again.`);
+      }
+      return;
+    }
     if(s.draft){if(s.draft.points.length>=200)return say('Finish this line before adding more points.');s.draft.points.push(p);renderDraft();syncButtons();return;}
     if(s.mode==='cone')recordChange(plan=>plan.items.push({id:uid(),kind:'cone',label:'',point:p}));
     if(s.mode==='pin'){const pinType=s.nodes.pinType.value;recordChange(plan=>plan.items.push({id:uid(),kind:'pin',pinType,label:s.nodes.itemLabel.value.trim()||PIN_LABELS[pinType],point:p}));}
   }
   function finishLine(){
-    if(!editable()||!state.draft||state.draft.points.length<2)return;
+    if(!editable()||!state.draft||state.draft.points.length<2)return false;
     const s=state,points=clone(s.draft.points);let items;
     try{
-      if(s.mode==='parking-row')items=[{id:uid(),kind:'parking-row',label:`Parking row ${s.plan.items.filter(item=>item.kind==='parking-row').length+1}`,points,spaceWidthFeet:parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput)),countOverride:null}];
+      if(isParkingTool(s.mode))items=[{id:uid(),kind:'parking-row',label:`Parking row ${s.plan.items.filter(item=>item.kind==='parking-row').length+1}`,points,spaceWidthFeet:parkingWidth(s.nodes.parkingWidth.value,Boolean(s.nodes.parkingWidth.validity?.badInput)),countOverride:null}];
       else items=s.mode==='cone-row'?coneRow(points,Number(s.nodes.coneCount.value)).map(point=>({id:uid(),kind:'cone',label:'',point})):[{id:uid(),kind:'route',routeType:s.nodes.routeType.value,label:s.nodes.itemLabel.value.trim()||`${s.nodes.routeType.selectedOptions[0].textContent} route`,points}];
     }
-    catch(error){say(error.message);return;}
-    if(s.plan.items.length+items.length>MAX_ITEMS)return say(`Keep this layout to ${MAX_ITEMS} items or fewer.`);
-    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1&&items[0].kind!=='parking-row'?items[0].id:null;say(items[0].kind==='parking-row'?`Parking spaces added: ${parkingRowCount(items[0]).toLocaleString('en-US')}. Click a dot or the number to adjust the row, then save the layout.`:'Added to this draft. Save layout to keep a named copy for this meeting place.');render();}
+    catch(error){say(error.message);return false;}
+    if(s.plan.items.length+items.length>MAX_ITEMS){say(`Keep this layout to ${MAX_ITEMS} items or fewer.`);return false;}
+    if(recordChange(plan=>plan.items.push(...items))){s.mode='select';s.draft=null;s.selected=items.length===1&&items[0].kind!=='parking-row'?items[0].id:null;say(items[0].kind==='parking-row'?`Parking spaces added: ${parkingRowCount(items[0]).toLocaleString('en-US')}. Click a dot or the number to adjust the row, then save the layout.`:'Added to this draft. Save layout to keep a named copy for this meeting place.');render();return true;}
+    return false;
   }
   function savedOptions(){
     const s=state,previous=s.nodes.saved.value;s.nodes.saved.replaceChildren();
@@ -383,9 +411,10 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
       <small>Street names appear on the map and in exported PDFs. Cones, routes, and your location labels stay on top.</small>
       <section class="traffic-parking-controls" aria-labelledby="trafficParkingTitle"><h3 id="trafficParkingTitle">Parking spaces</h3>
       <p class="traffic-parking-summary" data-parking-summary role="status" aria-live="polite">Parking spaces: Not counted</p><small data-parking-details></small>
-      <button class="btn blue" data-tool="parking-row">Mark parking row</button>
-      <label>Feet per space along row<input data-parking-width type="number" min="1" max="100" step="0.1" value="${DEFAULT_PARKING_SPACE_WIDTH_FEET}" aria-describedby="trafficParkingWidthHelp"></label>
-      <small id="trafficParkingWidthHelp">Start with ${DEFAULT_PARKING_SPACE_WIDTH_FEET} ft per space and adjust it to match the row. Mark each row separately, from the outside edge of its first space to the outside edge of its last space.</small>
+      <label>Average space width (ft)<input data-parking-width type="number" min="1" max="100" step="0.1" value="${DEFAULT_PARKING_SPACE_WIDTH_FEET}" aria-describedby="trafficParkingWidthHelp"></label>
+      <small id="trafficParkingWidthHelp">Use the average spacing along the row, starting at ${DEFAULT_PARKING_SPACE_WIDTH_FEET} ft per space. Adjust it to match the parking spaces.</small>
+      <div class="traffic-pair traffic-parking-tools"><button class="btn blue" data-tool="parking-auto">Auto-mark spaces</button><button class="btn blue" data-tool="parking-row">Mark parking row</button></div>
+      <small>Auto-mark spaces: click the outside edge of the first space, then the outside edge of the last space. The second click adds the dots. Mark parking row: add points along a row, then choose Finish row. Mark each side of an aisle separately.</small>
       <div class="traffic-pair traffic-parking-actions" data-parking-actions hidden><button type="button" class="btn blue" data-parking-finish disabled>Finish row</button><button type="button" class="btn light" data-parking-cancel disabled>Cancel row</button></div><small class="traffic-parking-draft" data-parking-draft></small>
       <label>Adjusted parking total (optional)<input data-parking-total type="number" min="0" max="${MAX_PARKING_SPACES}" step="1" placeholder="Use marked-row total" aria-describedby="trafficParkingTotalHelp"></label>
       <small id="trafficParkingTotalHelp">Leave blank to use the row total, or enter the number you want to use for this lot. An adjusted total stays in place as you edit rows. Verify spaces on site.</small><button type="button" class="btn light" data-parking-reset>Use row count</button></section>
@@ -421,7 +450,7 @@ export function mountTrafficPlanner({L,getLocation,isAdmin,storage,getLocationPd
     q('[data-close]').addEventListener('click',()=>close());dialog.addEventListener('cancel',event=>{event.preventDefault();if(s.draft){s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');}else close();});
     dialog.querySelectorAll('[data-tool]').forEach(button=>{button.type='button';button.addEventListener('click',()=>setTool(button.dataset.tool));});
     nodes.finish.addEventListener('click',finishLine);nodes.cancelDraw.addEventListener('click',()=>{if(!editable())return;s.draft=null;s.mode='select';render();say('Unfinished line cancelled.');});
-    nodes.parkingFinish.addEventListener('click',finishLine);nodes.parkingCancel.addEventListener('click',()=>{if(!editable()||s.mode!=='parking-row')return;s.draft=null;s.mode='select';render();say('Unfinished parking row cancelled.');});
+    nodes.parkingFinish.addEventListener('click',finishLine);nodes.parkingCancel.addEventListener('click',()=>{if(!editable()||!isParkingTool(s.mode))return;const auto=s.mode==='parking-auto';s.draft=null;s.mode='select';render();say(auto?'Auto-marking cancelled.':'Unfinished parking row cancelled.');});
     nodes.undo.addEventListener('click',()=>historyMove('undo','redo'));nodes.redo.addEventListener('click',()=>historyMove('redo','undo'));
     nodes.name.addEventListener('input',()=>{clearPdfLinks();s.plan.name=nodes.name.value;s.dirty=true;syncButtons();});nodes.notes.addEventListener('input',()=>{clearPdfLinks();s.plan.notes=nodes.notes.value;s.dirty=true;syncButtons();});
     nodes.parkingTotal.addEventListener('input',()=>{if(!editable())return;clearPdfLinks();s.dirty=true;syncButtons();});
