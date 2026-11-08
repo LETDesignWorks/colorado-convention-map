@@ -15,6 +15,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     match /reviews/{reviewId} {
+      // The verified owner can already read every review by ID. Authorize
+      // collection queries without requiring a document-ID prefix proof.
+      // Both identity checks keep photo metadata restricted to that same owner.
+      allow list: if isAdmin() && isPhotoAdmin();
+
       // The original broad review grant must exclude the photo prefix: a
       // narrower match cannot override an existing permissive match.
       allow read, create, update, delete: if
@@ -23,3 +28,4 @@ service cloud.firestore {
     }
   }
 }
+
