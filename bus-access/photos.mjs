@@ -3,12 +3,13 @@ import {preparePhoto} from './photos-images.mjs';
 import {buildPhotoPdf, publicPhotoReport} from './photos-pdf.mjs?v=parking-map-only-20261108-1';
 import {sendPdfsToBuilder} from '../pdf-tools/handoff.mjs?v=packets-20261107-1';
 import {PDF_NOTES_LIMIT, createPhotoReportDraftStore, photoReportScope, reportNotes, pdfPhotos, selectedOverviewPhotoId} from './photos-report-draft.mjs?v=photo-selection-20261107-1';
+import {createPhotoPresentationProvider} from './photos-presentation.mjs?v=locations-pptx-20261108-1';
 
 const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin, createSharedStore,
+export function mountLocationPhotos({getLocation, getSummary, getLocationById, getSummaryFor, getOwner, isAdmin, createSharedStore,
   createDeviceStore=createDevicePhotoStore, prepare=preparePhoto, exportPdf=buildPhotoPdf,
   createReportDraftStore=createPhotoReportDraftStore,
-  openParkingPlanner, onPdfChanged=()=>{}, sendToBuilder=sendPdfsToBuilder,
+  openParkingPlanner, openPresentation, onPdfChanged=()=>{}, sendToBuilder=sendPdfsToBuilder,
   document:d=globalThis.document, window:w=globalThis.window}) {
   const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
   d.getElementById('detail').after(host);
@@ -16,6 +17,13 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   const drafts=createReportDraftStore({getStorage:()=>w.localStorage});
   let epoch=0, identity='', mode=createSharedStore?'shared':'device', store, photos=[], urls=[], pdfUrl, busy=false, loaded=false, currentLocation, currentAdmin=false, pdfRevision=0, reportIdentity='';
   let draft={notes:'',overviewPhotoIds:{device:'',shared:''},useOnlySelectedPhotos:{device:true,shared:true},persistence:'ready'};
+  const presentationRevisions=new Map(),presentationWrites=new Map();
+  const presentationKey=(scope,library)=>JSON.stringify([scope,library]);
+  function touchPresentation(scope,library){const key=presentationKey(scope,library);presentationRevisions.set(key,(presentationRevisions.get(key)||0)+1);}
+  function beginPhotoWrite(scope,library){
+    const key=presentationKey(scope,library);touchPresentation(scope,library);presentationWrites.set(key,(presentationWrites.get(key)||0)+1);
+    return()=>{touchPresentation(scope,library);const remaining=(presentationWrites.get(key)||1)-1;if(remaining)presentationWrites.set(key,remaining);else presentationWrites.delete(key);};
+  }
   const contextIdentity=()=>{const location=getLocation();return location?photoReportScope({locationId:location.id,admin:isAdmin(),owner:getOwner?.()||''}):'';};
   const active=token=>token===epoch && contextIdentity()===identity;
   const currentReport=()=>publicPhotoReport(getLocation(),getSummary?.());
@@ -28,6 +36,26 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   const included=()=>pdfPhotos(photos,useOnlySelected());
   const currentNotes=()=>String(host.querySelector('[data-photo-report-notes]')?.value??draft.notes).replace(/\r\n?/g,'\n');
   const overviewId=()=>selectedOverviewPhotoId(photos,draft.overviewPhotoIds[mode],useOnlySelected());
+  function readPresentationLiveState({locationId,library,scope,operation}){
+    if(identity!==scope||String(currentLocation?.id)!==locationId||contextIdentity()!==scope)return null;
+    const currentLibrary=library===mode,notesInput=host.querySelector('[data-photo-report-notes]'),notes=reportNotes(currentNotes());
+    const choice=currentLibrary?host.querySelector('[data-photo-selected-only]'):null,onlySelected=currentLibrary?useOnlySelected():undefined;
+    let captions=[];
+    if(operation==='build'&&currentLibrary){
+      if(busy||!loaded)throw Error('The photo library is still loading or saving. Wait for it to finish, then create the presentation again.');
+      captions=photos.map(photo=>({node:host.querySelector(`[data-photo-id="${photo.id}"] [data-photo-caption]`),value:photo.caption}));
+      if(captions.some(({node,value})=>node?.value!==value))throw Error('Save the edited captions before creating the presentation.');
+    }
+    // Retain these actual inputs across navigation. A location switch removes
+    // them from the DOM but must not invalidate an unchanged captured report.
+    return {notes,...(currentLibrary?{useOnlySelected:onlySelected}:{}),isCurrent:()=>
+      (!notesInput||String(notesInput.value).replace(/\r\n?/g,'\n')===notes)&&
+      (!choice||choice.checked===onlySelected)&&captions.every(({node,value})=>node?.value===value)};
+  }
+  const presentation=createPhotoPresentationProvider({getLocation,getLocationById,getSummary,getSummaryFor,getOwner,isAdmin,
+    getLibrary:()=>mode,drafts,createSharedStore,createDeviceStore,indexedDB:w.indexedDB,exportPdf,readLiveState:readPresentationLiveState,
+    getPhotoRevision:(scope,library)=>presentationRevisions.get(presentationKey(scope,library))||0,
+    hasPendingPhotoWrite:(scope,library)=>Boolean(presentationWrites.get(presentationKey(scope,library)))});
   function updateNotesState(){
     const count=host.querySelector('[data-photo-notes-count]');
     if(count)count.textContent=`${currentNotes().length.toLocaleString('en-US')} / ${PDF_NOTES_LIMIT.toLocaleString('en-US')} characters`;
@@ -91,6 +119,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     ${mode==='device'&&createSharedStore?'<button class="btn light" type="button" data-photo-copy>Copy selected photos to shared storage</button>':''}`:'<p class="photo-help">Sign in as the administrator to add, view, and select private location photos.</p>'}
     <div class="photo-export"><button type="button" class="btn blue" data-photo-pdf>Create location PDF</button><span class="photo-help">Landscape site visit overview with saved location details, your PDF notes${admin?', and the photos included above':''}. Includes the convention logo, sky header and hills footer. Private contacts and internal inspection notes are excluded.</span></div>
     ${admin&&openParkingPlanner?'<div class="photo-export"><button type="button" class="btn light" data-photo-parking>Combine with parking-lot plan</button><span class="photo-help">Open the parking-lot planner to choose a layout and create one PDF with this review, your PDF notes, and the photos included above.</span></div>':''}
+    ${admin&&openPresentation?'<div class="photo-export"><button type="button" class="btn blue" data-photo-presentation>Create locations PowerPoint</button><span class="photo-help">Choose meeting locations, their saved photo settings, and parking layouts for one presentation.</span></div>':''}
     <div data-photo-pdf-links class="photo-pdf-links"></div><p data-photo-status role="status" aria-live="polite"></p>`;}
   async function showGallery(token){
     if(!active(token))return;
@@ -98,13 +127,13 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     const gallery=host.querySelector('[data-photo-gallery]'); if(!gallery)return;
     gallery.innerHTML=['interior','exterior'].map(category=>`<h4>${category==='interior'?'Interior':'Exterior'}</h4><div class="photo-grid">${photos.filter(p=>p.category===category).map(p=>`<article class="photo-item" data-photo-id="${escape(p.id)}"><div class="photo-thumbnail" data-photo-thumbnail><span>Loading preview…</span></div><label class="photo-selection"><input type="checkbox" data-photo-select ${p.selected!==false?'checked':''}> Include in PDF</label><label class="photo-selection photo-overview-choice"><input type="radio" name="location-photo-overview" data-photo-overview> Use as overview photo</label><label>Caption <input type="text" maxlength="180" data-photo-caption value="${escape(p.caption)}" aria-label="${escape(category)} photo caption"></label><button type="button" class="btn light" data-photo-remove>Remove photo</button></article>`).join('')||'<p class="photo-help">No '+category+' photos saved.</p>'}</div>`).join('');
     updateCount();setBusy(busy);
-    const locationId=currentLocation.id, readingStore=store;
+    const locationId=currentLocation.id, readingStore=store,presentationScope=identity,presentationLibrary=mode;
     for(const photo of photos){
       const tile=gallery.querySelector(`[data-photo-id="${photo.id}"]`),box=tile.querySelector('[data-photo-thumbnail]');
       tile.querySelector('[data-photo-select]').addEventListener('change',event=>saveMetadata(photo,{selected:event.target.checked},token));
       tile.querySelector('[data-photo-overview]').addEventListener('change',event=>{if(event.target.checked)chooseOverview(photo.id,token);});
       const caption=tile.querySelector('[data-photo-caption]');
-      caption.addEventListener('input',()=>{clearPdf();message('Caption edited. Choose Save caption to keep the change.');});
+      caption.addEventListener('input',()=>{if(!active(token))return;touchPresentation(presentationScope,presentationLibrary);clearPdf();message('Caption edited. Choose Save caption to keep the change.');});
       const saveCaption=d.createElement('button');saveCaption.type='button';saveCaption.className='btn light';saveCaption.dataset.photoSaveCaption='';saveCaption.textContent='Save caption';saveCaption.disabled=busy;
       saveCaption.addEventListener('click',()=>saveMetadata(photo,{caption:caption.value},token));
       caption.parentElement.after(saveCaption);
@@ -124,35 +153,35 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
   }
   async function saveMetadata(photo,patch,token){
     if(busy||!active(token))return;setBusy(true);clearPdf();
-    const next={...photo,...patch};
+    const next={...photo,...patch},finishWrite=beginPhotoWrite(identity,mode);
     try{await store.update(currentLocation.id,next);if(active(token)){Object.assign(photo,next);updateCount();message('Photo details saved.');}}
     catch(error){if(active(token)){const tile=host.querySelector(`[data-photo-id="${photo.id}"]`);tile.querySelector('[data-photo-select]').checked=photo.selected!==false;tile.querySelector('[data-photo-caption]').value=photo.caption;updateOverview();message('Could not save: '+photoError(error),true);}}
-    finally{if(active(token))setBusy(false);}
+    finally{finishWrite();if(active(token))setBusy(false);}
   }
   async function add(files,category,token){
     if(busy||!active(token)||!files.length)return;clearPdf();
     if(files.length+photos.length>PHOTO_LIMIT){message(`Choose fewer files. This library has room for ${PHOTO_LIMIT-photos.length} more photos.`,true);return;}
-    setBusy(true);const locationId=currentLocation.id,savingStore=store;let saved=0,failed=[];
-    for(const file of files){
+    setBusy(true);const locationId=currentLocation.id,savingStore=store,finishWrite=beginPhotoWrite(identity,mode);let saved=0,failed=[];
+    try{for(const file of files){
       if(!active(token))break;message(`Saving photo ${saved+failed.length+1} of ${files.length}…`);
       try{const photo=await prepare(file,category,{window:w,document:d});if(!active(token))break;await savingStore.add(locationId,photo);saved++;}
       catch(error){failed.push(`${file.name}: ${photoError(error)}`);}
-    }
+    }}finally{finishWrite();}
     if(active(token)){await load(token);message(`${saved} photo${saved===1?'':'s'} saved${mode==='device'?' on this device':' to shared storage'}.${failed.length?' '+failed.join(' '):''}`,failed.length>0);}
   }
   async function remove(photo,token){
     if(busy||!active(token)||!w.confirm(`Remove this ${photo.category} photo from the ${mode==='device'?'device':'shared'} library? Keep the original file if you may need it again.`))return;
-    setBusy(true);clearPdf();
-    try{const warning=await store.remove(currentLocation.id,photo.id);if(active(token)){await load(token);message(warning||'Photo removed.',Boolean(warning));}}
+    setBusy(true);clearPdf();const finishWrite=beginPhotoWrite(identity,mode);
+    try{let warning;try{warning=await store.remove(currentLocation.id,photo.id);}finally{finishWrite();}if(active(token)){await load(token);message(warning||'Photo removed.',Boolean(warning));}}
     catch(error){if(active(token))message('Could not remove photo: '+photoError(error),true);}
     finally{if(active(token))setBusy(false);}
   }
   async function copy(token){
     if(busy||!active(token))return;if(!selected().length){message('Select at least one photo to copy.',true);return;}
-    setBusy(true);const locationId=currentLocation.id,shared=createSharedStore();let count=0;
+    setBusy(true);const locationId=currentLocation.id,shared=createSharedStore(),finishWrite=beginPhotoWrite(identity,'shared');let count=0;
     try{for(const photo of selected()){if(!active(token))return;message(`Copying photo ${count+1}…`);await shared.add(locationId,photo);count++;}if(active(token))message(`${count} photos copied. Choose Shared storage to view them. Device copies were kept.`);}
     catch(error){if(active(token))message(`${count} photos copied. ${photoError(error)}`,true);}
-    finally{if(active(token))setBusy(false);}
+    finally{finishWrite();if(active(token))setBusy(false);}
   }
   function buildPdfSnapshot({expectedLocationId=currentLocation?.id}={}){
     const token=epoch,revision=pdfRevision;
@@ -217,6 +246,7 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     });
     host.querySelector('[data-photo-pdf]').addEventListener('click',()=>pdf(token));
     host.querySelector('[data-photo-parking]')?.addEventListener('click',()=>{if(active(token)&&isAdmin())openParkingPlanner();});
+    host.querySelector('[data-photo-presentation]')?.addEventListener('click',()=>{if(active(token)&&isAdmin())openPresentation();});
     if(!admin)return;
     store=mode==='shared'?createSharedStore():createDeviceStore({indexedDB:w.indexedDB,owner});
     host.querySelector('[data-photo-refresh]').addEventListener('click',()=>contextChanged(true));
@@ -227,5 +257,9 @@ export function mountLocationPhotos({getLocation, getSummary, getOwner, isAdmin,
     host.querySelector('[data-photo-copy]')?.addEventListener('click',()=>copy(token));
     load(token);
   }
-  return {contextChanged,buildPdfSnapshot,dispose(){epoch++;clearUrls();drafts.dispose?.();host.remove();style.remove();}};
+  return {contextChanged,buildPdfSnapshot,
+    getPresentationContext:presentation.getPresentationContext,
+    inspectPresentationLocation:presentation.inspectPresentationLocation,
+    buildPresentationLocation:presentation.buildPresentationLocation,
+    dispose(){epoch++;presentation.dispose();presentationRevisions.clear();presentationWrites.clear();clearUrls();drafts.dispose?.();host.remove();style.remove();}};
 }

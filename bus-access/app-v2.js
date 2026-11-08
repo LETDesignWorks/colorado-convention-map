@@ -1,5 +1,6 @@
 import { mountTrafficPlanner } from './traffic-planner.mjs?v=parking-map-only-20261108-1';
-import { mountLocationPhotos } from './photos.mjs?v=parking-map-only-20261108-1';
+import { mountLocationPhotos } from './photos.mjs?v=locations-pptx-20261108-1';
+import { mountLocationsPresentation } from './locations-presentation-ui.mjs?v=locations-pptx-20261108-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=parking-dots-20261108-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
@@ -23,7 +24,7 @@ const BUS_SIZE_LABELS={'passenger-van':'Passenger van',shuttle:'Shuttle bus','sc
 const TYPE_LABELS={'kingdom-hall':'Kingdom Hall','meeting-area':'Other meeting area'};
 const BASE_LOCATIONS=HALLS.map(h=>({...h,id:String(h.id),markerLabel:String(h.number),locationType:'kingdom-hall',planningArea:'dtc-45',customLocation:false}));
 
-let trafficPlanner=null,locationPhotos=null,detailRevision=0;
+let trafficPlanner=null,locationPhotos=null,locationsPresentation=null,trafficStorage=null,detailRevision=0;
 let app,auth,db,map,boundaryLayer,currentUser=null,selectedId=null,locations=[...BASE_LOCATIONS],pendingSelectId=null;
 const publicData=new Map();
 const markers=new Map();
@@ -33,6 +34,7 @@ const statusFilter=document.getElementById('statusFilter');
 const searchInput=document.getElementById('searchInput');
 const firebaseWarning=document.getElementById('firebaseWarning');
 const addLocationButton=document.getElementById('addLocationButton');
+const presentationButton=document.getElementById('locationPresentationButton');
 const locationModal=document.getElementById('locationModal');
 const locationForm=document.getElementById('locationForm');
 
@@ -45,6 +47,7 @@ function markerLabel(location){return clean(location.markerLabel||location.numbe
 function typeLabel(location){return TYPE_LABELS[location.locationType]||'Planning location';}
 function statusKey(id){return publicData.get(String(id))?.busStatus||'not-reviewed';}
 function statusInfo(id){return STATUS[statusKey(id)]||STATUS['not-reviewed'];}
+function summaryFor(id){const data=publicData.get(String(id))||{};return{status:statusInfo(id).label,busSize:BUS_SIZE_LABELS[data.busSize]||data.busSize,publicSummary:data.publicSummary};}
 function toast(message,error=false){const t=document.getElementById('toast');t.textContent=message;t.className='toast show'+(error?' error':'');clearTimeout(t._timer);t._timer=setTimeout(()=>t.className='toast',3600);}
 function showFirebaseWarning(message){firebaseWarning.textContent=message;firebaseWarning.classList.toggle('show',Boolean(message));}
 function mapQuery(location){return clean(location.address)||`${location.lat},${location.lng}`;}
@@ -200,6 +203,7 @@ document.getElementById('loginForm').addEventListener('submit',async event=>{eve
 document.getElementById('resetPassword').addEventListener('click',async()=>{const email=document.getElementById('loginEmail').value.trim()||ADMIN_EMAIL;try{await sendPasswordResetEmail(auth,email);toast('Password reset email sent.');}catch(error){toast(friendlyError(error),true);}});
 document.getElementById('signOutButton').addEventListener('click',async()=>{await signOut(auth);toast('Signed out.');});
 addLocationButton.addEventListener('click',()=>openLocationEditor());
+presentationButton.addEventListener('click',()=>locationsPresentation?.open());
 document.getElementById('cancelLocation').addEventListener('click',closeLocationModal);
 locationModal.addEventListener('click',event=>{if(event.target.id==='locationModal')closeLocationModal();});
 locationForm.addEventListener('submit',saveLocation);
@@ -212,14 +216,15 @@ document.addEventListener('click',event=>{if(event.target.id==='openStreetFromFo
 
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
-  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();renderList();});
+  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();locationsPresentation?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;presentationButton.hidden=!admin||!locationsPresentation;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
+  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();locationsPresentation?.contextChanged();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();locationsPresentation?.contextChanged();renderList();});
 }catch(error){showFirebaseWarning('Firebase could not initialize. '+friendlyError(error));renderList();}
 
 initMap();renderList();
+if(db)trafficStorage=createTrafficStorage({db,doc,getDocFromServer,runTransaction,isAdmin});
 if(map&&db)trafficPlanner=mountTrafficPlanner({L:window.L,getLocation:()=>findLocation(selectedId),isAdmin,
   getLocationPdf:options=>{if(!locationPhotos)throw Error('The location photo panel is still loading. Try again in a moment.');return locationPhotos.buildPdfSnapshot(options);},
-  storage:createTrafficStorage({db,doc,getDocFromServer,runTransaction,isAdmin}),notify:toast});
+  storage:trafficStorage,notify:toast});
 let createSharedPhotoStore;
 if(SHARED_PHOTOS_ENABLED&&db){
   try{
@@ -229,9 +234,19 @@ if(SHARED_PHOTOS_ENABLED&&db){
   }catch(error){toast('Shared photos could not start. Device photos remain available.',true);}
 }
 locationPhotos=mountLocationPhotos({getLocation:()=>findLocation(selectedId),isAdmin,getOwner:()=>currentUser?.uid,
+  getLocationById:findLocation,getSummaryFor:summaryFor,
   openParkingPlanner:trafficPlanner?()=>trafficPlanner.open():undefined,
+  openPresentation:trafficStorage?()=>locationsPresentation?.open():undefined,
   onPdfChanged:()=>trafficPlanner?.invalidatePdfContext(),
-  getSummary:()=>{const data=publicData.get(selectedId)||{};return{status:statusInfo(selectedId).label,busSize:BUS_SIZE_LABELS[data.busSize]||data.busSize,publicSummary:data.publicSummary};},
+  getSummary:()=>summaryFor(selectedId),
   createSharedStore:createSharedPhotoStore});
+if(trafficStorage){
+  locationsPresentation=mountLocationsPresentation({getLocations:()=>locations,getCurrentLocationId:()=>selectedId,getOwner:()=>currentUser?.uid,isAdmin,
+    getPhotoContext:()=>locationPhotos.getPresentationContext(),
+    inspectPhoto:(id,options)=>locationPhotos.inspectPresentationLocation(id,options),
+    buildPhoto:(id,options)=>locationPhotos.buildPresentationLocation(id,options),
+    listLayouts:id=>trafficStorage.list(id)});
+  presentationButton.hidden=!isAdmin();
+}
 let requestedId=null;if(location.hash.startsWith('#location-'))requestedId=decodeURIComponent(location.hash.slice(10));else{const legacy=location.hash.match(/hall-(.+)/);if(legacy)requestedId=decodeURIComponent(legacy[1]);}
 selectLocation(findLocation(requestedId)?.id||locations[0].id,false);
