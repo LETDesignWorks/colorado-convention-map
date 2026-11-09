@@ -2,6 +2,8 @@ import {initializeApp,getApps} from 'https://www.gstatic.com/firebasejs/12.18.0/
 import {getFirestore,collection,onSnapshot} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import {HALLS} from '../bus-access/data.js?v=pin-audit-20261108-1';
 import {rankedLocations,sameLocation,timeColor} from './model.mjs?v=rush-20261108-1';
+import {makeReport,reportHtml} from './results-report.mjs?v=rush-pdf-20261109-1';
+import {waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 
 const ids=['destinationGroup','morning','afternoon','busAllowance','search','referenceTime','dataStatus','validation','listTitle','count','groupNote','rankingRows','routeDetails'];
 const els=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
@@ -14,6 +16,30 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,att
 const busLabels={'45-foot-motorcoach':'45-foot motorcoach','40-foot-motorcoach':'40-foot motorcoach','school-bus':'School bus',shuttle:'Shuttle bus','passenger-van':'Passenger van'};
 const displayLabel=row=>els.destinationGroup.value==='activities'?(row.activityLabel||row.label):row.label;
 const displayedLocations=()=>els.destinationGroup.value==='activities'?data.locations.filter(l=>l.groups.includes('activities')):meetingLocations;
+const pdfButton=document.getElementById('downloadResultsPdf'),printButton=document.getElementById('printResults'),exportStatus=document.getElementById('exportStatus');
+let exportBusy=false,printSnapshot=null;
+function setExportButtons(){const ready=!!data&&els.validation.hidden&&!!rows.length;pdfButton.disabled=!ready||exportBusy;printButton.disabled=!ready||exportBusy;document.getElementById('printRanking').disabled=!ready||exportBusy;}
+function captureReport(){
+  if(!data||!els.validation.hidden)throw Error('Load valid results before printing or downloading.');
+  return makeReport({rows,group:els.destinationGroup.value,period,allowance:els.busAllowance.value,query:els.search.value,selectedId,origin:data.origin,reference:els.referenceTime.textContent,approvalStatus:els.dataStatus.textContent,checkedDate:data.checkedDate});
+}
+function preparePrint(report){document.getElementById('rushPrintReport').innerHTML=reportHtml(report);document.body.classList.add('rush-print');}
+window.addEventListener('beforeprint',()=>{try{preparePrint(printSnapshot||captureReport());}catch(error){document.getElementById('rushPrintReport').textContent=error.message;document.body.classList.add('rush-print');}});
+window.addEventListener('afterprint',()=>{document.body.classList.remove('rush-print');printSnapshot=null;});
+async function printResults(){
+  if(exportBusy)return;try{printSnapshot=captureReport();exportBusy=true;setExportButtons();exportStatus.textContent='Preparing the print layout…';await waitForPrintRibbons();preparePrint(printSnapshot);exportStatus.textContent='Choose Save as PDF in the print destination to save a PDF copy.';window.print();}
+  catch(error){exportStatus.textContent=error.message;document.body.classList.remove('rush-print');}
+  finally{printSnapshot=null;exportBusy=false;setExportButtons();}
+}
+async function downloadResultsPdf(){
+  if(exportBusy)return;try{const report=captureReport();exportBusy=true;setExportButtons();pdfButton.textContent='Preparing PDF…';exportStatus.textContent='Preparing the ranked results and selected route details…';
+    const {exportResultsPdf}=await import('./results-pdf.mjs?v=rush-pdf-20261109-1');const result=await exportResultsPdf(report);
+    const url=URL.createObjectURL(result.blob),link=document.createElement('a');link.href=url;link.download=result.filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    exportStatus.textContent=`PDF ready (${result.pages} ${result.pages===1?'page':'pages'}). Check your downloads; on mobile use Share to save or print.`;
+  }catch(error){exportStatus.textContent='Could not create the PDF: '+error.message+' You can also use Print / Save PDF.';}
+  finally{exportBusy=false;pdfButton.textContent='Download PDF';setExportButtons();}
+}
+pdfButton.addEventListener('click',downloadResultsPdf);printButton.addEventListener('click',printResults);document.getElementById('printRanking').addEventListener('click',printResults);
 
 function syncUrl(){const url=new URL(location.href);url.searchParams.set('group',els.destinationGroup.value);url.searchParams.set('period',period);if(selectedId)url.searchParams.set('location',selectedId);else url.searchParams.delete('location');history.replaceState(null,'',url);}
 function rangeLabel(forecast){return forecast?forecast.routes[0].rangeText:'Needs traffic check';}
@@ -38,7 +64,7 @@ function fitMap(){
 }
 function render(){
   const allowance=Number(els.busAllowance.value);
-  try{rows=rankedLocations(displayedLocations(),period,allowance);els.validation.hidden=true;}catch(error){els.validation.textContent=error.message;els.validation.hidden=false;return;}
+  try{if(els.busAllowance.value.trim()==='')throw Error('Enter a bus allowance from 0 to 90 minutes.');rows=rankedLocations(displayedLocations(),period,allowance);els.validation.hidden=true;}catch(error){els.validation.textContent=error.message;els.validation.hidden=false;setExportButtons();return;}
   els.morning.setAttribute('aria-pressed',String(period==='am'));els.afternoon.setAttribute('aria-pressed',String(period==='pm'));
   els.referenceTime.textContent='Reference: Tuesday, Nov 10, 2026 · '+(period==='am'?'8:00 AM':'5:00 PM')+' MST · bus allowance '+allowance+' min';
   const activities=els.destinationGroup.value==='activities';
@@ -50,7 +76,7 @@ function render(){
   els.rankingRows.innerHTML=filtered.length?filtered.map(row=>'<tr class="'+(row.id===selectedId?'row-selected':'')+'"><td><button class="location-button" type="button" data-select="'+escape(row.id)+'"><span class="rank" style="--rank-color:'+timeColor(row.planningMinutes)+'">'+(row.rank??'?')+'</span><span>'+escape(displayLabel(row)+' · '+row.name)+'</span></button><small class="location-address">'+escape(row.address)+'</small></td><td>'+escape(rangeLabel(row.forecast))+'</td><td style="color:'+timeColor(row.planningMinutes)+'">'+(row.planningMinutes===null?'—':row.planningMinutes+' min')+'</td><td><input type="checkbox" data-map="'+escape(row.id)+'" aria-label="Show route to '+escape(row.name)+'" '+(shown.has(row.id)?'checked':'')+(row.roadRoute?'':' disabled')+'></td></tr>').join(''):'<tr><td colspan="4">No matching destinations.</td></tr>';
   els.rankingRows.querySelectorAll('[data-select]').forEach(button=>button.addEventListener('click',()=>selectLocation(button.dataset.select,true)));
   els.rankingRows.querySelectorAll('[data-map]').forEach(input=>input.addEventListener('change',()=>{input.checked?shown.add(input.dataset.map):shown.delete(input.dataset.map);drawMap();}));
-  drawMap();renderDetail();syncUrl();
+  drawMap();renderDetail();syncUrl();setExportButtons();
 }
 function selectLocation(id,fit){selectedId=id;shown.add(id);render();if(fit){const line=layers.get(id);if(line)map.fitBounds(line.getBounds(),{padding:[35,35],maxZoom:14});else{const row=rows.find(r=>r.id===id);if(row)map.setView([row.lat,row.lng],13);}}}
 function renderDetail(){
@@ -93,8 +119,9 @@ try{
   document.getElementById('topFive').addEventListener('click',()=>{shown=new Set(rows.filter(r=>r.forecast).slice(0,5).map(r=>r.id));render();fitMap();});
   document.getElementById('showAll').addEventListener('click',()=>{shown=new Set(rows.filter(r=>r.roadRoute).map(r=>r.id));render();fitMap();});
   document.getElementById('clearRoutes').addEventListener('click',()=>{shown.clear();render();});
-  document.getElementById('fitMap').addEventListener('click',fitMap);document.getElementById('printRanking').addEventListener('click',()=>window.print());
+  document.getElementById('fitMap').addEventListener('click',fitMap);
   const config={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',appId:'1:29365992209:web:0bd35e723688b37d776ab0'};
   const app=getApps().find(app=>app.options.projectId===config.projectId)||initializeApp(config,'rush-hour');
   onSnapshot(collection(getFirestore(app),'halls'),rebuildFromLive,()=>{els.dataStatus.textContent='Current approval status is unavailable. Showing the saved approval snapshot from Nov 8, 2026.';});
-}catch(error){els.dataStatus.textContent=error.message;els.validation.hidden=false;els.validation.textContent='Reload the page to retry.';}
+}catch(error){els.dataStatus.textContent=error.message;els.validation.hidden=false;els.validation.textContent='Reload the page to retry.';setExportButtons();}
+

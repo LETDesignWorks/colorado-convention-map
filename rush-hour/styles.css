@@ -4,3 +4,15 @@
 @media print{body{background:#fff}.topbar,.controls,.map-column,footer,.small{display:none!important}main{padding:0;max-width:none}.workspace{display:block}.table-scroll{max-height:none;overflow:visible}.card{box-shadow:none;border:0;padding:0}.context{margin-bottom:15px}th{position:static}td,th{padding:7px}th:last-child,td:last-child{display:none}tr{break-inside:avoid}.ranking h2{font-size:20px}}
 
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.map-card>.denver-2027-map-brand{display:none}
+.export-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 6px}.export-primary{background:var(--navy);color:white;border-color:var(--navy)}.export-actions .btn{min-height:42px}.export-actions button:disabled{opacity:.5;cursor:not-allowed}.export-help,#exportStatus{font-size:12px;margin:5px 0;color:var(--muted)}#exportStatus:not(:empty){padding:9px;background:#eef5fa;border-radius:8px}#rushPrintReport{display:none}
+@media print{
+  body.rush-print> :not(#rushPrintReport):not([data-print-ribbon]):not([data-print-ribbon-style]){display:none!important}
+  body.rush-print #rushPrintReport{display:block!important;color:#182c3b;font:10pt/1.4 Arial,sans-serif}
+  #rushPrintReport header{display:block!important}#rushPrintReport h1{font-size:18pt;margin:0 0 8pt;color:#083f73}#rushPrintReport h2{font-size:13pt;margin:10pt 0 6pt;break-after:avoid}
+  #rushPrintReport p{font-size:9pt;margin:6pt 0;color:#344b5c;overflow-wrap:anywhere}
+  #rushPrintReport table{width:100%;font-size:9pt;table-layout:fixed;margin:12pt 0}#rushPrintReport thead{display:table-header-group}#rushPrintReport th{position:static}
+  #rushPrintReport th,#rushPrintReport td{padding:7pt 5pt;overflow-wrap:anywhere;color:#172e45!important}
+  #rushPrintReport th:first-child,#rushPrintReport td:first-child{width:60%}#rushPrintReport th:last-child,#rushPrintReport td:last-child{display:table-cell!important;width:17%;font-size:9pt;white-space:normal}
+  #rushPrintReport tr{break-inside:avoid}#rushPrintReport .rush-print-detail{margin-top:14pt}#rushPrintReport a{color:#075b97}
+}
+
