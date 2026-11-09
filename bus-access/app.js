@@ -11,5 +11,5 @@ routeLink.textContent='Bus & RTD Plans';
 routeLink.setAttribute('aria-label','Open bus and RTD station departure planner');
 const headerActions=document.querySelector('.header-actions');
 const addButton=document.getElementById('addLocationButton');
-if(headerActions)headerActions.insertBefore(routeLink,addButton||document.getElementById('loginButton'));
+if(headerActions){headerActions.insertBefore(routeLink,addButton||document.getElementById('loginButton'));const rushLink=document.createElement('a');rushLink.className='btn secondary';rushLink.href='../rush-hour/';rushLink.textContent='Rush-hour Routes';headerActions.insertBefore(rushLink,addButton||document.getElementById('loginButton'));}
 import('./app-v2.js?v=pin-audit-20261108-1');

@@ -1,0 +1,16 @@
+import {rankedLocations} from './model.mjs?v=rush-20261108-1';
+const host=document.getElementById('activityRushHours');
+const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+if(host){
+  const style=document.createElement('style');style.textContent='#activityRushHours .rush-switch{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}#activityRushHours button[aria-pressed=true]{background:#083f73;color:white}#activityRushHours table{width:100%;border-collapse:collapse;font:12px/1.4 system-ui;margin:12px 0}#activityRushHours th,#activityRushHours td{text-align:left;padding:9px 6px;border-bottom:1px solid #d9e3ec}#activityRushHours th{font-size:10px;background:#f0f5f9}#activityRushHours td:last-child{font-weight:800;white-space:nowrap}#activityRushHours a{color:#075c99}#activityRushHours .rush-overflow{overflow:auto}#activityRushHours p{font-size:12px;line-height:1.5}';document.head.appendChild(style);
+  let period='pm';
+  try{
+    const response=await fetch(new URL('./data.json?v=rush-20261108-1',import.meta.url));if(!response.ok)throw new Error('Forecasts could not load.');const data=await response.json();
+    function render(){
+      const rows=rankedLocations(data.locations.filter(location=>location.groups.includes('activities')),period,15);
+      host.innerHTML='<span class="eyebrow">FROM THE CONVENTION CENTER</span><h2>Activity rush-hour ranking</h2><p>Switch between morning and afternoon departures to compare activity venues and bus points.</p><div class="rush-switch" role="group" aria-label="Activity rush-hour departure"><button type="button" class="btn outline" data-period="am" aria-pressed="'+(period==='am')+'">Morning · 8:00 AM</button><button type="button" class="btn outline" data-period="pm" aria-pressed="'+(period==='pm')+'">Afternoon · 5:00 PM</button></div><p><strong>Reference: Tuesday, Nov 10, 2026 · '+(period==='am'?'8:00 AM':'5:00 PM')+' MST.</strong> Bus plan = upper Google car forecast + 15 minutes. Change the allowance on the route map. These are saved forecasts, not live traffic.</p><div class="rush-overflow"><table><thead><tr><th>Rank / activity point</th><th>Google traffic range</th><th>Bus plan</th></tr></thead><tbody>'+rows.map(row=>'<tr><td><a href="../rush-hour/?group=activities&amp;period='+period+'&amp;location='+encodeURIComponent(row.id)+'">'+row.rank+'. '+escape(row.name)+'</a></td><td>'+escape(row.forecast.routes[0].rangeText)+'</td><td>'+row.planningMinutes+' min</td></tr>').join('')+'</tbody></table></div><p>Includes the food tour’s separate drop-off and pickup points and Cabin Creek from Activity Planning. All trips start at the convention center; pickup-point timings are not return trips. Confirm bus access, loading and actual-day traffic.</p><a class="btn outline" href="../rush-hour/?group=activities&amp;period='+period+'">Open activity route map</a>';
+      host.querySelectorAll('[data-period]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.period;render();}));
+    }
+    render();
+  }catch(error){host.innerHTML='<h2>Activity rush-hour ranking</h2><p>'+escape(error.message)+'</p><a href="../rush-hour/?group=activities">Open activity route map</a>';}
+}

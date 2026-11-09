@@ -1,4 +1,4 @@
-import { ACTIVITY_POINTS } from '../activities/data.js';
+import { ACTIVITY_POINTS } from '../activities/data.js?v=rush-20261108-1';
 import { HOTELS } from '../routes/hotels.js';
 import { HALLS } from '../territories/halls.js?v=packets-20261107-1';
 export const LOCATIONS=[

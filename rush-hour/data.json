@@ -1,0 +1,5332 @@
+{
+  "checkedDate": "2026-11-08",
+  "referenceDate": "2026-11-10",
+  "origin": {
+    "name": "Colorado Convention Center",
+    "address": "700 14th St, Denver, CO 80202",
+    "lat": 39.7431357,
+    "lng": -104.995557
+  },
+  "method": "Google Maps visible driving forecasts for Tuesday Nov 10, 2026 at 08:00 and 17:00 Denver time. Upper end of the first recommended route plus an editable bus allowance determines rank. Road lines are separate OSRM / OpenStreetMap overviews and can differ from Google forecast routes.",
+  "locations": [
+    {
+      "id": "2",
+      "label": "2",
+      "name": "Sloans Lake - 56th Ave",
+      "address": "2675 W 56th Ave, Denver CO 80221",
+      "lat": 39.7995376,
+      "lng": -105.0197627,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2675+W+56th+Ave,+Denver,+CO+80221/@39.7698989,-105.0444097,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78121d6f9fbf:0x32494892aca1e3e1!2m2!1d-105.0197627!2d39.7995376!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7995376,
+            -105.0197627
+          ],
+          "routes": [
+            {
+              "rangeText": "14–24 min",
+              "low": 14,
+              "high": 24,
+              "miles": 6.9,
+              "via": "N Speer Blvd"
+            },
+            {
+              "rangeText": "16–26 min",
+              "low": 16,
+              "high": 26,
+              "miles": 5.2,
+              "via": "N Speer Blvd and Zuni St"
+            },
+            {
+              "rangeText": "14–26 min",
+              "low": 14,
+              "high": 26,
+              "miles": 6,
+              "via": "N Pecos St"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2675+W+56th+Ave,+Denver,+CO+80221/@39.7698989,-105.0444097,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78121d6f9fbf:0x32494892aca1e3e1!2m2!1d-105.0197627!2d39.7995376!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7995376,
+            -105.0197627
+          ],
+          "routes": [
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 6.9,
+              "via": "N Speer Blvd"
+            },
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 5.2,
+              "via": "N Speer Blvd and Zuni St"
+            },
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 6,
+              "via": "N Pecos St"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "2",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7995376,
+          "lng": -105.0197627
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987377,
+              39.748919
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.993987,
+              39.759642
+            ],
+            [
+              -104.994738,
+              39.761282
+            ],
+            [
+              -104.994789,
+              39.766916
+            ],
+            [
+              -104.992891,
+              39.767354
+            ],
+            [
+              -104.989889,
+              39.77187
+            ],
+            [
+              -104.988092,
+              39.780464
+            ],
+            [
+              -104.989128,
+              39.781388
+            ],
+            [
+              -104.99354,
+              39.781471
+            ],
+            [
+              -105.002257,
+              39.783602
+            ],
+            [
+              -105.006676,
+              39.783259
+            ],
+            [
+              -105.020062,
+              39.783742
+            ],
+            [
+              -105.024952,
+              39.784687
+            ],
+            [
+              -105.025185,
+              39.798385
+            ],
+            [
+              -105.019968,
+              39.79836
+            ],
+            [
+              -105.019849,
+              39.799536
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 14,
+        "distanceMiles": 6.5329724409448815,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0197627,39.7995376?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "3",
+      "label": "3",
+      "name": "North Denver - 56th Ave",
+      "address": "2685 W 56th Ave, Denver CO 80221",
+      "lat": 39.7987069,
+      "lng": -105.0196603,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2685+W+56th+Ave,+Denver,+CO+80221/@39.7694881,-105.0444097,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78120e652f67:0x36ecdf9034e85edd!2m2!1d-105.0196603!2d39.7987069!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7987069,
+            -105.0196603
+          ],
+          "routes": [
+            {
+              "rangeText": "14–22 min",
+              "low": 14,
+              "high": 22,
+              "miles": 6.8,
+              "via": "N Speer Blvd"
+            },
+            {
+              "rangeText": "16–24 min",
+              "low": 16,
+              "high": 24,
+              "miles": 5.2,
+              "via": "N Speer Blvd and Zuni St"
+            },
+            {
+              "rangeText": "14–26 min",
+              "low": 14,
+              "high": 26,
+              "miles": 5.9,
+              "via": "N Pecos St"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2685+W+56th+Ave,+Denver,+CO+80221/@39.7694881,-105.0444097,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78120e652f67:0x36ecdf9034e85edd!2m2!1d-105.0196603!2d39.7987069!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7987069,
+            -105.0196603
+          ],
+          "routes": [
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 6.8,
+              "via": "N Speer Blvd"
+            },
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 5.2,
+              "via": "N Speer Blvd and Zuni St"
+            },
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 5.9,
+              "via": "N Pecos St"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "3",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7987069,
+          "lng": -105.0196603
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987377,
+              39.748919
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.993987,
+              39.759642
+            ],
+            [
+              -104.994738,
+              39.761282
+            ],
+            [
+              -104.994789,
+              39.766916
+            ],
+            [
+              -104.992891,
+              39.767354
+            ],
+            [
+              -104.989889,
+              39.77187
+            ],
+            [
+              -104.988092,
+              39.780464
+            ],
+            [
+              -104.989128,
+              39.781388
+            ],
+            [
+              -104.99354,
+              39.781471
+            ],
+            [
+              -105.002257,
+              39.783602
+            ],
+            [
+              -105.006676,
+              39.783259
+            ],
+            [
+              -105.020062,
+              39.783742
+            ],
+            [
+              -105.024952,
+              39.784687
+            ],
+            [
+              -105.025185,
+              39.798385
+            ],
+            [
+              -105.019968,
+              39.79836
+            ],
+            [
+              -105.019723,
+              39.798708
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 14,
+        "distanceMiles": 6.468909071025213,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0196603,39.7987069?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "4",
+      "label": "4",
+      "name": "Wesley Ave - Denver",
+      "address": "2779 W Wesley Ave, Denver CO 80219",
+      "lat": 39.67376,
+      "lng": -105.02175,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2779+W+Wesley+Ave,+Denver,+CO+80219/@39.7084442,-105.0499109,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7f8d4f4a6c33:0xcff4c95f10df3e4f!2m2!1d-105.0217712!2d39.6736702!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6736702,
+            -105.0217712
+          ],
+          "routes": [
+            {
+              "rangeText": "16–28 min",
+              "low": 16,
+              "high": 28,
+              "miles": 7.8,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "16–28 min",
+              "low": 16,
+              "high": 28,
+              "miles": 8.1,
+              "via": "I-25 S and W Evans Ave"
+            },
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 6.9,
+              "via": "Federal Blvd"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2779+W+Wesley+Ave,+Denver,+CO+80219/@39.7084442,-105.0499109,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7f8d4f4a6c33:0xcff4c95f10df3e4f!2m2!1d-105.0217712!2d39.6736702!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6736702,
+            -105.0217712
+          ],
+          "routes": [
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 7.8,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "18–40 min",
+              "low": 18,
+              "high": 40,
+              "miles": 8.1,
+              "via": "I-25 S and W Evans Ave"
+            },
+            {
+              "rangeText": "18–45 min",
+              "low": 18,
+              "high": 45,
+              "miles": 6.9,
+              "via": "Federal Blvd"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "4",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.67376,
+          "lng": -105.02175
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995138,
+              39.740223
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.000451,
+              39.72587
+            ],
+            [
+              -105.025193,
+              39.725734
+            ],
+            [
+              -105.025154,
+              39.674046
+            ],
+            [
+              -105.025015,
+              39.67341
+            ],
+            [
+              -105.021494,
+              39.67341
+            ],
+            [
+              -105.021751,
+              39.67388
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 16,
+        "distanceMiles": 6.766608009226119,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.02175,39.67376?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "5",
+      "label": "5",
+      "name": "Thornton - Milky Way",
+      "address": "951 Milky Way, Thornton CO 80260",
+      "lat": 39.85335,
+      "lng": -104.9981,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/951+Milky+Way,+Thornton,+CO+80260/@39.7968829,-105.0784176,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c77b211ceb905:0xb4b62ba046a86f50!2m2!1d-104.9980864!2d39.8533894!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8533894,
+            -104.9980864
+          ],
+          "routes": [
+            {
+              "rangeText": "14–24 min",
+              "low": 14,
+              "high": 24,
+              "miles": 9.8,
+              "via": "I-25 N"
+            },
+            {
+              "rangeText": "14–24 min",
+              "low": 14,
+              "high": 24,
+              "miles": 9.7,
+              "via": "N Speer Blvd and I-25 N"
+            },
+            {
+              "rangeText": "16–28 min",
+              "low": 16,
+              "high": 28,
+              "miles": 9.4,
+              "via": "20th St and I-25 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/951+Milky+Way,+Thornton,+CO+80260/@39.7968829,-105.0854397,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c77b211ceb905:0xb4b62ba046a86f50!2m2!1d-104.9980864!2d39.8533894!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8533894,
+            -104.9980864
+          ],
+          "routes": [
+            {
+              "rangeText": "20–45 min",
+              "low": 20,
+              "high": 45,
+              "miles": 12.4,
+              "via": "W 84th Ave"
+            },
+            {
+              "rangeText": "22–45 min",
+              "low": 22,
+              "high": 45,
+              "miles": 9.8,
+              "via": "I-25 N"
+            },
+            {
+              "rangeText": "22–50 min",
+              "low": 22,
+              "high": 50,
+              "miles": 9.4,
+              "via": "20th St and I-25 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "5",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.85335,
+          "lng": -104.9981
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.99447,
+              39.760282
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.992894,
+              39.767463
+            ],
+            [
+              -104.98942,
+              39.773862
+            ],
+            [
+              -104.988964,
+              39.788703
+            ],
+            [
+              -104.987073,
+              39.796497
+            ],
+            [
+              -104.983139,
+              39.804725
+            ],
+            [
+              -104.981244,
+              39.827465
+            ],
+            [
+              -104.983165,
+              39.83364
+            ],
+            [
+              -104.984823,
+              39.849131
+            ],
+            [
+              -104.99664,
+              39.849008
+            ],
+            [
+              -104.996629,
+              39.853052
+            ],
+            [
+              -104.998306,
+              39.853354
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 17,
+        "distanceMiles": 8.990744054720432,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.9981,39.85335?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "6",
+      "label": "6",
+      "name": "Golden - 8th Ave",
+      "address": "13607 W 8th Ave, Golden CO 80401",
+      "lat": 39.729761,
+      "lng": -105.152744,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/13607+W+8th+Ave,+Golden,+CO+80401/@39.7344921,-105.1615012,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b846c5b9843bb:0x9dc5a3cadfef548!2m2!1d-105.152744!2d39.729761!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.729761,
+            -105.152744
+          ],
+          "routes": [
+            {
+              "rangeText": "16–22 min",
+              "low": 16,
+              "high": 22,
+              "miles": 9.9,
+              "via": "US-6 W"
+            },
+            {
+              "rangeText": "16–22 min",
+              "low": 16,
+              "high": 22,
+              "miles": 11.2,
+              "via": "W 6th Ave/6th Ave. Freeway and US-6 W"
+            },
+            {
+              "rangeText": "16–24 min",
+              "low": 16,
+              "high": 24,
+              "miles": 10.1,
+              "via": "US-6 W and W 8th Ave"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/13607+W+8th+Ave,+Golden,+CO+80401/@39.7344921,-105.1615012,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b846c5b9843bb:0x9dc5a3cadfef548!2m2!1d-105.152744!2d39.729761!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.729761,
+            -105.152744
+          ],
+          "routes": [
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 9.9,
+              "via": "US-6 W"
+            },
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 11.2,
+              "via": "W 6th Ave/6th Ave. Freeway and US-6 W"
+            },
+            {
+              "rangeText": "18–35 min",
+              "low": 18,
+              "high": 35,
+              "miles": 10.1,
+              "via": "US-6 W and W 8th Ave"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "6",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.729761,
+          "lng": -105.152744
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995138,
+              39.740223
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.000195,
+              39.726429
+            ],
+            [
+              -105.00082,
+              39.725769
+            ],
+            [
+              -105.121582,
+              39.725469
+            ],
+            [
+              -105.129005,
+              39.72607
+            ],
+            [
+              -105.128476,
+              39.729135
+            ],
+            [
+              -105.152491,
+              39.729115
+            ],
+            [
+              -105.152893,
+              39.729625
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 19,
+        "distanceMiles": 10.010973415254911,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.152744,39.729761?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "7",
+      "label": "7",
+      "name": "Wheat Ridge - 44th Ave",
+      "address": "7891 W 44th Ave, Wheat Ridge CO 80033",
+      "lat": 39.77715,
+      "lng": -105.08439,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7891+W+44th+Ave,+Wheat+Ridge,+CO+80033/@39.7568853,-105.0769059,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b864ddd016d87:0xc00d5f009ac39cf5!2m2!1d-105.0844663!2d39.7771724!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7771724,
+            -105.0844663
+          ],
+          "routes": [
+            {
+              "rangeText": "16–28 min",
+              "low": 16,
+              "high": 28,
+              "miles": 10.3,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 9.6,
+              "via": "Wadsworth Blvd"
+            },
+            {
+              "rangeText": "16–30 min",
+              "low": 16,
+              "high": 30,
+              "miles": 9.4,
+              "via": "Park Ave W and I-70 W"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7891+W+44th+Ave,+Wheat+Ridge,+CO+80033/@39.7568853,-105.0769059,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b864ddd016d87:0xc00d5f009ac39cf5!2m2!1d-105.0844663!2d39.7771724!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7771724,
+            -105.0844663
+          ],
+          "routes": [
+            {
+              "rangeText": "18–40 min",
+              "low": 18,
+              "high": 40,
+              "miles": 10.3,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "18–40 min",
+              "low": 18,
+              "high": 40,
+              "miles": 9.4,
+              "via": "Park Ave W and I-70 W"
+            },
+            {
+              "rangeText": "20–50 min",
+              "low": 20,
+              "high": 50,
+              "miles": 9.6,
+              "via": "Wadsworth Blvd"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "7",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.77715,
+          "lng": -105.08439
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.992528,
+              39.743572
+            ],
+            [
+              -105.002986,
+              39.751623
+            ],
+            [
+              -105.004758,
+              39.750213
+            ],
+            [
+              -105.008154,
+              39.753211
+            ],
+            [
+              -105.010362,
+              39.75434
+            ],
+            [
+              -105.020549,
+              39.758042
+            ],
+            [
+              -105.028873,
+              39.762091
+            ],
+            [
+              -105.034628,
+              39.762129
+            ],
+            [
+              -105.034643,
+              39.769542
+            ],
+            [
+              -105.053251,
+              39.769332
+            ],
+            [
+              -105.053257,
+              39.776566
+            ],
+            [
+              -105.08495,
+              39.776622
+            ],
+            [
+              -105.084391,
+              39.776994
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 17,
+        "distanceMiles": 6.733178239083751,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.08439,39.77715?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "8",
+      "label": "8",
+      "name": "Aurora - 25th Ave",
+      "address": "10081 E 25th Ave, Aurora CO 80010",
+      "lat": 39.7535651,
+      "lng": -104.8712011,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10081+E+25th+Ave,+Aurora,+CO+80010/@39.7602669,-104.9783779,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7b6029031b0f:0xbc68236388b4bbda!2m2!1d-104.8712011!2d39.7535651!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7535651,
+            -104.8712011
+          ],
+          "routes": [
+            {
+              "rangeText": "20–35 min",
+              "low": 20,
+              "high": 35,
+              "miles": 7.9,
+              "via": "E M.L.K. Jr Blvd"
+            },
+            {
+              "rangeText": "20–40 min",
+              "low": 20,
+              "high": 40,
+              "miles": 7.5,
+              "via": "17th St and Montview Blvd"
+            },
+            {
+              "rangeText": "20–40 min",
+              "low": 20,
+              "high": 40,
+              "miles": 12.5,
+              "via": "I-70 E"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10081+E+25th+Ave,+Aurora,+CO+80010/@39.7602669,-104.9783779,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7b6029031b0f:0xbc68236388b4bbda!2m2!1d-104.8712011!2d39.7535651!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7535651,
+            -104.8712011
+          ],
+          "routes": [
+            {
+              "rangeText": "20–45 min",
+              "low": 20,
+              "high": 45,
+              "miles": 7.9,
+              "via": "E M.L.K. Jr Blvd"
+            },
+            {
+              "rangeText": "20–45 min",
+              "low": 20,
+              "high": 45,
+              "miles": 7.5,
+              "via": "17th St and Montview Blvd"
+            },
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 12.5,
+              "via": "I-70 E"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "8",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7535651,
+          "lng": -104.8712011
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.973675,
+              39.75819
+            ],
+            [
+              -104.959765,
+              39.758227
+            ],
+            [
+              -104.959764,
+              39.760741
+            ],
+            [
+              -104.957699,
+              39.760799
+            ],
+            [
+              -104.955778,
+              39.761838
+            ],
+            [
+              -104.90485,
+              39.761823
+            ],
+            [
+              -104.898812,
+              39.760064
+            ],
+            [
+              -104.870541,
+              39.759926
+            ],
+            [
+              -104.870532,
+              39.753351
+            ],
+            [
+              -104.871198,
+              39.753348
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 19,
+        "distanceMiles": 7.815855404438081,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.8712011,39.7535651?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "9",
+      "label": "9",
+      "name": "Aurora - Jewell Ave",
+      "address": "10251 E Jewell Ave, Aurora CO 80247",
+      "lat": 39.68269,
+      "lng": -104.86878,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10251+E+Jewell+Ave,+Aurora,+CO+80247/@39.7090929,-104.983356,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7d5d5622a0f3:0x14167dbd5152b546!2m2!1d-104.8687866!2d39.6826857!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6826857,
+            -104.8687866
+          ],
+          "routes": [
+            {
+              "rangeText": "22–45 min",
+              "low": 22,
+              "high": 45,
+              "miles": 9.1,
+              "via": "S Leetsdale Dr"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 12.5,
+              "via": "I-25 S"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10251+E+Jewell+Ave,+Aurora,+CO+80247/@39.7090929,-104.983356,13z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7d5d5622a0f3:0x14167dbd5152b546!2m2!1d-104.8687866!2d39.6826857!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6826857,
+            -104.8687866
+          ],
+          "routes": [
+            {
+              "rangeText": "26 min to 1 hr 5 min",
+              "low": 26,
+              "high": 65,
+              "miles": 9.1,
+              "via": "S Leetsdale Dr"
+            },
+            {
+              "rangeText": "30 min to 1 hr 5 min",
+              "low": 30,
+              "high": 65,
+              "miles": 12.5,
+              "via": "I-25 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "9",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.68269,
+          "lng": -104.86878
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.991983,
+              39.741308
+            ],
+            [
+              -104.993122,
+              39.740378
+            ],
+            [
+              -104.992958,
+              39.733858
+            ],
+            [
+              -104.994118,
+              39.733656
+            ],
+            [
+              -104.989622,
+              39.727946
+            ],
+            [
+              -104.986707,
+              39.726223
+            ],
+            [
+              -104.983204,
+              39.722989
+            ],
+            [
+              -104.977156,
+              39.719241
+            ],
+            [
+              -104.973208,
+              39.718183
+            ],
+            [
+              -104.95065,
+              39.717737
+            ],
+            [
+              -104.949952,
+              39.717036
+            ],
+            [
+              -104.949842,
+              39.713875
+            ],
+            [
+              -104.947195,
+              39.711603
+            ],
+            [
+              -104.936462,
+              39.711264
+            ],
+            [
+              -104.935255,
+              39.710358
+            ],
+            [
+              -104.931025,
+              39.708949
+            ],
+            [
+              -104.920973,
+              39.707032
+            ],
+            [
+              -104.912841,
+              39.702881
+            ],
+            [
+              -104.910397,
+              39.700928
+            ],
+            [
+              -104.897003,
+              39.696047
+            ],
+            [
+              -104.890117,
+              39.689708
+            ],
+            [
+              -104.879538,
+              39.681693
+            ],
+            [
+              -104.878852,
+              39.682049
+            ],
+            [
+              -104.868567,
+              39.682021
+            ],
+            [
+              -104.868594,
+              39.68269
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 22,
+        "distanceMiles": 9.09159259922055,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.86878,39.68269?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "10",
+      "label": "10",
+      "name": "Commerce City - Heinz Way",
+      "address": "10480 Heinz Way, Commerce City CO 80022",
+      "lat": 39.8725305,
+      "lng": -104.8664363,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10480+Heinz+Way,+Henderson,+CO+80640/@39.8127732,-105.0181344,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c703506f90f77:0x3c355af15a08388d!2m2!1d-104.8664363!2d39.8725305!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8725305,
+            -104.8664363
+          ],
+          "routes": [
+            {
+              "rangeText": "18–30 min",
+              "low": 18,
+              "high": 30,
+              "miles": 14.4,
+              "via": "I-25 N and I-76 E"
+            },
+            {
+              "rangeText": "20–35 min",
+              "low": 20,
+              "high": 35,
+              "miles": 14,
+              "via": "I-25 N, I-76 E and E 96th Ave"
+            },
+            {
+              "rangeText": "20–35 min",
+              "low": 20,
+              "high": 35,
+              "miles": 16.2,
+              "via": "N Speer Blvd, I-25 N and I-76 E"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/10480+Heinz+Way,+Henderson,+CO+80640/@39.8127732,-105.0181344,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c703506f90f77:0x3c355af15a08388d!2m2!1d-104.8664363!2d39.8725305!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8725305,
+            -104.8664363
+          ],
+          "routes": [
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 14.4,
+              "via": "I-25 N and I-76 E"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 14,
+              "via": "I-25 N, I-76 E and E 96th Ave"
+            },
+            {
+              "rangeText": "30–55 min",
+              "low": 30,
+              "high": 55,
+              "miles": 16.2,
+              "via": "N Speer Blvd, I-25 N and I-76 E"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "10",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.8725305,
+          "lng": -104.8664363
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.99447,
+              39.760282
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.992947,
+              39.767394
+            ],
+            [
+              -104.989522,
+              39.773473
+            ],
+            [
+              -104.988892,
+              39.789073
+            ],
+            [
+              -104.987073,
+              39.796497
+            ],
+            [
+              -104.983139,
+              39.804725
+            ],
+            [
+              -104.982365,
+              39.815813
+            ],
+            [
+              -104.97952,
+              39.819265
+            ],
+            [
+              -104.973537,
+              39.822026
+            ],
+            [
+              -104.950692,
+              39.825589
+            ],
+            [
+              -104.944488,
+              39.82839
+            ],
+            [
+              -104.9301,
+              39.840168
+            ],
+            [
+              -104.900588,
+              39.870354
+            ],
+            [
+              -104.867778,
+              39.870676
+            ],
+            [
+              -104.865411,
+              39.872836
+            ],
+            [
+              -104.866313,
+              39.872532
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 23,
+        "distanceMiles": 13.701856160025452,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.8664363,39.8725305?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "11",
+      "label": "11",
+      "name": "Greenwood Village - Orchard Rd",
+      "address": "6767 E Orchard Rd, Greenwood Village CO 80111",
+      "lat": 39.6101558,
+      "lng": -104.9106538,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/6767+E+Orchard+Rd,+Greenwood+Village,+CO+80111/@39.6764841,-105.0374862,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c86eb90863dd9:0xe00301a83b527608!2m2!1d-104.9106538!2d39.6101558!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6101558,
+            -104.9106538
+          ],
+          "routes": [
+            {
+              "rangeText": "26–50 min",
+              "low": 26,
+              "high": 50,
+              "miles": 12.9,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "28–50 min",
+              "low": 28,
+              "high": 50,
+              "miles": 14.4,
+              "via": "I-25 S and E Orchard Rd"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 14.1,
+              "via": "Kalamath St and I-25 S"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/6767+E+Orchard+Rd,+Greenwood+Village,+CO+80111/@39.6764841,-105.0374862,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c86eb90863dd9:0xe00301a83b527608!2m2!1d-104.9106538!2d39.6101558!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6101558,
+            -104.9106538
+          ],
+          "routes": [
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 12.9,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 14.4,
+              "via": "I-25 S and E Orchard Rd"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 14.1,
+              "via": "Kalamath St and I-25 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "11",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.6101558,
+          "lng": -104.9106538
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.00936,
+              39.740346
+            ],
+            [
+              -105.01471,
+              39.741857
+            ],
+            [
+              -105.01428,
+              39.737148
+            ],
+            [
+              -105.01588,
+              39.732071
+            ],
+            [
+              -105.01363,
+              39.725856
+            ],
+            [
+              -105.002175,
+              39.715884
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.988948,
+              39.702285
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.963385,
+              39.685108
+            ],
+            [
+              -104.945833,
+              39.684196
+            ],
+            [
+              -104.938852,
+              39.68235
+            ],
+            [
+              -104.935118,
+              39.679722
+            ],
+            [
+              -104.923639,
+              39.66438
+            ],
+            [
+              -104.918067,
+              39.652161
+            ],
+            [
+              -104.894323,
+              39.609732
+            ],
+            [
+              -104.910933,
+              39.609569
+            ],
+            [
+              -104.910654,
+              39.610279
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 22,
+        "distanceMiles": 14.429792511731488,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.9106538,39.6101558?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "13",
+      "label": "13",
+      "name": "Andrews Dr - Denver",
+      "address": "14500 Andrews Dr, Denver, CO 80239",
+      "lat": 39.7797429,
+      "lng": -104.8259231,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/14500+Andrews+Dr,+Denver,+CO+80239/@39.7603283,-104.9926519,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c64c09c9cacd7:0x141d6c6d407c9894!2m2!1d-104.8259231!2d39.7797429!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7797429,
+            -104.8259231
+          ],
+          "routes": [
+            {
+              "rangeText": "22–40 min",
+              "low": 22,
+              "high": 40,
+              "miles": 13.3,
+              "via": "I-70 E"
+            },
+            {
+              "rangeText": "22–45 min",
+              "low": 22,
+              "high": 45,
+              "miles": 14.9,
+              "via": "N Speer Blvd and I-70 E"
+            },
+            {
+              "rangeText": "24–45 min",
+              "low": 24,
+              "high": 45,
+              "miles": 12.4,
+              "via": "Park Ave W and I-70 E"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/14500+Andrews+Dr,+Denver,+CO+80239/@39.7603283,-104.9926519,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c64c09c9cacd7:0x141d6c6d407c9894!2m2!1d-104.8259231!2d39.7797429!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7797429,
+            -104.8259231
+          ],
+          "routes": [
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 13.3,
+              "via": "I-70 E"
+            },
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 12.4,
+              "via": "Park Ave W and I-70 E"
+            },
+            {
+              "rangeText": "28 min to 1 hr",
+              "low": 28,
+              "high": 60,
+              "miles": 14.9,
+              "via": "N Speer Blvd and I-70 E"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "13",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7797429,
+          "lng": -104.8259231
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987377,
+              39.748919
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.993987,
+              39.759642
+            ],
+            [
+              -104.994743,
+              39.761414
+            ],
+            [
+              -104.994789,
+              39.766916
+            ],
+            [
+              -104.992891,
+              39.767354
+            ],
+            [
+              -104.990219,
+              39.771266
+            ],
+            [
+              -104.989145,
+              39.774058
+            ],
+            [
+              -104.988913,
+              39.778231
+            ],
+            [
+              -104.987504,
+              39.779537
+            ],
+            [
+              -104.977366,
+              39.7794
+            ],
+            [
+              -104.961638,
+              39.780214
+            ],
+            [
+              -104.932126,
+              39.779942
+            ],
+            [
+              -104.9213,
+              39.778211
+            ],
+            [
+              -104.893767,
+              39.778022
+            ],
+            [
+              -104.852079,
+              39.774408
+            ],
+            [
+              -104.84693,
+              39.773377
+            ],
+            [
+              -104.846944,
+              39.779546
+            ],
+            [
+              -104.843007,
+              39.779597
+            ],
+            [
+              -104.841607,
+              39.780523
+            ],
+            [
+              -104.839341,
+              39.779039
+            ],
+            [
+              -104.829727,
+              39.776028
+            ],
+            [
+              -104.828449,
+              39.778386
+            ],
+            [
+              -104.825809,
+              39.77957
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 23,
+        "distanceMiles": 12.45756034757019,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.8259231,39.7797429?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "14",
+      "label": "14",
+      "name": "Arvada - 76th Ave",
+      "address": "11650 W 76th Ave, Arvada CO 80005",
+      "lat": 39.8360475,
+      "lng": -105.1300162,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/11650+W+76th+Ave,+Arvada,+CO+80005/@39.7912875,-105.1382763,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8f2b93f14b09:0x5057927394f0f2b1!2m2!1d-105.1300162!2d39.8360475!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8360475,
+            -105.1300162
+          ],
+          "routes": [
+            {
+              "rangeText": "24–45 min",
+              "low": 24,
+              "high": 45,
+              "miles": 15.2,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "24–45 min",
+              "low": 24,
+              "high": 45,
+              "miles": 15.2,
+              "via": "I-70 W and Simms St"
+            },
+            {
+              "rangeText": "24–45 min",
+              "low": 24,
+              "high": 45,
+              "miles": 16.1,
+              "via": "I-25 N and W 80th Ave"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/11650+W+76th+Ave,+Arvada,+CO+80005/@39.7912875,-105.1384795,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8f2b93f14b09:0x5057927394f0f2b1!2m2!1d-105.1300162!2d39.8360475!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.8360475,
+            -105.1300162
+          ],
+          "routes": [
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 15.2,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 16.1,
+              "via": "W 80th Ave"
+            },
+            {
+              "rangeText": "28 min to 1 hr",
+              "low": 28,
+              "high": 60,
+              "miles": 15.2,
+              "via": "I-70 W and W 72nd Ave"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "14",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.8360475,
+          "lng": -105.1300162
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.994738,
+              39.761282
+            ],
+            [
+              -104.994789,
+              39.766916
+            ],
+            [
+              -104.992891,
+              39.767354
+            ],
+            [
+              -104.989603,
+              39.772482
+            ],
+            [
+              -104.988625,
+              39.781144
+            ],
+            [
+              -105.002629,
+              39.783636
+            ],
+            [
+              -105.025077,
+              39.784346
+            ],
+            [
+              -105.043686,
+              39.783615
+            ],
+            [
+              -105.049179,
+              39.785138
+            ],
+            [
+              -105.052879,
+              39.78431
+            ],
+            [
+              -105.053068,
+              39.799241
+            ],
+            [
+              -105.057032,
+              39.799488
+            ],
+            [
+              -105.062628,
+              39.80177
+            ],
+            [
+              -105.076316,
+              39.802165
+            ],
+            [
+              -105.081297,
+              39.815017
+            ],
+            [
+              -105.0815,
+              39.827287
+            ],
+            [
+              -105.12851,
+              39.827117
+            ],
+            [
+              -105.128629,
+              39.835848
+            ],
+            [
+              -105.129885,
+              39.836162
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 26,
+        "distanceMiles": 14.032239222938042,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.1300162,39.8360475?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "15",
+      "label": "15",
+      "name": "Aurora - Laredo St",
+      "address": "350 Laredo St, Aurora CO 80011",
+      "lat": 39.7215271,
+      "lng": -104.7989903,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/Kingdom+Hall+of+Jehovah's+Witnesses,+350+N+Laredo+St,+Aurora,+CO+80011/@39.7510032,-104.9872905,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c62fff679abd7:0x831f26840f1bc13d!2m2!1d-104.7989903!2d39.7215271!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7215271,
+            -104.7989903
+          ],
+          "routes": [
+            {
+              "rangeText": "26–50 min",
+              "low": 26,
+              "high": 50,
+              "miles": 17.3,
+              "via": "I-70 E"
+            },
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 11.8,
+              "via": "E 14th Ave and E 6th Ave"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/Kingdom+Hall+of+Jehovah's+Witnesses,+350+N+Laredo+St,+Aurora,+CO+80011/@39.7072167,-104.9898402,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c62fff679abd7:0x831f26840f1bc13d!2m2!1d-104.7989903!2d39.7215271!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7215271,
+            -104.7989903
+          ],
+          "routes": [
+            {
+              "rangeText": "30 min to 1 hr 10 min",
+              "low": 30,
+              "high": 70,
+              "miles": 11.8,
+              "via": "E 14th Ave and E 6th Ave"
+            },
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 17.3,
+              "via": "I-70 E"
+            },
+            {
+              "rangeText": "40 min to 1 hr 15 min",
+              "low": 40,
+              "high": 75,
+              "miles": 22.1,
+              "via": "I-25 S and I-225 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "15",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7215271,
+          "lng": -104.7989903
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.993987,
+              39.759642
+            ],
+            [
+              -104.994743,
+              39.761414
+            ],
+            [
+              -104.994789,
+              39.766916
+            ],
+            [
+              -104.992891,
+              39.767354
+            ],
+            [
+              -104.990219,
+              39.771266
+            ],
+            [
+              -104.988913,
+              39.778231
+            ],
+            [
+              -104.987335,
+              39.779573
+            ],
+            [
+              -104.932126,
+              39.779942
+            ],
+            [
+              -104.921808,
+              39.778242
+            ],
+            [
+              -104.89576,
+              39.778153
+            ],
+            [
+              -104.833691,
+              39.772834
+            ],
+            [
+              -104.829604,
+              39.771706
+            ],
+            [
+              -104.827802,
+              39.769181
+            ],
+            [
+              -104.827785,
+              39.754271
+            ],
+            [
+              -104.825487,
+              39.746989
+            ],
+            [
+              -104.825813,
+              39.72553
+            ],
+            [
+              -104.800582,
+              39.725521
+            ],
+            [
+              -104.800585,
+              39.721996
+            ],
+            [
+              -104.79914,
+              39.721526
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 27,
+        "distanceMiles": 16.53195339218961,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.7989903,39.7215271?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "16",
+      "label": "16",
+      "name": "Platte Canyon - Chatfield Ave",
+      "address": "8740 W Chatfield Ave, Littleton CO 80128",
+      "lat": 39.5656827,
+      "lng": -105.0959485,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/8740+W+Chatfield+Ave,+Littleton,+CO+80128/@39.6546625,-105.2210531,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b7e9c3b324927:0x34ee89480eb3f9fe!2m2!1d-105.0959485!2d39.5656827!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5656827,
+            -105.0959485
+          ],
+          "routes": [
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 18.1,
+              "via": "CO-121/Wadsworth Blvd and CO-121 S/S Wadsworth Blvd"
+            },
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 17.1,
+              "via": "US-85 S/S Santa Fe Dr"
+            },
+            {
+              "rangeText": "30–55 min",
+              "low": 30,
+              "high": 55,
+              "miles": 19.9,
+              "via": "CO-391 S and S Kipling Pkwy"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/8740+W+Chatfield+Ave,+Littleton,+CO+80128/@39.6546625,-105.2210531,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b7e9c3b324927:0x34ee89480eb3f9fe!2m2!1d-105.0959485!2d39.5656827!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5656827,
+            -105.0959485
+          ],
+          "routes": [
+            {
+              "rangeText": "30 min to 1 hr 5 min",
+              "low": 30,
+              "high": 65,
+              "miles": 17.1,
+              "via": "US-85 S/S Santa Fe Dr"
+            },
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 19.9,
+              "via": "CO-391 S and S Kipling Pkwy"
+            },
+            {
+              "rangeText": "35 min to 1 hr 15 min",
+              "low": 35,
+              "high": 75,
+              "miles": 18.1,
+              "via": "CO-121/Wadsworth Blvd and CO-121 S/S Wadsworth Blvd"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "16",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.5656827,
+          "lng": -105.0959485
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995138,
+              39.740223
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.000175,
+              39.715013
+            ],
+            [
+              -104.992775,
+              39.698751
+            ],
+            [
+              -104.9944,
+              39.692571
+            ],
+            [
+              -104.992355,
+              39.682351
+            ],
+            [
+              -105.009102,
+              39.631022
+            ],
+            [
+              -105.020718,
+              39.614152
+            ],
+            [
+              -105.020413,
+              39.601632
+            ],
+            [
+              -105.024981,
+              39.581006
+            ],
+            [
+              -105.026258,
+              39.579535
+            ],
+            [
+              -105.051491,
+              39.580775
+            ],
+            [
+              -105.05615,
+              39.572258
+            ],
+            [
+              -105.064468,
+              39.566238
+            ],
+            [
+              -105.095939,
+              39.56583
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 29,
+        "distanceMiles": 16.560536467032527,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0959485,39.5656827?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "17",
+      "label": "17",
+      "name": "Northglenn/Thornton - Quebec St",
+      "address": "12760 Quebec St, Brighton CO 80601",
+      "lat": 39.9280698,
+      "lng": -104.9023326,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/12760+Quebec+St,+Brighton,+CO+80602/@39.8344994,-105.1063554,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c73c85fe0a6dd:0x7ae0f86040b0a9f6!2m2!1d-104.9023326!2d39.9280698!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.9280698,
+            -104.9023326
+          ],
+          "routes": [
+            {
+              "rangeText": "26–40 min",
+              "low": 26,
+              "high": 40,
+              "miles": 18.8,
+              "via": "I-76 E"
+            },
+            {
+              "rangeText": "24–40 min",
+              "low": 24,
+              "high": 40,
+              "miles": 17.8,
+              "via": "I-25 N and I-76 E"
+            },
+            {
+              "rangeText": "26–45 min",
+              "low": 26,
+              "high": 45,
+              "miles": 19,
+              "via": "I-25 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/12760+Quebec+St,+Brighton,+CO+80602/@39.8344994,-105.1063554,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c73c85fe0a6dd:0x7ae0f86040b0a9f6!2m2!1d-104.9023326!2d39.9280698!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.9280698,
+            -104.9023326
+          ],
+          "routes": [
+            {
+              "rangeText": "35 min to 1 hr",
+              "low": 35,
+              "high": 60,
+              "miles": 18.8,
+              "via": "I-76 E"
+            },
+            {
+              "rangeText": "35 min to 1 hr 5 min",
+              "low": 35,
+              "high": 65,
+              "miles": 17.8,
+              "via": "I-25 N and I-76 E"
+            },
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 19,
+              "via": "I-25 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "17",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.9280698,
+          "lng": -104.9023326
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.99447,
+              39.760282
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.98942,
+              39.773862
+            ],
+            [
+              -104.988964,
+              39.788703
+            ],
+            [
+              -104.983139,
+              39.804725
+            ],
+            [
+              -104.981917,
+              39.816744
+            ],
+            [
+              -104.974319,
+              39.821807
+            ],
+            [
+              -104.946331,
+              39.827239
+            ],
+            [
+              -104.91207,
+              39.857396
+            ],
+            [
+              -104.913882,
+              39.858263
+            ],
+            [
+              -104.910676,
+              39.8694
+            ],
+            [
+              -104.91718,
+              39.879702
+            ],
+            [
+              -104.917801,
+              39.891288
+            ],
+            [
+              -104.920691,
+              39.895172
+            ],
+            [
+              -104.90306,
+              39.910395
+            ],
+            [
+              -104.90233,
+              39.927863
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 29,
+        "distanceMiles": 16.257183050982263,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.9023326,39.9280698?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "18",
+      "label": "18",
+      "name": "Morrison - Eldridge St",
+      "address": "4287 S Eldridge St, Morrison CO 80465",
+      "lat": 39.6359205,
+      "lng": -105.1582002,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/4287+S+Eldridge+St,+Morrison,+CO+80465/@39.7077089,-105.1745265,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8277cb17491d:0x3b27592618b2a967!2m2!1d-105.1582002!2d39.6359205!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6359205,
+            -105.1582002
+          ],
+          "routes": [
+            {
+              "rangeText": "24–35 min",
+              "low": 24,
+              "high": 35,
+              "miles": 19.9,
+              "via": "US-6 W and CO-470 E"
+            },
+            {
+              "rangeText": "26–45 min",
+              "low": 26,
+              "high": 45,
+              "miles": 17.4,
+              "via": "US-285 S"
+            },
+            {
+              "rangeText": "30–50 min",
+              "low": 30,
+              "high": 50,
+              "miles": 25.6,
+              "via": "I-70 W"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/4287+S+Eldridge+St,+Morrison,+CO+80465/@39.7077089,-105.1745265,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8277cb17491d:0x3b27592618b2a967!2m2!1d-105.1582002!2d39.6359205!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6359205,
+            -105.1582002
+          ],
+          "routes": [
+            {
+              "rangeText": "30–55 min",
+              "low": 30,
+              "high": 55,
+              "miles": 17.4,
+              "via": "US-285 S"
+            },
+            {
+              "rangeText": "30–55 min",
+              "low": 30,
+              "high": 55,
+              "miles": 19.9,
+              "via": "US-6 W and CO-470 E"
+            },
+            {
+              "rangeText": "35 min to 1 hr",
+              "low": 35,
+              "high": 60,
+              "miles": 25.6,
+              "via": "I-70 W"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "18",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.6359205,
+          "lng": -105.1582002
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995138,
+              39.740223
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.000175,
+              39.715013
+            ],
+            [
+              -104.996264,
+              39.708621
+            ],
+            [
+              -104.996576,
+              39.704307
+            ],
+            [
+              -104.992775,
+              39.698751
+            ],
+            [
+              -104.9944,
+              39.692571
+            ],
+            [
+              -104.992194,
+              39.689018
+            ],
+            [
+              -104.992304,
+              39.682846
+            ],
+            [
+              -104.996827,
+              39.664997
+            ],
+            [
+              -105.00156,
+              39.654627
+            ],
+            [
+              -105.004341,
+              39.653603
+            ],
+            [
+              -105.010701,
+              39.653872
+            ],
+            [
+              -105.024194,
+              39.65222
+            ],
+            [
+              -105.031978,
+              39.652843
+            ],
+            [
+              -105.038246,
+              39.654572
+            ],
+            [
+              -105.049174,
+              39.653383
+            ],
+            [
+              -105.081126,
+              39.652788
+            ],
+            [
+              -105.115847,
+              39.653572
+            ],
+            [
+              -105.119361,
+              39.652357
+            ],
+            [
+              -105.129065,
+              39.645641
+            ],
+            [
+              -105.132258,
+              39.644854
+            ],
+            [
+              -105.128876,
+              39.641153
+            ],
+            [
+              -105.128815,
+              39.638777
+            ],
+            [
+              -105.149386,
+              39.63839
+            ],
+            [
+              -105.154932,
+              39.635244
+            ],
+            [
+              -105.157943,
+              39.63586
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 29,
+        "distanceMiles": 16.191752664439672,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.1582002,39.6359205?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "19",
+      "label": "19",
+      "name": "Aurora - Yale Ave",
+      "address": "17701 E Yale Ave, Aurora CO 80013",
+      "lat": 39.6678328,
+      "lng": -104.7806396,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/17701+E+Yale+Ave,+Aurora,+CO+80013/@39.7072167,-104.9806649,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c89c137731a79:0x7e2fee61a9495b11!2m2!1d-104.7806396!2d39.6678328!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6678328,
+            -104.7806396
+          ],
+          "routes": [
+            {
+              "rangeText": "30–55 min",
+              "low": 30,
+              "high": 55,
+              "miles": 22.3,
+              "via": "I-70 E and I-225 S"
+            },
+            {
+              "rangeText": "35 min to 1 hr",
+              "low": 35,
+              "high": 60,
+              "miles": 19.9,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "35 min to 1 hr 5 min",
+              "low": 35,
+              "high": 65,
+              "miles": 20,
+              "via": "I-25 S and I-225 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/17701+E+Yale+Ave,+Aurora,+CO+80013/@39.7072167,-104.9806649,12z/data=!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c89c137731a79:0x7e2fee61a9495b11!2m2!1d-104.7806396!2d39.6678328!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.6678328,
+            -104.7806396
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 15 min",
+              "low": 40,
+              "high": 75,
+              "miles": 19.9,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "40 min to 1 hr 15 min",
+              "low": 40,
+              "high": 75,
+              "miles": 20,
+              "via": "I-25 S and I-225 N"
+            },
+            {
+              "rangeText": "40 min to 1 hr 25 min",
+              "low": 40,
+              "high": 85,
+              "miles": 22.3,
+              "via": "I-70 E and I-225 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "19",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.6678328,
+          "lng": -104.7806396
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.00936,
+              39.740346
+            ],
+            [
+              -105.014762,
+              39.741806
+            ],
+            [
+              -105.01428,
+              39.737148
+            ],
+            [
+              -105.015871,
+              39.731952
+            ],
+            [
+              -105.012976,
+              39.724933
+            ],
+            [
+              -105.002175,
+              39.715884
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.988948,
+              39.702285
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.96317,
+              39.685053
+            ],
+            [
+              -104.946807,
+              39.684368
+            ],
+            [
+              -104.936236,
+              39.68082
+            ],
+            [
+              -104.923991,
+              39.664942
+            ],
+            [
+              -104.917869,
+              39.651794
+            ],
+            [
+              -104.908883,
+              39.635738
+            ],
+            [
+              -104.90694,
+              39.634239
+            ],
+            [
+              -104.892017,
+              39.635988
+            ],
+            [
+              -104.874326,
+              39.644558
+            ],
+            [
+              -104.867828,
+              39.646441
+            ],
+            [
+              -104.854061,
+              39.654424
+            ],
+            [
+              -104.846303,
+              39.656743
+            ],
+            [
+              -104.832642,
+              39.664358
+            ],
+            [
+              -104.826525,
+              39.674725
+            ],
+            [
+              -104.791138,
+              39.673593
+            ],
+            [
+              -104.790936,
+              39.667554
+            ],
+            [
+              -104.780816,
+              39.667832
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 30,
+        "distanceMiles": 19.897796866300805,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.7806396,39.6678328?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "20",
+      "label": "20",
+      "name": "Foxfield - Costilla Ave",
+      "address": "16300 E Costilla Ave, Foxfield CO 80016",
+      "lat": 39.5908056,
+      "lng": -104.7984489,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/16300+E+Costilla+Ave,+Foxfield,+CO+80016/@39.6459794,-105.0601494,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c8ed806973453:0xb4ee90e550829499!2m2!1d-104.7984489!2d39.5908056!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5908056,
+            -104.7984489
+          ],
+          "routes": [
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 20.3,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 21.9,
+              "via": "I-25 S and CO-83 S/S Parker Rd"
+            },
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 27.2,
+              "via": "I-25 S and E-470 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/16300+E+Costilla+Ave,+Foxfield,+CO+80016/@39.6459794,-105.0601494,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c8ed806973453:0xb4ee90e550829499!2m2!1d-104.7984489!2d39.5908056!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5908056,
+            -104.7984489
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 20 min",
+              "low": 40,
+              "high": 80,
+              "miles": 21.9,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "40 min to 1 hr 20 min",
+              "low": 40,
+              "high": 80,
+              "miles": 20.3,
+              "via": "I-25 S and County Rd 42"
+            },
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 27.2,
+              "via": "I-25 S and E-470 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "20",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.5908056,
+          "lng": -104.7984489
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.00936,
+              39.740346
+            ],
+            [
+              -105.01471,
+              39.741857
+            ],
+            [
+              -105.01428,
+              39.737148
+            ],
+            [
+              -105.015871,
+              39.731952
+            ],
+            [
+              -105.013228,
+              39.725278
+            ],
+            [
+              -105.002175,
+              39.715884
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.988948,
+              39.702285
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.963385,
+              39.685108
+            ],
+            [
+              -104.9463,
+              39.68428
+            ],
+            [
+              -104.939028,
+              39.68242
+            ],
+            [
+              -104.935575,
+              39.680216
+            ],
+            [
+              -104.923639,
+              39.66438
+            ],
+            [
+              -104.917869,
+              39.651794
+            ],
+            [
+              -104.887185,
+              39.598546
+            ],
+            [
+              -104.886324,
+              39.594586
+            ],
+            [
+              -104.791952,
+              39.594853
+            ],
+            [
+              -104.791982,
+              39.591298
+            ],
+            [
+              -104.798574,
+              39.590819
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 33,
+        "distanceMiles": 20.363576712001908,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.7984489,39.5908056?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "21",
+      "label": "21",
+      "name": "Highlands Ranch / Southpark",
+      "address": "8200 S Ogden Cir, Littleton CO 80122",
+      "lat": 39.56779,
+      "lng": -104.97601,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/8200+S+Ogden+Cir,+Littleton,+CO+80122/@39.649906,-105.1136543,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c83cfd999d7f1:0x2998487fc45712c!2m2!1d-104.9760232!2d39.5677907!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5677907,
+            -104.9760232
+          ],
+          "routes": [
+            {
+              "rangeText": "28–55 min",
+              "low": 28,
+              "high": 55,
+              "miles": 16.6,
+              "via": "US-85 S/S Santa Fe Dr"
+            },
+            {
+              "rangeText": "30 min to 1 hr",
+              "low": 30,
+              "high": 60,
+              "miles": 15.9,
+              "via": "I-25 S and S University Blvd"
+            },
+            {
+              "rangeText": "35 min to 1 hr",
+              "low": 35,
+              "high": 60,
+              "miles": 23.5,
+              "via": "I-25 S"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/8200+S+Ogden+Cir,+Littleton,+CO+80122/@39.649906,-105.1136543,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c83cfd999d7f1:0x2998487fc45712c!2m2!1d-104.9760232!2d39.5677907!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5677907,
+            -104.9760232
+          ],
+          "routes": [
+            {
+              "rangeText": "30 min to 1 hr 5 min",
+              "low": 30,
+              "high": 65,
+              "miles": 16.6,
+              "via": "US-85 S/S Santa Fe Dr"
+            },
+            {
+              "rangeText": "35 min to 1 hr 10 min",
+              "low": 35,
+              "high": 70,
+              "miles": 15.9,
+              "via": "I-25 S and S University Blvd"
+            },
+            {
+              "rangeText": "40 min to 1 hr 5 min",
+              "low": 40,
+              "high": 65,
+              "miles": 23.5,
+              "via": "I-25 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "21",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.56779,
+          "lng": -104.97601
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.991983,
+              39.741308
+            ],
+            [
+              -104.994118,
+              39.733656
+            ],
+            [
+              -104.987428,
+              39.726601
+            ],
+            [
+              -104.988572,
+              39.573399
+            ],
+            [
+              -104.981166,
+              39.573874
+            ],
+            [
+              -104.97612,
+              39.567818
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 27,
+        "distanceMiles": 13.044818261353694,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.97601,39.56779?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "23",
+      "label": "23",
+      "name": "Parker - Talon Trl",
+      "address": "7075 Talon Trl, Parker CO 80138",
+      "lat": 39.5227652,
+      "lng": -104.7544639,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7075+Talon+Trail,+Parker,+CO+80138/@39.631794,-105.0499847,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c91ff1afcbaa1:0xd84a9d78db203265!2m2!1d-104.7544639!2d39.5227652!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5227652,
+            -104.7544639
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 24,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 26.2,
+              "via": "I-25 S and Lincoln Ave"
+            },
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 25.6,
+              "via": "I-25 S and E-470 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7075+Talon+Trail,+Parker,+CO+80138/@39.631794,-105.0499847,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c91ff1afcbaa1:0xd84a9d78db203265!2m2!1d-104.7544639!2d39.5227652!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5227652,
+            -104.7544639
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 15 min",
+              "low": 40,
+              "high": 75,
+              "miles": 24,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "50 min to 1 hr 25 min",
+              "low": 50,
+              "high": 85,
+              "miles": 26.2,
+              "via": "I-25 S and Lincoln Ave"
+            },
+            {
+              "rangeText": "45 min to 1 hr 15 min",
+              "low": 45,
+              "high": 75,
+              "miles": 25.6,
+              "via": "I-25 S and E-470 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "23",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.5227652,
+          "lng": -104.7544639
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.01471,
+              39.741857
+            ],
+            [
+              -105.01588,
+              39.732071
+            ],
+            [
+              -105.01363,
+              39.725856
+            ],
+            [
+              -105.002175,
+              39.715884
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.988948,
+              39.702285
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.962858,
+              39.684978
+            ],
+            [
+              -104.939447,
+              39.682573
+            ],
+            [
+              -104.931407,
+              39.67552
+            ],
+            [
+              -104.875799,
+              39.578744
+            ],
+            [
+              -104.870865,
+              39.555971
+            ],
+            [
+              -104.850338,
+              39.550558
+            ],
+            [
+              -104.820449,
+              39.556204
+            ],
+            [
+              -104.799848,
+              39.549487
+            ],
+            [
+              -104.775832,
+              39.549576
+            ],
+            [
+              -104.768178,
+              39.537029
+            ],
+            [
+              -104.755938,
+              39.536205
+            ],
+            [
+              -104.755861,
+              39.52151
+            ],
+            [
+              -104.754449,
+              39.522722
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 37,
+        "distanceMiles": 25.57799948301917,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.7544639,39.5227652?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "CfyEAuCekRm82F859GdG",
+      "label": "26",
+      "name": "Boulder KH",
+      "address": "5885 Jay Rd Boulder CO 80301",
+      "lat": 40.0517344,
+      "lng": -105.2171077,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/5885+Jay+Rd,+Boulder,+CO+80301/@39.8967114,-105.2780495,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bf1dfa90f9675:0xdf4011e007b6f044!2m2!1d-105.2171077!2d40.0517344!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            40.0517344,
+            -105.2171077
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 20 min",
+              "low": 40,
+              "high": 80,
+              "miles": 31.1,
+              "via": "US-36 W"
+            },
+            {
+              "rangeText": "40 min to 1 hr 25 min",
+              "low": 40,
+              "high": 85,
+              "miles": 30.7,
+              "via": "US-36 W and Foothills Pkwy"
+            },
+            {
+              "rangeText": "40 min to 1 hr 20 min",
+              "low": 40,
+              "high": 80,
+              "miles": 30.7,
+              "via": "I-25 N and US-36 W"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/5885+Jay+Rd,+Boulder,+CO+80301/@39.8967114,-105.2780495,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bf1dfa90f9675:0xdf4011e007b6f044!2m2!1d-105.2171077!2d40.0517344!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            40.0517344,
+            -105.2171077
+          ],
+          "routes": [
+            {
+              "rangeText": "35 min to 1 hr 5 min",
+              "low": 35,
+              "high": 65,
+              "miles": 31.1,
+              "via": "US-36 W"
+            },
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 30.7,
+              "via": "US-36 W and Foothills Pkwy"
+            },
+            {
+              "rangeText": "40 min to 1 hr 5 min",
+              "low": 40,
+              "high": 65,
+              "miles": 30.7,
+              "via": "US-36 W and N 75th St"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "CfyEAuCekRm82F859GdG",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 40.0517344,
+          "lng": -105.2171077
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.99447,
+              39.760282
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.989375,
+              39.774064
+            ],
+            [
+              -104.988892,
+              39.789073
+            ],
+            [
+              -104.982963,
+              39.805695
+            ],
+            [
+              -104.982035,
+              39.826994
+            ],
+            [
+              -104.99638,
+              39.828105
+            ],
+            [
+              -105.037134,
+              39.840585
+            ],
+            [
+              -105.05203,
+              39.855206
+            ],
+            [
+              -105.060429,
+              39.871804
+            ],
+            [
+              -105.091817,
+              39.914933
+            ],
+            [
+              -105.137676,
+              39.939812
+            ],
+            [
+              -105.162145,
+              39.956474
+            ],
+            [
+              -105.230882,
+              39.985263
+            ],
+            [
+              -105.23183,
+              39.998667
+            ],
+            [
+              -105.23987,
+              40.008946
+            ],
+            [
+              -105.244593,
+              40.021335
+            ],
+            [
+              -105.244667,
+              40.041152
+            ],
+            [
+              -105.232877,
+              40.051099
+            ],
+            [
+              -105.216948,
+              40.051751
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 44,
+        "distanceMiles": 30.375855006760517,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.2171077,40.0517344?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "WjsmB0p2I0K3LayEhnfh",
+      "label": "27",
+      "name": "Evergreen KH",
+      "address": "7913 Citation Trail, Evergreen, CO 80439",
+      "lat": 39.5733635,
+      "lng": -105.3145118,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7913+Citation+Trail,+Evergreen,+CO+80439/@39.6385916,-105.3440719,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b742ab5a2e729:0xc0d7dc9917f1e1c9!2m2!1d-105.3145118!2d39.5733635!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5733635,
+            -105.3145118
+          ],
+          "routes": [
+            {
+              "rangeText": "40–55 min",
+              "low": 40,
+              "high": 55,
+              "miles": 34.4,
+              "via": "US-285 S"
+            },
+            {
+              "rangeText": "40 min to 1 hr",
+              "low": 40,
+              "high": 60,
+              "miles": 33.4,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "40 min to 1 hr",
+              "low": 40,
+              "high": 60,
+              "miles": 33.5,
+              "via": "US-285 S and Co Rd 73/County Hwy 73"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7913+Citation+Trail,+Evergreen,+CO+80439/@39.6385916,-105.3440719,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b742ab5a2e729:0xc0d7dc9917f1e1c9!2m2!1d-105.3145118!2d39.5733635!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5733635,
+            -105.3145118
+          ],
+          "routes": [
+            {
+              "rangeText": "45 min to 1 hr 10 min",
+              "low": 45,
+              "high": 70,
+              "miles": 33.4,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "45 min to 1 hr 10 min",
+              "low": 45,
+              "high": 70,
+              "miles": 34.4,
+              "via": "US-285 S"
+            },
+            {
+              "rangeText": "45 min to 1 hr 15 min",
+              "low": 45,
+              "high": 75,
+              "miles": 33.5,
+              "via": "US-285 S and Co Rd 73/County Hwy 73"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "WjsmB0p2I0K3LayEhnfh",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.5733635,
+          "lng": -105.3145118
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995138,
+              39.740223
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.000175,
+              39.715013
+            ],
+            [
+              -104.992775,
+              39.698751
+            ],
+            [
+              -104.9944,
+              39.692571
+            ],
+            [
+              -104.992304,
+              39.682846
+            ],
+            [
+              -105.001648,
+              39.654578
+            ],
+            [
+              -105.024194,
+              39.65222
+            ],
+            [
+              -105.038246,
+              39.654572
+            ],
+            [
+              -105.116198,
+              39.653527
+            ],
+            [
+              -105.137343,
+              39.639939
+            ],
+            [
+              -105.166166,
+              39.637195
+            ],
+            [
+              -105.18047,
+              39.627606
+            ],
+            [
+              -105.190858,
+              39.625059
+            ],
+            [
+              -105.196969,
+              39.621185
+            ],
+            [
+              -105.215741,
+              39.617787
+            ],
+            [
+              -105.227911,
+              39.619691
+            ],
+            [
+              -105.232978,
+              39.615153
+            ],
+            [
+              -105.232013,
+              39.60893
+            ],
+            [
+              -105.220921,
+              39.588133
+            ],
+            [
+              -105.239156,
+              39.575664
+            ],
+            [
+              -105.240648,
+              39.554344
+            ],
+            [
+              -105.253321,
+              39.551247
+            ],
+            [
+              -105.257887,
+              39.547382
+            ],
+            [
+              -105.264891,
+              39.548884
+            ],
+            [
+              -105.294976,
+              39.542348
+            ],
+            [
+              -105.309796,
+              39.533516
+            ],
+            [
+              -105.317009,
+              39.54537
+            ],
+            [
+              -105.318093,
+              39.562549
+            ],
+            [
+              -105.314634,
+              39.573366
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 50,
+        "distanceMiles": 32.37027012248469,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.3145118,39.5733635?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "v7fIJgtw2xclQMQBYV5G",
+      "label": "28",
+      "name": "North Westminster, Coal Creek, Broomfield Spanish",
+      "address": "11580 Sheridan Blvd, Westminster, CO 80020",
+      "lat": 39.9068377,
+      "lng": -105.0518144,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/11580+Sheridan+Blvd,+Westminster,+CO+80020/@39.8236689,-105.0999735,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8a143965f3a7:0xcaf6665c68912361!2m2!1d-105.0518144!2d39.9068377!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.9068377,
+            -105.0518144
+          ],
+          "routes": [
+            {
+              "rangeText": "20–35 min",
+              "low": 20,
+              "high": 35,
+              "miles": 15.4,
+              "via": "I-25 N and US-36 W"
+            },
+            {
+              "rangeText": "22–40 min",
+              "low": 22,
+              "high": 40,
+              "miles": 14.9,
+              "via": "I-25 N, US-36 W and Sheridan Blvd"
+            },
+            {
+              "rangeText": "24–40 min",
+              "low": 24,
+              "high": 40,
+              "miles": 16.4,
+              "via": "I-25 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/11580+Sheridan+Blvd,+Westminster,+CO+80020/@39.8236689,-105.0999735,12z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876b8a143965f3a7:0xcaf6665c68912361!2m2!1d-105.0518144!2d39.9068377!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.9068377,
+            -105.0518144
+          ],
+          "routes": [
+            {
+              "rangeText": "24–45 min",
+              "low": 24,
+              "high": 45,
+              "miles": 15.3,
+              "via": "US-36 W"
+            },
+            {
+              "rangeText": "26–55 min",
+              "low": 26,
+              "high": 55,
+              "miles": 14.5,
+              "via": "I-25 N and US-36 W"
+            },
+            {
+              "rangeText": "30 min to 1 hr 5 min",
+              "low": 30,
+              "high": 65,
+              "miles": 16.4,
+              "via": "I-25 N"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "v7fIJgtw2xclQMQBYV5G",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.9068377,
+          "lng": -105.0518144
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.987384,
+              39.754532
+            ],
+            [
+              -104.99447,
+              39.760282
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.992894,
+              39.767463
+            ],
+            [
+              -104.989375,
+              39.774064
+            ],
+            [
+              -104.988892,
+              39.789073
+            ],
+            [
+              -104.982963,
+              39.805695
+            ],
+            [
+              -104.981805,
+              39.82656
+            ],
+            [
+              -104.983818,
+              39.827917
+            ],
+            [
+              -104.996217,
+              39.828066
+            ],
+            [
+              -105.033706,
+              39.838881
+            ],
+            [
+              -105.039509,
+              39.842318
+            ],
+            [
+              -105.050125,
+              39.852831
+            ],
+            [
+              -105.053133,
+              39.856829
+            ],
+            [
+              -105.053902,
+              39.860306
+            ],
+            [
+              -105.052889,
+              39.90697
+            ],
+            [
+              -105.051815,
+              39.906777
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 24,
+        "distanceMiles": 14.510632903841564,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0518144,39.9068377?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "c0ZUyDgFdFvnskS6FxqP",
+      "label": "29",
+      "name": "Sunset Park/South Spanish Longmon",
+      "address": "1531 Vista View Dr, Longmont, CO 80504",
+      "lat": 40.1599127,
+      "lng": -105.0262508,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/1531+Vista+View+Dr,+Longmont,+CO+80504/@39.9506723,-105.3320745,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c078c01c77d13:0xc47a4a598bc38c54!2m2!1d-105.0262508!2d40.1599127!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            40.1599127,
+            -105.0262508
+          ],
+          "routes": [
+            {
+              "rangeText": "35–55 min",
+              "low": 35,
+              "high": 55,
+              "miles": 33.3,
+              "via": "I-25 N"
+            },
+            {
+              "rangeText": "35–55 min",
+              "low": 35,
+              "high": 55,
+              "miles": 32.9,
+              "via": "I-25 N and CO-119"
+            },
+            {
+              "rangeText": "35 min to 1 hr",
+              "low": 35,
+              "high": 60,
+              "miles": 32.6,
+              "via": "15th St, I-25 N and CO-119"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/1531+Vista+View+Dr,+Longmont,+CO+80504/@39.9506723,-105.3320745,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c078c01c77d13:0xc47a4a598bc38c54!2m2!1d-105.0262508!2d40.1599127!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            40.1599127,
+            -105.0262508
+          ],
+          "routes": [
+            {
+              "rangeText": "45 min to 1 hr 15 min",
+              "low": 45,
+              "high": 75,
+              "miles": 33.3,
+              "via": "I-25 N"
+            },
+            {
+              "rangeText": "45 min to 1 hr 15 min",
+              "low": 45,
+              "high": 75,
+              "miles": 32.9,
+              "via": "I-25 N and CO-119"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "c0ZUyDgFdFvnskS6FxqP",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 40.1599127,
+          "lng": -105.0262508
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.986457,
+              39.748212
+            ],
+            [
+              -104.994845,
+              39.766707
+            ],
+            [
+              -104.98942,
+              39.773862
+            ],
+            [
+              -104.981245,
+              39.827159
+            ],
+            [
+              -104.990539,
+              39.910049
+            ],
+            [
+              -104.98793,
+              39.984996
+            ],
+            [
+              -104.980441,
+              40.002161
+            ],
+            [
+              -104.977609,
+              40.160737
+            ],
+            [
+              -105.026047,
+              40.159914
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 42,
+        "distanceMiles": 32.418239978525406,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0262508,40.1599127?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "EsVDTxjHu1JYLv4W7921",
+      "label": "AH",
+      "name": "Assembly Hall",
+      "address": "7400 S Oak Hill Way, Aurora, CO 80016",
+      "lat": 39.5822794,
+      "lng": -104.6830307,
+      "groups": [
+        "meetings"
+      ],
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7400+S+Oak+Hill+Way,+Aurora,+CO+80016/@39.6644295,-105.0142696,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c8ce7691b13ab:0x5d716a01aee1af13!2m2!1d-104.6830307!2d39.5822794!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5822794,
+            -104.6830307
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 5 min",
+              "low": 40,
+              "high": 65,
+              "miles": 31,
+              "via": "I-70 E and E-470 S"
+            },
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 25.8,
+              "via": "I-25 S and County Rd 42"
+            },
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 29.3,
+              "via": "I-25 S and E-470 N"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/7400+S+Oak+Hill+Way,+Aurora,+CO+80016/@39.6644295,-105.0142696,11z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c8ce7691b13ab:0x5d716a01aee1af13!2m2!1d-104.6830307!2d39.5822794!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.5822794,
+            -104.6830307
+          ],
+          "routes": [
+            {
+              "rangeText": "45 min to 1 hr 15 min",
+              "low": 45,
+              "high": 75,
+              "miles": 29.3,
+              "via": "I-25 S and E-470 N"
+            },
+            {
+              "rangeText": "50 min to 1 hr 40 min",
+              "low": 50,
+              "high": 100,
+              "miles": 25.8,
+              "via": "I-25 S and County Rd 42"
+            },
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 31,
+              "via": "I-70 E and E-470 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "EsVDTxjHu1JYLv4W7921",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.5822794,
+          "lng": -104.6830307
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.992858,
+              39.741989
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.01471,
+              39.741857
+            ],
+            [
+              -105.01588,
+              39.732071
+            ],
+            [
+              -105.01363,
+              39.725856
+            ],
+            [
+              -105.002175,
+              39.715884
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.988948,
+              39.702285
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.962858,
+              39.684978
+            ],
+            [
+              -104.939447,
+              39.682573
+            ],
+            [
+              -104.931407,
+              39.67552
+            ],
+            [
+              -104.875799,
+              39.578744
+            ],
+            [
+              -104.869845,
+              39.555242
+            ],
+            [
+              -104.847972,
+              39.550494
+            ],
+            [
+              -104.818884,
+              39.556136
+            ],
+            [
+              -104.800442,
+              39.549595
+            ],
+            [
+              -104.782138,
+              39.548936
+            ],
+            [
+              -104.772614,
+              39.554311
+            ],
+            [
+              -104.768962,
+              39.562817
+            ],
+            [
+              -104.764233,
+              39.566838
+            ],
+            [
+              -104.754287,
+              39.569716
+            ],
+            [
+              -104.743868,
+              39.576623
+            ],
+            [
+              -104.727338,
+              39.576862
+            ],
+            [
+              -104.721615,
+              39.578923
+            ],
+            [
+              -104.713217,
+              39.600543
+            ],
+            [
+              -104.693754,
+              39.592934
+            ],
+            [
+              -104.683717,
+              39.58173
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 41,
+        "distanceMiles": 30.43600373816909,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.6830307,39.5822794?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "eSrIsd55mpr1U3ZESZSG",
+      "label": "DCC",
+      "name": "Douglas County Fairgrounds",
+      "address": "500 Fairgrounds Rd, Castle Rock, CO 80104",
+      "lat": 39.3654756,
+      "lng": -104.8549477,
+      "groups": [
+        "meetings",
+        "activities"
+      ],
+      "activityLabel": "A1",
+      "note": "",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/500+Fairgrounds+Rd,+Castle+Rock,+CO+80104/@39.5530665,-105.2653975,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c9819eece7857:0x1a685b20ba002b5d!2m2!1d-104.8562041!2d39.3668858!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.3668858,
+            -104.8562041
+          ],
+          "routes": [
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 30.2,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "40 min to 1 hr 10 min",
+              "low": 40,
+              "high": 70,
+              "miles": 30.5,
+              "via": "University Blvd and I-25 S"
+            },
+            {
+              "rangeText": "45 min to 1 hr 10 min",
+              "low": 45,
+              "high": 70,
+              "miles": 31.8,
+              "via": "W Colfax Ave and I-25 S"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/500+Fairgrounds+Rd,+Castle+Rock,+CO+80104/@39.5530665,-105.2653975,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c9819eece7857:0x1a685b20ba002b5d!2m2!1d-104.8562041!2d39.3668858!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.3668858,
+            -104.8562041
+          ],
+          "routes": [
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 30.2,
+              "via": "I-25 S"
+            },
+            {
+              "rangeText": "50 min to 1 hr 20 min",
+              "low": 50,
+              "high": 80,
+              "miles": 31.8,
+              "via": "W Colfax Ave and I-25 S"
+            },
+            {
+              "rangeText": "45 min to 1 hr 20 min",
+              "low": 45,
+              "high": 80,
+              "miles": 30.5,
+              "via": "University Blvd and I-25 S"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "eSrIsd55mpr1U3ZESZSG",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.3654756,
+          "lng": -104.8549477
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.995272,
+              39.740141
+            ],
+            [
+              -105.01471,
+              39.741857
+            ],
+            [
+              -105.013228,
+              39.725278
+            ],
+            [
+              -104.995891,
+              39.705377
+            ],
+            [
+              -104.975191,
+              39.690699
+            ],
+            [
+              -104.935427,
+              39.680063
+            ],
+            [
+              -104.875449,
+              39.577976
+            ],
+            [
+              -104.867355,
+              39.519041
+            ],
+            [
+              -104.874519,
+              39.502715
+            ],
+            [
+              -104.872593,
+              39.473956
+            ],
+            [
+              -104.879443,
+              39.430769
+            ],
+            [
+              -104.860226,
+              39.39578
+            ],
+            [
+              -104.866015,
+              39.366566
+            ],
+            [
+              -104.857045,
+              39.362725
+            ],
+            [
+              -104.853995,
+              39.365816
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 42,
+        "distanceMiles": 31.77058478485644,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.8549477,39.3654756?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "activity-georgetown",
+      "label": "A2",
+      "name": "Georgetown Loop — Devil's Gate Depot",
+      "address": "646 Loop Dr, Georgetown, CO 80444",
+      "lat": 39.7010417,
+      "lng": -105.706804,
+      "groups": [
+        "activities"
+      ],
+      "note": "Confirm the departure depot with the venue.",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/646+Loop+Dr,+Georgetown,+CO+80444/@39.7414267,-105.67632,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bad255fb8e5c1:0xac5e1b0c5380f3b9!2m2!1d-105.706804!2d39.7010417!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7010417,
+            -105.706804
+          ],
+          "routes": [
+            {
+              "rangeText": "50 min to 1 hr 5 min",
+              "low": 50,
+              "high": 65,
+              "miles": 45.5,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 20 min",
+              "low": 55,
+              "high": 80,
+              "miles": 51.3,
+              "via": "N Speer Blvd and I-70 W"
+            },
+            {
+              "rangeText": "1 hr to 1 hr 25 min",
+              "low": 60,
+              "high": 85,
+              "miles": 50.1,
+              "via": "Park Ave W and I-70 W"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/646+Loop+Dr,+Georgetown,+CO+80444/@39.7414267,-105.67632,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bad255fb8e5c1:0xac5e1b0c5380f3b9!2m2!1d-105.706804!2d39.7010417!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7010417,
+            -105.706804
+          ],
+          "routes": [
+            {
+              "rangeText": "50 min to 1 hr 15 min",
+              "low": 50,
+              "high": 75,
+              "miles": 45.5,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 25 min",
+              "low": 55,
+              "high": 85,
+              "miles": 51.3,
+              "via": "N Speer Blvd and I-70 W"
+            },
+            {
+              "rangeText": "1 hr to 1 hr 30 min",
+              "low": 60,
+              "high": 90,
+              "miles": 50.1,
+              "via": "Park Ave W and I-70 W"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "activity-georgetown",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7010417,
+          "lng": -105.706804
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.00082,
+              39.725769
+            ],
+            [
+              -105.182625,
+              39.725609
+            ],
+            [
+              -105.210726,
+              39.69545
+            ],
+            [
+              -105.311158,
+              39.714388
+            ],
+            [
+              -105.334269,
+              39.701716
+            ],
+            [
+              -105.35404,
+              39.711991
+            ],
+            [
+              -105.394425,
+              39.715661
+            ],
+            [
+              -105.416169,
+              39.723531
+            ],
+            [
+              -105.438004,
+              39.745786
+            ],
+            [
+              -105.453053,
+              39.743329
+            ],
+            [
+              -105.464152,
+              39.747004
+            ],
+            [
+              -105.499409,
+              39.740372
+            ],
+            [
+              -105.520322,
+              39.740943
+            ],
+            [
+              -105.57875,
+              39.763115
+            ],
+            [
+              -105.623794,
+              39.766579
+            ],
+            [
+              -105.652849,
+              39.76023
+            ],
+            [
+              -105.683157,
+              39.743018
+            ],
+            [
+              -105.692551,
+              39.730863
+            ],
+            [
+              -105.696868,
+              39.70946
+            ],
+            [
+              -105.706874,
+              39.701095
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 63,
+        "distanceMiles": 45.62554680664917,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.706804,39.7010417?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "activity-four-mile",
+      "label": "A3",
+      "name": "Four Mile Historic Park — parking entrance",
+      "address": "4846 E Exposition Ave, Glendale, CO",
+      "lat": 39.7036532,
+      "lng": -104.9291208,
+      "groups": [
+        "activities"
+      ],
+      "note": "Published parking and drop-off entrance on E Exposition Avenue.",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/4846+E+Exposition+Ave,+Glendale,+CO+80246/@39.7235444,-104.9831977,14z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7dd2eef99f17:0x50eb1bce65f332e9!2m2!1d-104.9291208!2d39.7036532!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7036532,
+            -104.9291208
+          ],
+          "routes": [
+            {
+              "rangeText": "14–26 min",
+              "low": 14,
+              "high": 26,
+              "miles": 5.4,
+              "via": "N Speer Blvd and E Cherry Creek S Dr"
+            },
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 5.9,
+              "via": "E 6th Ave"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/4846+E+Exposition+Ave,+Glendale,+CO+80246/@39.7235444,-104.9831977,14z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c7dd2eef99f17:0x50eb1bce65f332e9!2m2!1d-104.9291208!2d39.7036532!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7036532,
+            -104.9291208
+          ],
+          "routes": [
+            {
+              "rangeText": "16–35 min",
+              "low": 16,
+              "high": 35,
+              "miles": 5.4,
+              "via": "N Speer Blvd and E Cherry Creek S Dr"
+            },
+            {
+              "rangeText": "18–45 min",
+              "low": 18,
+              "high": 45,
+              "miles": 5.9,
+              "via": "E 6th Ave"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "activity-four-mile",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7036532,
+          "lng": -104.9291208
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.991983,
+              39.741308
+            ],
+            [
+              -104.993122,
+              39.740378
+            ],
+            [
+              -104.992958,
+              39.733858
+            ],
+            [
+              -104.994118,
+              39.733656
+            ],
+            [
+              -104.989622,
+              39.727946
+            ],
+            [
+              -104.986707,
+              39.726223
+            ],
+            [
+              -104.983204,
+              39.722989
+            ],
+            [
+              -104.977666,
+              39.719515
+            ],
+            [
+              -104.976354,
+              39.718923
+            ],
+            [
+              -104.973208,
+              39.718183
+            ],
+            [
+              -104.959626,
+              39.718148
+            ],
+            [
+              -104.959315,
+              39.717785
+            ],
+            [
+              -104.959325,
+              39.715297
+            ],
+            [
+              -104.955199,
+              39.715289
+            ],
+            [
+              -104.953048,
+              39.71468
+            ],
+            [
+              -104.951085,
+              39.713539
+            ],
+            [
+              -104.94221,
+              39.706326
+            ],
+            [
+              -104.938633,
+              39.705815
+            ],
+            [
+              -104.934081,
+              39.70425
+            ],
+            [
+              -104.933636,
+              39.705006
+            ],
+            [
+              -104.929452,
+              39.703515
+            ],
+            [
+              -104.929093,
+              39.703609
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 14,
+        "distanceMiles": 5.2956359858426785,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-104.9291208,39.7036532?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "activity-commons",
+      "label": "A4-D",
+      "name": "Platte Street Food Tour — Commons Park drop-off",
+      "address": "1600 Little Raven St, Denver, CO 80202",
+      "lat": 39.7548035,
+      "lng": -105.0046224,
+      "groups": [
+        "activities"
+      ],
+      "note": "Proposed drop-off; confirm the permitted curb with the operator.",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/1600+Little+Raven+St,+Denver,+CO+80202/@39.7499397,-105.0067891,15z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78c1c05f5d01:0x8009e64aa732a165!2m2!1d-105.0046224!2d39.7548035!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7548035,
+            -105.0046224
+          ],
+          "routes": [
+            {
+              "rangeText": "7–12 min",
+              "low": 7,
+              "high": 12,
+              "miles": 1.4,
+              "via": "15th St"
+            },
+            {
+              "rangeText": "8–14 min",
+              "low": 8,
+              "high": 14,
+              "miles": 1.8,
+              "via": "N Speer Blvd"
+            },
+            {
+              "rangeText": "9–16 min",
+              "low": 9,
+              "high": 16,
+              "miles": 2.2,
+              "via": "Welton St and 20th St"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/1600+Little+Raven+St,+Denver,+CO+80202/@39.7476663,-105.0098301,15z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78c1c05f5d01:0x8009e64aa732a165!2m2!1d-105.0046224!2d39.7548035!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7548035,
+            -105.0046224
+          ],
+          "routes": [
+            {
+              "rangeText": "7–16 min",
+              "low": 7,
+              "high": 16,
+              "miles": 1.4,
+              "via": "15th St"
+            },
+            {
+              "rangeText": "9–20 min",
+              "low": 9,
+              "high": 20,
+              "miles": 1.8,
+              "via": "N Speer Blvd"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "activity-commons",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7548035,
+          "lng": -105.0046224
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.992528,
+              39.743572
+            ],
+            [
+              -105.006546,
+              39.754369
+            ],
+            [
+              -105.00488,
+              39.755144
+            ],
+            [
+              -105.00452,
+              39.754876
+            ],
+            [
+              -105.004539,
+              39.754737
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 5,
+        "distanceMiles": 1.379071224051539,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0046224,39.7548035?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "activity-confluence",
+      "label": "A4-P",
+      "name": "Platte Street Food Tour — Confluence Park pickup",
+      "address": "2250 15th St, Denver, CO 80202",
+      "lat": 39.7546673,
+      "lng": -105.0078932,
+      "groups": [
+        "activities"
+      ],
+      "note": "Outbound drive from convention center to the pickup point; not the return journey.",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2250+15th+St,+Denver,+CO+80202/@39.7475847,-105.010516,15z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78c00d4cfa1f:0xcbf3073ba2bd7b3e!2m2!1d-105.0078932!2d39.7546673!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7546673,
+            -105.0078932
+          ],
+          "routes": [
+            {
+              "rangeText": "5–12 min",
+              "low": 5,
+              "high": 12,
+              "miles": 1.3,
+              "via": "15th St"
+            },
+            {
+              "rangeText": "6–12 min",
+              "low": 6,
+              "high": 12,
+              "miles": 1.7,
+              "via": "N Speer Blvd"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/2250+15th+St,+Denver,+CO+80202/@39.7475847,-105.010516,15z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876c78c00d4cfa1f:0xcbf3073ba2bd7b3e!2m2!1d-105.0078932!2d39.7546673!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7546673,
+            -105.0078932
+          ],
+          "routes": [
+            {
+              "rangeText": "6–16 min",
+              "low": 6,
+              "high": 16,
+              "miles": 1.3,
+              "via": "15th St"
+            },
+            {
+              "rangeText": "8–18 min",
+              "low": 8,
+              "high": 18,
+              "miles": 1.7,
+              "via": "N Speer Blvd"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "activity-confluence",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7546673,
+          "lng": -105.0078932
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -104.993737,
+              39.742659
+            ],
+            [
+              -104.992528,
+              39.743572
+            ],
+            [
+              -105.007407,
+              39.755037
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 4,
+        "distanceMiles": 1.3025182931678994,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.0078932,39.7546673?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    },
+    {
+      "id": "activity-cabin-creek",
+      "label": "A5",
+      "name": "Cabin Creek Brewing — Georgetown Lake",
+      "address": "577 22nd St, Georgetown, CO 80444",
+      "lat": 39.7249333,
+      "lng": -105.6933794,
+      "groups": [
+        "activities"
+      ],
+      "note": "From Activity Planning. Confirm motorcoach access with the venue.",
+      "forecasts": {
+        "am": {
+          "departureLocal": "2026-11-10T08:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/577+Twenty-Second+St,+Georgetown,+CO+80444/@39.7414267,-105.6714218,10z/data=!3m1!4b1!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bb200c8637995:0xe3259b0ea645b442!2m2!1d-105.6933794!2d39.7249333!2m3!6e0!7e2!8j1794297600!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7249333,
+            -105.6933794
+          ],
+          "routes": [
+            {
+              "rangeText": "50 min to 1 hr 5 min",
+              "low": 50,
+              "high": 65,
+              "miles": 45.1,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 20 min",
+              "low": 55,
+              "high": 80,
+              "miles": 50.8,
+              "via": "N Speer Blvd and I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 25 min",
+              "low": 55,
+              "high": 85,
+              "miles": 49.7,
+              "via": "Park Ave W and I-70 W"
+            }
+          ]
+        },
+        "pm": {
+          "departureLocal": "2026-11-10T17:00",
+          "sourceUrl": "https://www.google.com/maps/dir/Colorado+Convention+Center,+700+14th+St,+Denver,+CO+80202/577+Twenty-Second+St,+Georgetown,+CO+80444/@39.7414267,-105.6714218,10z/data=!4m18!4m17!1m5!1m1!1s0x876c78d17bd9d871:0x580ecf50af57c3cf!2m2!1d-104.995557!2d39.7431357!1m5!1m1!1s0x876bb200c8637995:0xe3259b0ea645b442!2m2!1d-105.6933794!2d39.7249333!2m3!6e0!7e2!8j1794330000!3e0?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+          "point": [
+            39.7249333,
+            -105.6933794
+          ],
+          "routes": [
+            {
+              "rangeText": "50 min to 1 hr 15 min",
+              "low": 50,
+              "high": 75,
+              "miles": 45.1,
+              "via": "I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 25 min",
+              "low": 55,
+              "high": 85,
+              "miles": 50.8,
+              "via": "N Speer Blvd and I-70 W"
+            },
+            {
+              "rangeText": "55 min to 1 hr 30 min",
+              "low": 55,
+              "high": 90,
+              "miles": 49.7,
+              "via": "Park Ave W and I-70 W"
+            }
+          ]
+        }
+      },
+      "roadRoute": {
+        "id": "activity-cabin-creek",
+        "origin": {
+          "lat": 39.7431357,
+          "lng": -104.995557
+        },
+        "destination": {
+          "lat": 39.7249333,
+          "lng": -105.6933794
+        },
+        "geometry": {
+          "coordinates": [
+            [
+              -104.994963,
+              39.743593
+            ],
+            [
+              -105.000151,
+              39.740215
+            ],
+            [
+              -105.00082,
+              39.725769
+            ],
+            [
+              -105.182625,
+              39.725609
+            ],
+            [
+              -105.210537,
+              39.695449
+            ],
+            [
+              -105.311158,
+              39.714388
+            ],
+            [
+              -105.334269,
+              39.701716
+            ],
+            [
+              -105.35404,
+              39.711991
+            ],
+            [
+              -105.394425,
+              39.715661
+            ],
+            [
+              -105.416169,
+              39.723531
+            ],
+            [
+              -105.438004,
+              39.745786
+            ],
+            [
+              -105.453053,
+              39.743329
+            ],
+            [
+              -105.464152,
+              39.747004
+            ],
+            [
+              -105.499409,
+              39.740372
+            ],
+            [
+              -105.520322,
+              39.740943
+            ],
+            [
+              -105.57875,
+              39.763115
+            ],
+            [
+              -105.62103,
+              39.766578
+            ],
+            [
+              -105.652849,
+              39.76023
+            ],
+            [
+              -105.683157,
+              39.743018
+            ],
+            [
+              -105.692509,
+              39.730964
+            ],
+            [
+              -105.695233,
+              39.71511
+            ],
+            [
+              -105.693361,
+              39.725187
+            ]
+          ],
+          "type": "LineString"
+        },
+        "baseMinutes": 61,
+        "distanceMiles": 45.22339537103316,
+        "sourceUrl": "https://router.project-osrm.org/route/v1/driving/-104.995557,39.7431357;-105.6933794,39.7249333?overview=simplified&geometries=geojson&steps=false&alternatives=false",
+        "checkedDate": "2026-11-08"
+      }
+    }
+  ]
+}

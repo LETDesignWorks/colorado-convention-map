@@ -7,7 +7,7 @@ import {
   getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HOTELS } from 'https://letdesignworks.github.io/colorado-convention-map/routes/hotels.js?v=20260910-1';
-import { ACTIVITIES, ACTIVITY_POINTS, getActivity, getActivityPoint } from 'https://letdesignworks.github.io/colorado-convention-map/activities/data.js?v=20260910-1';
+import { ACTIVITIES, ACTIVITY_POINTS, getActivity, getActivityPoint } from 'https://letdesignworks.github.io/colorado-convention-map/activities/data.js?v=rush-20261108-1';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',

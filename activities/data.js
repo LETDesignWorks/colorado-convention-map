@@ -6,8 +6,8 @@ export const ACTIVITY_POINTS = [
     name: 'Douglas County Fairgrounds',
     role: 'venue',
     address: '500 Fairgrounds Rd, Castle Rock, CO 80104',
-    lat: 39.365110,
-    lng: -104.856079,
+    lat: 39.3654756,
+    lng: -104.8549477,
     note: 'Primary arrival and pickup point for the fairgrounds activity.'
   },
   {
@@ -17,8 +17,8 @@ export const ACTIVITY_POINTS = [
     name: "Georgetown Loop Railroad — Devil's Gate Depot",
     role: 'venue',
     address: '646 Loop Dr, Georgetown, CO 80444',
-    lat: 39.701619,
-    lng: -105.706719,
+    lat: 39.7010417,
+    lng: -105.706804,
     note: "Planning point uses the Devil's Gate Depot in Georgetown. Confirm the final depot before assigning buses."
   },
   {
@@ -27,10 +27,10 @@ export const ACTIVITY_POINTS = [
     activityId: 'four-mile-house',
     name: 'Four Mile Historic Park / Four Mile House',
     role: 'venue',
-    address: '715 S Forest St, Denver, CO 80246',
-    lat: 39.703113,
-    lng: -104.927312,
-    note: 'Primary arrival and pickup point. Final bus entrance and staging should be confirmed with the venue.'
+    address: '4846 E Exposition Ave, Glendale, CO',
+    lat: 39.7036532,
+    lng: -104.9291208,
+    note: 'Published parking entrance on E. Exposition Avenue. Confirm final coach loading and staging with the venue.'
   },
   {
     id: 'commons-park-dropoff',
@@ -39,8 +39,8 @@ export const ACTIVITY_POINTS = [
     name: 'Platte Street Food Tour — Commons Park Drop-off',
     role: 'dropoff',
     address: '1600 Little Raven St, Denver, CO 80202',
-    lat: 39.757240,
-    lng: -105.005220,
+    lat: 39.7548035,
+    lng: -105.0046224,
     note: 'Proposed drop-off planning point near 16th Street and Little Raven Street. Final curb location requires verification.'
   },
   {
@@ -50,8 +50,8 @@ export const ACTIVITY_POINTS = [
     name: 'Platte Street Food Tour — Confluence Park Pickup',
     role: 'pickup',
     address: '2250 15th St, Denver, CO 80202',
-    lat: 39.754654,
-    lng: -105.007346,
+    lat: 39.7546673,
+    lng: -105.0078932,
     note: 'Proposed pickup planning point near 15th Street and Little Raven Street. Final curb location requires verification.'
   }
 ];

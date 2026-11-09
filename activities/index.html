@@ -25,6 +25,7 @@
         <a class="btn ghost" href="../">Full Planning Map</a>
         <a class="btn ghost" href="../routes/">Field-Service Route Planner</a>
         <a class="btn white" href="../activity-planning/index.html">Activity Planning</a>
+        <a class="btn white" href="../rush-hour/?group=activities">Rush-hour Routes</a>
         <a class="btn ghost" href="../territories/">Territories</a>
         <a class="btn white" href="../bus-access/">Bus Access Review</a>
         <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
@@ -46,6 +47,7 @@
         <div class="map-note">Four activities are represented by five operating points because the Platte Street Food Tour uses Commons Park for drop-off and Confluence Park for pickup. All routes are planning estimates and must be verified with the bus operator.</div>
       </div>
 
+      <section class="card" id="activityRushHours"><h2>Activity rush-hour ranking</h2><p>Loading morning and afternoon forecasts…</p></section>
       <section class="card locations-card">
         <div class="card-heading">
           <div><span class="eyebrow">ACTIVITY LOCATIONS</span><h2>Four Activities • Five Bus Points</h2></div>
@@ -231,5 +233,5 @@
 
 <div class="toast" id="toast" aria-live="polite" role="status"></div>
 <script type="module" src="app.js"></script>
-</body>
+<script type="module" src="../rush-hour/activity-summary.js?v=rush-20261108-1"></script></body>
 </html>
