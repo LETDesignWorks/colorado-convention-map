@@ -3,6 +3,8 @@ import {getFirestore,collection,onSnapshot} from 'https://www.gstatic.com/fireba
 import {HALLS} from '../bus-access/data.js?v=pin-audit-20261108-1';
 import {rankedLocations,sameLocation,timeColor} from './model.mjs?v=rush-20261108-1';
 import {makeReport,reportHtml} from './results-report.mjs?v=rush-pdf-20261109-1';
+import {HOTELS} from '../routes/hotels.js';
+import {initTripPlanner} from './trip-planner.mjs?v=hotel-trips-20261109-1';
 import {waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 
 const ids=['destinationGroup','morning','afternoon','busAllowance','search','referenceTime','dataStatus','validation','listTitle','count','groupNote','rankingRows','routeDetails'];
@@ -18,13 +20,15 @@ const displayLabel=row=>els.destinationGroup.value==='activities'?(row.activityL
 const displayedLocations=()=>els.destinationGroup.value==='activities'?data.locations.filter(l=>l.groups.includes('activities')):meetingLocations;
 const pdfButton=document.getElementById('downloadResultsPdf'),printButton=document.getElementById('printResults'),exportStatus=document.getElementById('exportStatus');
 let exportBusy=false,printSnapshot=null;
+const tripPlanner=initTripPlanner({hotels:HOTELS});
+function syncTripLocations(){tripPlanner.setLocations({meetings:meetingLocations,activities:data.locations.filter(l=>l.groups.includes('activities')),origin:data.origin,status:els.dataStatus.textContent});}
 function setExportButtons(){const ready=!!data&&els.validation.hidden&&!!rows.length;pdfButton.disabled=!ready||exportBusy;printButton.disabled=!ready||exportBusy;document.getElementById('printRanking').disabled=!ready||exportBusy;}
 function captureReport(){
   if(!data||!els.validation.hidden)throw Error('Load valid results before printing or downloading.');
   return makeReport({rows,group:els.destinationGroup.value,period,allowance:els.busAllowance.value,query:els.search.value,selectedId,origin:data.origin,reference:els.referenceTime.textContent,approvalStatus:els.dataStatus.textContent,checkedDate:data.checkedDate});
 }
 function preparePrint(report){document.getElementById('rushPrintReport').innerHTML=reportHtml(report);document.body.classList.add('rush-print');}
-window.addEventListener('beforeprint',()=>{try{preparePrint(printSnapshot||captureReport());}catch(error){document.getElementById('rushPrintReport').textContent=error.message;document.body.classList.add('rush-print');}});
+window.addEventListener('beforeprint',()=>{if(document.body.classList.contains('trip-print'))return;try{preparePrint(printSnapshot||captureReport());}catch(error){document.getElementById('rushPrintReport').textContent=error.message;document.body.classList.add('rush-print');}});
 window.addEventListener('afterprint',()=>{document.body.classList.remove('rush-print');printSnapshot=null;});
 async function printResults(){
   if(exportBusy)return;try{printSnapshot=captureReport();exportBusy=true;setExportButtons();exportStatus.textContent='Preparing the print layout…';await waitForPrintRibbons();preparePrint(printSnapshot);exportStatus.textContent='Choose Save as PDF in the print destination to save a PDF copy.';window.print();}
@@ -104,7 +108,7 @@ function rebuildFromLive(snapshot){
     return{...row,groups:['meetings'],busSize:details.busSize||'',publicSummary:details.publicSummary||'',...(snapshotLocation&&sameLocation(row,snapshotLocation)?{forecasts:snapshotLocation.forecasts,roadRoute:snapshotLocation.roadRoute}:{})};
   });
   els.dataStatus.textContent='Live bus-access approval status loaded. Traffic times remain the dated forecast snapshot.';
-  render();
+  render();syncTripLocations();
 }
 
 try{
@@ -112,7 +116,7 @@ try{
   meetingLocations=data.locations.filter(l=>l.groups.includes('meetings'));
   L.marker([data.origin.lat,data.origin.lng],{icon:L.divIcon({className:'',html:'<div class="ccc-marker">★</div>',iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map).bindTooltip('Colorado Convention Center',{permanent:true,direction:'top'});
   shown=new Set(rankedLocations(displayedLocations(),period,15).slice(0,5).map(r=>r.id));if(selectedId)shown.add(selectedId);render();fitMap();
-  els.dataStatus.textContent='Showing approval snapshot from Nov 8, 2026 while current approval status loads.';
+  els.dataStatus.textContent='Showing approval snapshot from Nov 8, 2026 while current approval status loads.';syncTripLocations();
   els.destinationGroup.addEventListener('change',()=>{selectedId=null;els.search.value='';shown=new Set(rankedLocations(displayedLocations(),period,Number(els.busAllowance.value)||0).slice(0,5).map(r=>r.id));render();fitMap();});
   for(const [element,value] of [[els.morning,'am'],[els.afternoon,'pm']])element.addEventListener('click',()=>{period=value;render();});
   els.busAllowance.addEventListener('input',render);els.search.addEventListener('input',render);
@@ -122,6 +126,7 @@ try{
   document.getElementById('fitMap').addEventListener('click',fitMap);
   const config={apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',appId:'1:29365992209:web:0bd35e723688b37d776ab0'};
   const app=getApps().find(app=>app.options.projectId===config.projectId)||initializeApp(config,'rush-hour');
-  onSnapshot(collection(getFirestore(app),'halls'),rebuildFromLive,()=>{els.dataStatus.textContent='Current approval status is unavailable. Showing the saved approval snapshot from Nov 8, 2026.';});
+  onSnapshot(collection(getFirestore(app),'halls'),rebuildFromLive,()=>{els.dataStatus.textContent='Current approval status is unavailable. Showing the saved approval snapshot from Nov 8, 2026.';syncTripLocations();});
 }catch(error){els.dataStatus.textContent=error.message;els.validation.hidden=false;els.validation.textContent='Reload the page to retry.';setExportButtons();}
+
 
