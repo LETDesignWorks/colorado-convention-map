@@ -184,7 +184,6 @@ function applyDenver2027Branding() {
   addSmpwLink();
   addDelegateActivitiesLink();
   addActivityPlanningLink();
-  addLoadTestsLink();
   addPdfToolsLink();
   addMapLogo();
 }
@@ -208,18 +207,6 @@ function addActivityPlanningLink() {
     update(new URLSearchParams(location.search).get('hall'));
     window.addEventListener('territory-planner:data', event => update(event.detail?.hallId || ''));
   }
-}
-
-function addLoadTestsLink() {
-  if (location.pathname.includes('/load-tests/') || document.querySelector('a[href*="load-tests/"]')) return;
-  const nav = navHost();
-  if (!nav) return;
-  const link = document.createElement('a');
-  link.className = linkClassForCurrentPage('load-tests-link');
-  link.href = new URL('load-tests/', siteHomeUrl).href;
-  link.textContent = 'Load Tests';
-  link.setAttribute('aria-label', 'Open the field service load-test checklists');
-  insertBeforeRouteOrBus(nav, link);
 }
 
 function addPdfToolsLink() {
