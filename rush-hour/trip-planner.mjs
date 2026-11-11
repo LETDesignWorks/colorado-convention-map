@@ -4,9 +4,9 @@ import {createTrafficClient} from './trip-traffic.mjs?v=hotel-trips-20261109-1';
 import {findAddresses,findRoad} from './trip-service.mjs?v=hotel-trips-20261109-1';
 import {waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 
-const DTC_CENTER = Object.freeze({id:'dtc',kind:'rally',name:'DTC Center',address:'I-25 & E Belleview Ave, Denver Tech Center, CO',lat:39.624,lng:-104.905,note:'DTC planning reference point at I-25 and Belleview. Use the actual pickup or drop-off address if different.'});
+const DTC_CENTER = Object.freeze({id:'dtc',kind:'dtc',name:'DTC Center',address:'I-25 & E Belleview Ave, Denver Tech Center, CO',lat:39.624,lng:-104.905,note:'DTC planning reference point at I-25 and Belleview. Use the actual pickup or drop-off address if different.'});
 
-const categories=[['hotels','Delegate hotel'],['meetings','Field-service meeting'],['activities','Activity'],['address','Independent address'],['rally','Convention & DTC centers']];
+const categories=[['hotels','Delegate hotel'],['meetings','Field-service meeting'],['activities','Activity'],['address','Independent address'],['ccc','Colorado Convention Center'],['dtc','DTC Center']];
 function endpointMarkup(side,title){return `<fieldset class="trip-endpoint"><legend>${title}</legend><div class="field"><label for="trip-${side}-kind">Location type</label><select id="trip-${side}-kind">${categories.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></div><div id="trip-${side}-known"><div class="field"><label for="trip-${side}-filter">Filter locations</label><input id="trip-${side}-filter" type="search" placeholder="Name, marker or address"></div><div class="field"><label for="trip-${side}-select">Select location</label><select id="trip-${side}-select"><option value="">Loading locations…</option></select></div></div><div id="trip-${side}-custom" hidden><div class="field"><label for="trip-${side}-address">Street address, city and state</label><input id="trip-${side}-address" type="text" maxlength="250" autocomplete="street-address" placeholder="123 Main St, Denver, CO"></div><button class="btn" id="trip-${side}-find" type="button">Find address</button><div id="trip-${side}-matches" class="trip-matches" role="group" aria-label="Matching ${side} addresses"></div></div><p id="trip-${side}-description" class="trip-description" role="status"></p></fieldset>`;}
 
 export function initTripPlanner({hotels}){
@@ -17,7 +17,7 @@ export function initTripPlanner({hotels}){
   const el=id=>document.getElementById('trip-'+id),sides=['from','to'];
   let session;try{session=window.sessionStorage;}catch{}
   const trafficClient=createTrafficClient({storage:session});
-  let lists={hotels:hotels.map(h=>({...h,kind:'hotels',label:h.id})),meetings:[],activities:[],rally:[]},custom={from:null,to:null},current=null,traffic=null,sequence=0,routeAbort=null,map,layer,exporting=false,comparisons;
+  let lists={hotels:hotels.map(h=>({...h,kind:'hotels',label:h.id})),meetings:[],activities:[],ccc:[],dtc:[{...DTC_CENTER}]},custom={from:null,to:null},current=null,traffic=null,sequence=0,routeAbort=null,map,layer,exporting=false,comparisons;
   const shifts=document.createElement('div');shifts.className='trip-shifts';shifts.setAttribute('role','group');shifts.setAttribute('aria-label','Adjust departure time');
   for(const offset of [-30,-15,-5,5,15,30]){const button=document.createElement('button');button.type='button';button.className='btn';button.textContent=(offset>0?'+':'')+offset+' min';button.addEventListener('click',()=>{try{const value=shiftDeparture(departure(),offset);el('date').value=value.slice(0,10);el('time').value=value.slice(11);el('period').value='custom';invalidate('Departure adjusted. Show the route and check traffic for the new time.');}catch(error){el('status').textContent=error.message;}});shifts.append(button);}el('calculate').before(shifts);
   const compareHost=document.createElement('section');compareHost.className='trip-comparisons';el('result').after(compareHost);
@@ -27,7 +27,7 @@ export function initTripPlanner({hotels}){
   el('disconnect').addEventListener('click',()=>{trafficClient.disconnect();comparisons?.stop();invalidate('Traffic service disconnected.');trafficConnection();});
   const searches={from:0,to:0},searchAbort={from:null,to:null};
   el('to-kind').value='meetings';el('date').value=nextWeekday();
-  function selected(side,allowText=false){const kind=el(side+'-kind').value;if(kind==='address')return custom[side]||(allowText?{kind:'address',name:'Independent address',address:el(side+'-address').value.trim()}:null);return lists[kind]?.find(p=>String(p.id)===el(side+'-select').value)||null;}
+  function selected(side,allowText=false){const kind=el(side+'-kind').value;if(kind==='address')return custom[side]||(allowText?{kind:'address',name:'Independent address',address:el(side+'-address').value.trim()}:null);if(kind==='ccc'||kind==='dtc')return lists[kind]?.[0]||null;return lists[kind]?.find(p=>String(p.id)===el(side+'-select').value)||null;}
   function departure(){return el('date').value+'T'+el('time').value;}
   function exportsEnabled(enabled){el('pdf').disabled=!enabled||exporting;el('print').disabled=!enabled||exporting;}
   function links(){const from=selected('from',true),to=selected('to',true);el('google').hidden=!from?.address||!to?.address;if(!el('google').hidden)el('google').href=googleDirections(from,to);el('google-time').textContent='Set Google departure to: '+formatDenver(departure());}
@@ -37,7 +37,7 @@ export function initTripPlanner({hotels}){
   }
   function describe(side){const point=selected(side);el(side+'-description').textContent=point?point.address+(point.note?' · '+point.note:''):el(side+'-kind').value==='address'?'Find the address, then choose the correct match.':'Select a location from the list.';}
   function populate(side,preferred=el(side+'-select').value){
-    const kind=el(side+'-kind').value,address=kind==='address';el(side+'-known').hidden=address;el(side+'-custom').hidden=!address;
+    const kind=el(side+'-kind').value,address=kind==='address',fixed=kind==='ccc'||kind==='dtc';el(side+'-known').hidden=address||fixed;el(side+'-custom').hidden=!address;
     const q=el(side+'-filter').value.trim().toLowerCase(),items=(lists[kind]||[]).filter(p=>[p.name,p.address,p.label].join(' ').toLowerCase().includes(q));
     el(side+'-select').innerHTML='<option value="">'+(items.length?'Select a location…':'No matching locations')+'</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc((p.label?p.label+' · ':'')+p.name)}</option>`).join('');
     if(items.some(p=>String(p.id)===preferred))el(side+'-select').value=preferred;describe(side);links();
@@ -93,7 +93,7 @@ export function initTripPlanner({hotels}){
   return{
     setLocations({meetings,activities,origin,status}){
       const before=sides.map(side=>selected(side));
-      lists.meetings=meetings.map(p=>({...p,kind:'meetings'}));lists.activities=activities.map(p=>({...p,kind:'activities',label:p.activityLabel||p.label}));lists.rally=[{...origin,id:'ccc',kind:'rally'}, {...DTC_CENTER}];
+      lists.meetings=meetings.map(p=>({...p,kind:'meetings'}));lists.activities=activities.map(p=>({...p,kind:'activities',label:p.activityLabel||p.label}));lists.ccc=[{...origin,id:'ccc',kind:'ccc'}];lists.dtc=[{...DTC_CENTER}];
       sides.forEach(side=>populate(side));el('approvals').textContent=status;
       if(before.some((p,i)=>p&&JSON.stringify(p)!==JSON.stringify(selected(sides[i]))))invalidate('Location information changed. Show the route again to use the latest details.');
     }

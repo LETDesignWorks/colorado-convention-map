@@ -4,7 +4,7 @@ import {HALLS} from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
 import {rankedLocations,sameLocation,timeColor} from './model.mjs?v=rush-20261108-1';
 import {makeReport,reportHtml} from './results-report.mjs?v=rush-pdf-20261109-1';
 import {HOTELS} from '../routes/hotels.js';
-import {initTripPlanner} from './trip-planner.mjs?v=centers-20261111-1';
+import {initTripPlanner} from './trip-planner.mjs?v=separate-centers-20261111-1';
 import {waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 
 const ids=['destinationGroup','morning','afternoon','busAllowance','search','referenceTime','dataStatus','validation','listTitle','count','groupNote','rankingRows','routeDetails'];
