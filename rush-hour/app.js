@@ -1,10 +1,10 @@
 import {initializeApp,getApps} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {getFirestore,collection,onSnapshot} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import {HALLS} from '../bus-access/data.js?v=pin-audit-20261108-1';
+import {HALLS} from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
 import {rankedLocations,sameLocation,timeColor} from './model.mjs?v=rush-20261108-1';
 import {makeReport,reportHtml} from './results-report.mjs?v=rush-pdf-20261109-1';
 import {HOTELS} from '../routes/hotels.js';
-import {initTripPlanner} from './trip-planner.mjs?v=hotel-trips-20261109-1';
+import {initTripPlanner} from './trip-planner.mjs?v=centers-20261111-1';
 import {waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 
 const ids=['destinationGroup','morning','afternoon','busAllowance','search','referenceTime','dataStatus','validation','listTitle','count','groupNote','rankingRows','routeDetails'];
