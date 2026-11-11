@@ -2,7 +2,7 @@ import {
   HALLS as BASE_HALLS,
   DTC_BOUNDARY,
   DTC
-} from '../bus-access/data.js?v=pin-audit-20261108-1';
+} from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
 
 const CCC_ONLY_ADDITIONS = [
   {
