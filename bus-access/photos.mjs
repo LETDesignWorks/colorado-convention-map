@@ -9,7 +9,7 @@ const escape = (value='') => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','
 export function mountLocationPhotos({getLocation, getSummary, getLocationById, getSummaryFor, getOwner, isAdmin, createSharedStore,
   createDeviceStore=createDevicePhotoStore, prepare=preparePhoto, exportPdf=buildPhotoPdf,
   createReportDraftStore=createPhotoReportDraftStore,
-  openParkingPlanner, openPresentation, onPdfChanged=()=>{}, sendToBuilder=sendPdfsToBuilder,
+  openParkingPlanner, openPresentation, onPdfChanged=()=>{}, onPhotosChanged=()=>{}, sendToBuilder=sendPdfsToBuilder,
   document:d=globalThis.document, window:w=globalThis.window}) {
   const host=d.createElement('section'); host.className='card location-photos'; host.id='locationPhotos';
   d.getElementById('detail').after(host);
@@ -21,8 +21,9 @@ export function mountLocationPhotos({getLocation, getSummary, getLocationById, g
   const presentationKey=(scope,library)=>JSON.stringify([scope,library]);
   function touchPresentation(scope,library){const key=presentationKey(scope,library);presentationRevisions.set(key,(presentationRevisions.get(key)||0)+1);}
   function beginPhotoWrite(scope,library){
+    const locationId=currentLocation?.id,owner=getOwner?.();
     const key=presentationKey(scope,library);touchPresentation(scope,library);presentationWrites.set(key,(presentationWrites.get(key)||0)+1);
-    return()=>{touchPresentation(scope,library);const remaining=(presentationWrites.get(key)||1)-1;if(remaining)presentationWrites.set(key,remaining);else presentationWrites.delete(key);};
+    return()=>{touchPresentation(scope,library);const remaining=(presentationWrites.get(key)||1)-1;if(remaining)presentationWrites.set(key,remaining);else presentationWrites.delete(key);onPhotosChanged({locationId,owner,library});};
   }
   const contextIdentity=()=>{const location=getLocation();return location?photoReportScope({locationId:location.id,admin:isAdmin(),owner:getOwner?.()||''}):'';};
   const active=token=>token===epoch && contextIdentity()===identity;
@@ -263,3 +264,4 @@ export function mountLocationPhotos({getLocation, getSummary, getLocationById, g
     buildPresentationLocation:presentation.buildPresentationLocation,
     dispose(){epoch++;presentation.dispose();presentationRevisions.clear();presentationWrites.clear();clearUrls();drafts.dispose?.();host.remove();style.remove();}};
 }
+

@@ -1,5 +1,7 @@
+import {mountPhotoCoverage} from './photo-coverage.mjs?v=photo-coverage-20261110-1';
+import {revealLocationEditor} from './location-navigation.mjs?v=photo-coverage-20261110-1';
 import { mountTrafficPlanner } from './traffic-planner.mjs?v=parking-map-only-20261108-1';
-import { mountLocationPhotos } from './photos.mjs?v=locations-pptx-20261108-1';
+import { mountLocationPhotos } from './photos.mjs?v=photo-coverage-20261110-1';
 import { mountLocationsPresentation } from './locations-presentation-ui.mjs?v=locations-pptx-20261108-1';
 import { SHARED_PHOTOS_ENABLED } from './photos-config.mjs?v=photos-20261104-1';
 import { createTrafficStorage } from './traffic-model.mjs?v=parking-dots-20261108-1';
@@ -24,7 +26,7 @@ const BUS_SIZE_LABELS={'passenger-van':'Passenger van',shuttle:'Shuttle bus','sc
 const TYPE_LABELS={'kingdom-hall':'Kingdom Hall','meeting-area':'Other meeting area'};
 const BASE_LOCATIONS=HALLS.map(h=>({...h,id:String(h.id),markerLabel:String(h.number),locationType:'kingdom-hall',planningArea:'dtc-45',customLocation:false}));
 
-let trafficPlanner=null,locationPhotos=null,locationsPresentation=null,trafficStorage=null,detailRevision=0;
+let photoCoverageTracker=null,trafficPlanner=null,locationPhotos=null,locationsPresentation=null,trafficStorage=null,detailRevision=0;
 let app,auth,db,map,boundaryLayer,currentUser=null,selectedId=null,locations=[...BASE_LOCATIONS],pendingSelectId=null;
 const publicData=new Map();
 const markers=new Map();
@@ -108,7 +110,7 @@ function initMap(){
 }
 function filteredLocations(){
   const q=searchInput.value.trim().toLowerCase(),sf=statusFilter.value;
-  return locations.filter(location=>{if(sf!=='all'&&statusKey(location.id)!==sf)return false;if(!q)return true;return[location.name,location.address,typeLabel(location),...(location.congregations||[]),markerLabel(location)].join(' ').toLowerCase().includes(q);});
+  return locations.filter(location=>{if(photoCoverageTracker&&!photoCoverageTracker.matches(location.id))return false;if(sf!=='all'&&statusKey(location.id)!==sf)return false;if(!q)return true;return[location.name,location.address,typeLabel(location),...(location.congregations||[]),markerLabel(location)].join(' ').toLowerCase().includes(q);});
 }
 function updateMarkers(){
   syncMarkers();
@@ -124,7 +126,7 @@ function renderStats(){
 function renderList(){
   const items=filteredLocations();
   document.getElementById('visibleCount').textContent=`${items.length} shown`;
-  hallList.innerHTML=items.map(location=>{const info=statusInfo(location.id);return`<button type="button" class="list-item" data-location="${escapeHtml(location.id)}"><span class="mini${location.locationType==='meeting-area'?' meeting-mini':''}" style="background:${info.color}">${escapeHtml(markerLabel(location))}</span><span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address||typeLabel(location))}</small></span><span class="list-status"><em>${escapeHtml(typeLabel(location))}</em><span class="mini-status" style="background:${info.color}">${escapeHtml(info.label)}</span></span></button>`;}).join('')||'<div class="no-results">No locations match this filter.</div>';
+  hallList.innerHTML=items.map(location=>{const info=statusInfo(location.id);return`<button type="button" class="list-item" data-location="${escapeHtml(location.id)}"><span class="mini${location.locationType==='meeting-area'?' meeting-mini':''}" style="background:${info.color}">${escapeHtml(markerLabel(location))}</span><span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address||typeLabel(location))}</small>${photoCoverageTracker?.badges(location.id)||''}</span><span class="list-status"><em>${escapeHtml(typeLabel(location))}</em><span class="mini-status" style="background:${info.color}">${escapeHtml(info.label)}</span></span></button>`;}).join('')||'<div class="no-results">No locations match this filter.</div>';
   hallList.querySelectorAll('[data-location]').forEach(button=>button.addEventListener('click',()=>selectLocation(button.dataset.location,true)));
   renderStats();updateMarkers();
 }
@@ -135,7 +137,7 @@ async function selectLocation(id,pan=false){
   locationPhotos?.contextChanged();
   if(pan&&map){map.setView([location.lat,location.lng],Math.max(map.getZoom(),13),{animate:true});markers.get(location.id)?.openTooltip();}
   history.replaceState(null,'',`#location-${encodeURIComponent(location.id)}`);updateMarkers();await renderDetail(location);
-  if(window.innerWidth<851)document.getElementById('panel').scrollIntoView({behavior:'smooth',block:'start'});
+  if(pan&&location.id===selectedId)revealLocationEditor();
 }
 function congregationsBlock(location){const list=location.congregations||[];if(!list.length)return'';return`<div class="congs"><strong>${list.length} congregation${list.length===1?'':'s'} or group${list.length===1?'':'s'}:</strong> ${escapeHtml(list.join('; '))}</div>`;}
 function publicCard(location){
@@ -223,8 +225,8 @@ document.addEventListener('click',event=>{if(event.target.id==='openStreetFromFo
 
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();locationsPresentation?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;presentationButton.hidden=!admin||!locationsPresentation;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
-  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();locationsPresentation?.contextChanged();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();locationsPresentation?.contextChanged();renderList();});
+  onAuthStateChanged(auth,async user=>{currentUser=user;const admin=isAdmin();photoCoverageTracker?.contextChanged();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();locationsPresentation?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;presentationButton.hidden=!admin||!locationsPresentation;if(user&&!admin)toast('This account has public viewing access only.',true);if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
+  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();renderList();});
 }catch(error){showFirebaseWarning('Firebase could not initialize. '+friendlyError(error));renderList();}
 
 initMap();renderList();
@@ -240,11 +242,13 @@ if(SHARED_PHOTOS_ENABLED&&db){
     createSharedPhotoStore=()=>createCloudPhotoStore({db,storage,doc,getDocFromServer,runTransaction,isAdmin,...sdk});
   }catch(error){toast('Shared photos could not start. Device photos remain available.',true);}
 }
+photoCoverageTracker=mountPhotoCoverage({getLocations:()=>locations,getOwner:()=>currentUser?.uid,isAdmin,createSharedStore:createSharedPhotoStore,onChange:renderList});
 locationPhotos=mountLocationPhotos({getLocation:()=>findLocation(selectedId),isAdmin,getOwner:()=>currentUser?.uid,
   getLocationById:findLocation,getSummaryFor:summaryFor,
   openParkingPlanner:trafficPlanner?()=>trafficPlanner.open():undefined,
   openPresentation:trafficStorage?()=>locationsPresentation?.open():undefined,
   onPdfChanged:()=>trafficPlanner?.invalidatePdfContext(),
+  onPhotosChanged:change=>photoCoverageTracker?.refreshLocation(change),
   getSummary:()=>summaryFor(selectedId),
   createSharedStore:createSharedPhotoStore});
 if(trafficStorage){
@@ -257,3 +261,4 @@ if(trafficStorage){
 }
 let requestedId=null;if(location.hash.startsWith('#location-'))requestedId=decodeURIComponent(location.hash.slice(10));else{const legacy=location.hash.match(/hall-(.+)/);if(legacy)requestedId=decodeURIComponent(legacy[1]);}
 selectLocation(findLocation(requestedId)?.id||locations[0].id,false);
+
