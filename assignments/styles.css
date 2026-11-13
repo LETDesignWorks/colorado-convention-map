@@ -118,3 +118,30 @@ a{color:inherit}
 @media print{
   .topbar,.toolbar,.side-panel,.map-legend,.map-note{display:none!important}.workspace{display:block}.map-area{height:100vh;border:0}
 }
+
+
+/* Congregation home addresses and suggested assignments */
+[hidden]{display:none!important}
+.congregation-name{border:0;background:none;color:var(--navy);font-weight:800;font-size:13px;padding:0;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.coverage-counts{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+.coverage-count{padding:8px 10px;border-radius:9px;background:#edf6ff;border:1px solid #bfd3e5;color:#234c70;font-family:inherit;font-size:12px;font-weight:700;line-height:1.3}
+button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missing{background:#fff0ec;color:#9c3921;border-color:#e4b2a6}
+.coverage-count.pin-needed,.address-chip.pin-needed,.coverage-count.review,.address-chip.review{background:#fff6db;color:#7b5819;border-color:#e3cf90}
+.shared-status{font-size:11px;line-height:1.4;color:#586c7d;margin:8px 0 0}
+.address-chip{display:inline-flex;border:1px solid #c5d6ca;background:#edf8f1;color:#166b3e;font-size:10px;line-height:1.2;padding:5px 7px;border-radius:8px;margin:5px 5px 5px 0;font-weight:800}
+.home-legend{background:#7950aa;color:white;font-weight:900;padding:3px 7px;border-radius:7px}
+.congregation-pin{background:#7950aa;color:white;border:2px solid white;border-radius:7px;box-shadow:0 1px 6px #0007;display:flex;align-items:center;justify-content:center;gap:4px;height:28px;width:46px;font-size:11px;font-weight:800}
+.congregation-pin.active{outline:3px solid #f1cc55;background:#4f2c81}
+.home-popup{min-width:190px}.home-popup p{font-size:11px;margin:5px 0 9px}.home-popup-choice{display:block;width:100%;text-align:left;border:1px solid #d7cce4;background:#f8f4fc;padding:8px;border-radius:6px;color:#4f2c81;margin-top:5px;cursor:pointer;font:600 12px/1.35 system-ui}
+.home-address{font-size:13px;line-height:1.45;color:#4b5f73}.home-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.congregation-detail h3{font-size:14px;color:var(--navy);margin:17px 0 7px}.saved-assignment{font-size:12px;border-left:3px solid #148151;background:#edf8f1;padding:9px;line-height:1.5}
+.suggestion-list{display:grid;gap:6px;margin:8px 0 14px}.suggestion{width:100%;border:1px solid #d6c7e6;background:#faf7fd;color:#4f2c81;border-radius:9px;padding:10px;display:flex;gap:10px;justify-content:space-between;text-align:left;cursor:pointer}.suggestion strong{display:block;font-size:12px}.suggestion small{display:block;font-size:11px;margin-top:4px}.suggestion>span:last-child{font-size:11px;font-weight:800;align-self:center}.suggestion:hover{background:#f0e8f8}
+.address-warning{font-size:12px;line-height:1.4;background:#fff6db;border-left:3px solid #b98b24;padding:9px}
+.address-modal-card{width:min(620px,100%);max-height:92vh;overflow:auto}.address-modal-card .intro-copy{margin:8px 0}.coordinate-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.address-matches{display:grid;gap:6px;margin:8px 0}.address-matches .btn{text-align:left;justify-content:flex-start}#addressPreview{height:220px;background:#eef3f6;border-radius:10px}#addressEditorStatus{font-size:12px;font-weight:600}#congregationDetail{scroll-margin-top:12px}
+@media(max-width:820px){#congregationDetail{scroll-margin-top:210px}.toolbar{position:relative}.stats{flex-wrap:wrap}.map-area{min-height:420px}.map-legend{max-width:190px}}
+@media(max-width:560px){.address-modal-card{padding:13px}.coordinate-fields{gap:7px}.map-note{max-width:270px}}
+
+.proximity-chip{color:#654094!important;font-weight:800;font-size:11px!important}.congregation-pin svg{flex:none}
+.congregation-row.over-limit{background:#eceff2;border-color:#c6cdd4;color:#636a73}.congregation-row.over-limit .congregation-name{color:#606873}.travel-chip{display:block;margin:6px 0;font-weight:750;color:#1c576f}.travel-chip.over{color:#59616c}.travel-chip.missing,.travel-chip.unknown{color:#86530f}
+.congregation-pin{position:relative}.congregation-pin.checked{outline:4px solid #18b8ef;box-shadow:0 0 0 7px #fff;z-index:2}.congregation-pin.saved-here:not(.checked){outline:4px solid #20945d;box-shadow:0 0 0 6px #fff}.congregation-pin.over-limit{background:#737c89!important;color:white;border-color:#d2d7df}.selection-badge,.assigned-badge{position:absolute;right:-10px;top:-15px;border:2px solid white;border-radius:9px;padding:1px 4px;background:#08769e;color:#fff;font:bold 10px system-ui}.assigned-badge{background:#17774b}
+.legend-selected,.legend-assigned,.legend-over{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;margin-right:6px;border-radius:5px;color:#fff;background:#08769e}.legend-assigned{background:#17774b}.legend-over{background:#737c89}

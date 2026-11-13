@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css"/>
+<link rel="stylesheet" href="styles.css?v=homes-20261113-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="../assets/branding.js?v=packets-20261107-1"></script>
+<script type="module" src="../assets/branding.js?v=planning-20261113-1"></script>
 </head>
 <body>
 <div class="app">
@@ -19,7 +19,7 @@
   <div class="topbar-inner">
     <div class="brand">
       <h1>Congregation Meeting-Point Assignments</h1>
-      <p>Assign each congregation to a Kingdom Hall or administrator-added meeting area and track completion.</p>
+      <p>Map congregation addresses, review nearby suggestions, and choose or change meeting-point assignments.</p>
     </div>
     <nav class="navlinks" aria-label="Planning website navigation">
       <a class="btn ghost" href="../">Full Planning Map</a>
@@ -28,7 +28,7 @@
       <a class="btn ghost optional-nav" href="../activities/">Delegate Activities</a>
       <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
       <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
-    </nav>
+    <a class="btn ghost" href="../rush-hour/">Rush-hour Routes</a></nav>
   </div>
 </header>
 
@@ -46,6 +46,11 @@
     <option value="all">All meeting points</option>
     <option value="unassigned">Unassigned congregations</option>
   </select>
+  <select id="addressFilter" aria-label="Filter by address status">
+    <option value="all">All address statuses</option><option value="missing">Missing address</option><option value="pin-needed">Address needs map pin</option><option value="review">Address needs review</option><option value="mapped">Mapped addresses</option>
+  </select>
+  <button class="btn outline" id="showAllHomes" type="button">Show all congregations</button>
+  <button class="btn outline" id="showSelectedHomes" type="button">Show selected on map</button><button class="btn outline" id="exportAssignments" type="button">Export Excel</button>
   <div class="stats" id="stats" aria-live="polite"></div>
 </section>
 
@@ -53,16 +58,28 @@
   <section class="map-area" aria-label="Meeting point map">
     <div id="map" role="application" aria-label="Interactive congregation meeting-point assignment map"></div>
     <div class="map-legend">
-      <strong>Meeting Points</strong>
+      <strong>Congregations & meeting points</strong>
+      <div><span class="home-legend" aria-hidden="true">⌂</span>Congregations at their address</div>
+      <div><span class="legend-selected">✓</span>Selected now (unsaved)</div><div><span class="legend-assigned">✓</span>Assigned to chosen meeting point</div><div><span class="legend-over">⌂</span>Over 1 hr 20 min drive</div>
       <div><span class="legend-marker hall"></span>Current Kingdom Hall</div>
       <div><span class="legend-marker added-hall"></span>Added Kingdom Hall</div>
       <div><span class="legend-marker meeting"></span>Other meeting area</div>
       <div><span class="count-sample">4</span>Assigned congregation count</div>
     </div>
-    <div class="map-note">Tap a meeting-point marker to see the congregations assigned there. The blue dashed line is the DTC 45-minute planning boundary, not a live-traffic limit.</div>
+    <div class="map-note">Purple home icons show congregations at an address; tap to choose a congregation. Green lines show saved assignments; purple dashed lines show suggestions. The blue boundary is the DTC planning area.</div>
   </section>
 
   <aside class="side-panel">
+    <section class="card address-summary">
+      <div class="card-heading"><div><span class="eyebrow">ADDRESS COVERAGE</span><h2>Congregations on the map</h2></div></div>
+      <p id="directorySource" class="intro-copy"></p>
+      <div id="addressSummary" class="coverage-counts" aria-live="polite"></div>
+      <p class="intro-copy">Congregations sharing an address appear together under a purple home icon. Missing addresses stay in the directory until an address and map pin are added. Address pins are planning references; confirm the entrance locally.</p>
+      <p id="sharedDataStatus" class="shared-status" role="status">Loading shared assignments and address edits…</p>
+    </section>
+    <section class="card congregation-detail" id="congregationDetail" aria-label="Selected congregation">
+      <span class="eyebrow">CONGREGATION & SUGGESTED MEETING POINT</span><h2>Select a congregation</h2><p class="intro-copy">Choose a purple home icon or a congregation name below to review its address, suggestions and assignment.</p>
+    </section>
     <section class="card assignment-controls">
       <div class="card-heading">
         <div>
@@ -71,7 +88,7 @@
         </div>
         <span class="public-chip">Public status</span>
       </div>
-      <p class="intro-copy">The congregation list is publicly viewable. Only the approved Firebase administrator can create, change, or clear assignments.</p>
+      <p class="intro-copy">The congregation list is publicly viewable. Sign in as administrator to edit addresses or create, change, or clear assignments. Suggestions do not change saved assignments.</p>
 
       <div class="signed-out-note" id="signedOutNote">
         Sign in to select congregations and save meeting-point assignments.
@@ -134,6 +151,8 @@
         <div class="progress-bar"><span id="progressBar"></span></div>
         <div class="progress-text" id="progressText"></div>
       </div>
+      <p id="driveTimeStatus" class="intro-copy" role="status"></p><button id="retryDriveTimes" class="text-button" type="button" hidden>Retry unavailable travel times</button><p id="selectionTravelStatus" class="address-warning" role="status"></p>
+      <p id="directoryOrder" class="intro-copy" role="status"></p><button class="text-button" id="clearNearestSort" type="button" hidden>Return to alphabetical order</button>
       <div class="congregation-list" id="congregationList"></div>
     </section>
   </aside>
@@ -162,7 +181,24 @@
   </div>
 </div>
 
+<div class="modal" id="addressModal" role="dialog" aria-modal="true" aria-labelledby="addressTitle">
+  <div class="modal-card address-modal-card"><h2 id="addressTitle">Congregation address</h2><p id="addressCongregation"></p>
+    <form id="addressForm">
+      <div class="field"><label for="addressKnown">Use an existing hall address</label><select id="addressKnown"><option value="">Choose a hall, or enter an address below</option></select></div>
+      <div class="field"><label for="homeAddress">Congregation meeting address</label><input id="homeAddress" maxlength="250" autocomplete="street-address" placeholder="Street address, city, state and ZIP"></div>
+      <p class="intro-copy">Use the congregation's meeting address. An empty address stays flagged as missing. Address lookup uses Photon / OpenStreetMap when you click Find address.</p>
+      <button class="btn outline" id="findHomeAddress" type="button">Find address</button>
+      <div id="addressMatches" class="address-matches"></div>
+      <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
+      <p class="intro-copy">Choose a matching result, click the map to place a pin, or enter coordinates. Drag the pin to correct its location. Leave both coordinates empty to save an address that still needs a pin.</p>
+      <div id="addressPreview" aria-label="Address pin preview"></div>
+      <p id="addressEditorStatus" role="status"></p>
+      <div class="button-row"><button class="btn outline" id="cancelAddress" type="button">Cancel</button><button class="btn primary" id="saveHomeAddress" type="submit">Save address</button></div>
+    </form>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js"></script>
+<script type="module" src="app-v3.mjs?v=homes-20261113-1"></script>
 </body>
 </html>
+

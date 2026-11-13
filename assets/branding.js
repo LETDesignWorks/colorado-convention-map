@@ -1,7 +1,7 @@
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=sitewide-circles-20260926-2';
-import './bus-access-status-sync.js?v=bus-status-sync-20260927-1';
+import './bus-access-status-sync.js?v=congregation-homes-20261113-1';
 import './location-address-autofill.js?v=20260910-3';
 
 const logoUrl = new URL('./denver-2027-logo.png', import.meta.url).href;
@@ -185,6 +185,7 @@ function applyDenver2027Branding() {
   addDelegateActivitiesLink();
   addActivityPlanningLink();
   addPdfToolsLink();
+  addRushHourLink();
   addMapLogo();
 }
 
@@ -209,6 +210,21 @@ function addActivityPlanningLink() {
   }
 }
 
+
+function addRushHourLink() {
+  const nav = navHost();
+  if (!nav) return;
+  const destination = new URL('rush-hour/', siteHomeUrl);
+  const existing = [...nav.querySelectorAll('a[href]')].find(a => new URL(a.href, location.href).pathname.replace(/index\.html$/, '').replace(/\/$/, '') === destination.pathname.replace(/\/$/, ''));
+  if (existing) return;
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('rush-hour-link');
+  link.href = destination.href;
+  link.textContent = 'Rush-hour Routes';
+  link.setAttribute('aria-label', 'Rush-hour Routes');
+  insertBeforeRouteOrBus(nav, link);
+}
+
 function addPdfToolsLink() {
   if (location.pathname.includes('/pdf-tools/') || document.querySelector('a[href*="pdf-tools/"]')) return;
   const nav = navHost();
@@ -231,3 +247,4 @@ if (document.readyState === 'loading') {
 } else {
   applyDenver2027Branding();
 }
+

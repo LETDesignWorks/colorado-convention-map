@@ -138,6 +138,8 @@ function candidateKeys(element) {
 }
 
 function statusForElement(element) {
+  // Congregation badges count home congregations, not numbered bus locations.
+  if (element.matches?.('.congregation-pin') || element.closest?.('.congregation-pin')) return '';
   for (const key of candidateKeys(element)) {
     if (statusByKey.has(key)) return statusByKey.get(key);
   }
@@ -351,3 +353,4 @@ if (document.readyState === 'loading') {
 } else {
   start();
 }
+
