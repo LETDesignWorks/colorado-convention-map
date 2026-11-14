@@ -10,6 +10,7 @@ const auth = getAuth(app), db = getFirestore(app);
 let stopUsers, savedUsers = [], rulesReady = false;
 function message(text, error = false) {$('message').textContent = text; $('message').classList.toggle('error', error);}
 function editor(record = {}) {
+  $('presetStatus').textContent = '';
   $('editorTitle').textContent = record.email ? 'Edit login access' : 'Add a login';
   $('userName').value = record.name || ''; $('userEmail').value = record.email || ''; $('userEmail').readOnly = !!record.email;
   $('userEnabled').checked = record.enabled !== false;
@@ -24,8 +25,10 @@ async function checkSetup() {
   renderUsers();
 }
 function renderUsers() {
-  $('userCount').textContent = `${savedUsers.length} configured login${savedUsers.length === 1 ? '' : 's'} · Your main account is separate and always retains control.`;
-  $('users').innerHTML = savedUsers.map(record => `<div class="user-card"><div><strong>${esc(record.name)}</strong><span>${esc(record.email)}</span><small>${!record.enabled ? 'Disabled' : rulesReady ? 'Enabled · email verification required' : 'Setup pending'}</small></div><button class="secondary" data-edit="${esc(record.email)}">Edit access</button></div>`).join('') || '<p>No additional logins have been configured yet. Add the first person above, then the second.</p>';
+  const search = $('userSearch').value.trim().toLowerCase();
+  const visibleUsers = savedUsers.filter(record => `${record.name || ''} ${record.email}`.toLowerCase().includes(search));
+  $('userCount').textContent = `${savedUsers.length} configured login${savedUsers.length === 1 ? '' : 's'}${search ? ` · ${visibleUsers.length} matching` : ''} · No fixed user limit. Your main account always retains control.`;
+  $('users').innerHTML = visibleUsers.map(record => `<div class="user-card"><div><strong>${esc(record.name)}</strong><span>${esc(record.email)}</span><small>${!record.enabled ? 'Disabled' : rulesReady ? 'Enabled · email verification required' : 'Setup pending'}</small></div><button class="secondary" data-edit="${esc(record.email)}">Edit access</button></div>`).join('') || (search ? '<p>No logins match this search.</p>' : '<p>No additional logins have been configured yet. Add a person above, then repeat for everyone on your planning team.</p>');
   $('users').querySelectorAll('[data-edit]').forEach(button => button.onclick = () => {editor(savedUsers.find(record => record.email === button.dataset.edit)); $('userForm').scrollIntoView({behavior:'smooth',block:'start'});});
 }
 editor();
@@ -67,6 +70,14 @@ $('sendVerification').onclick = async () => {try {await sendEmailVerification(au
 $('refreshVerification').onclick = async () => {try {await reload(auth.currentUser); await auth.currentUser.getIdToken(true); message(auth.currentUser.emailVerified ? 'Email verified. Your permissions are refreshing.' : 'Email is not verified yet. Use the link in your verification email.');}catch(error){message(error.message,true);}};
 $('checkRules').onclick = checkSetup;
 $('newUser').onclick = () => editor();
+$('userSearch').addEventListener('input', renderUsers);
+document.querySelectorAll('[data-access-preset]').forEach(button => button.addEventListener('click', () => {
+  if (!isOwner(auth.currentUser)) return;
+  const level = button.dataset.accessPreset;
+  if (!['none','view','edit'].includes(level)) return;
+  document.querySelectorAll('[data-section]').forEach(select => {select.value = level;});
+  $('presetStatus').textContent = `${{'none':'Public only','view':'View','edit':'View & edit'}[level]} selected for all sections below. Adjust any individual section, then save to apply.`;
+}));
 $('userForm').onsubmit = async event => {
   event.preventDefault(); if (!isOwner(auth.currentUser)) return;
   const email = normalizeEmail($('userEmail').value);
