@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=address-help-20261114-1"/>
+<link rel="stylesheet" href="styles.css?v=unassign-20261114-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
 </head>
@@ -66,7 +66,7 @@
       <div><span class="legend-marker meeting"></span>Other meeting area</div>
       <div><span class="count-sample">4</span>Assigned congregation count</div>
     </div>
-    <div class="map-note">Purple home icons show congregations at an address; tap to choose a congregation. Green lines show saved assignments; purple dashed lines show suggestions. The blue boundary is the DTC planning area.</div>
+    <div class="map-note" id="assignmentMapNote" role="status">Purple home icons show congregations at an address; tap to choose a congregation. Green lines show saved assignments; purple dashed lines show suggestions. The blue boundary is the DTC planning area.</div>
   </section>
 
   <aside class="side-panel">
@@ -109,7 +109,7 @@
         </div>
         <div class="button-row">
           <button class="btn primary" id="assignSelectedButton" type="button">Assign Selected</button>
-          <button class="btn danger" id="unassignSelectedButton" type="button">Clear Selected Assignments</button>
+          <button class="btn danger" id="unassignSelectedButton" type="button">Unassign Selected</button>
         </div>
       </div>
 
@@ -129,7 +129,7 @@
       </div>
       <div id="selectedPointCongregations" class="assigned-name-list"></div>
       <div class="selected-point-actions" id="selectedPointActions" hidden>
-        <button class="btn outline" id="filterToPointButton" type="button">Show Only This Meeting Point</button>
+        <button class="btn outline" id="filterToPointButton" type="button">View this meeting only</button>
         <a class="btn outline" id="openPointMapLink" target="_blank" rel="noopener">Open in Google Maps</a>
       </div>
     </section>
@@ -203,6 +203,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=address-help-20261114-1"></script>
+<script type="module" src="app-v3.mjs?v=unassign-20261114-1"></script>
 </body>
 </html>

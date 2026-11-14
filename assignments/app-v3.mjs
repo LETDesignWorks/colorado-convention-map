@@ -10,7 +10,7 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations} from './location-ui.mjs?v=address-help-20261114-1';
+import {initCongregationLocations} from './location-ui.mjs?v=unassign-20261114-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';
@@ -39,6 +39,8 @@ let auth;
 let db;
 let map;
 let boundaryLayer;
+let centerMarker;
+let focusedMeetingPointId='';
 let currentUser = null;
 let locations = [...BASE_LOCATIONS];
 let selectedMeetingPointId = '';
@@ -260,7 +262,7 @@ function initMap() {
     interactive: false
   }).addTo(map);
 
-  L.marker(DTC, {
+  centerMarker = L.marker(DTC, {
     icon: L.divIcon({
       className: '',
       html: '<div class="center-star">★</div>',
@@ -275,7 +277,9 @@ function initMap() {
 
 function syncMarkers() {
   if (!map) return;
-  const active = new Set(locations.map(location => location.id));
+  const visibleLocations=focusedMeetingPointId?locations.filter(p=>p.id===focusedMeetingPointId):locations;
+  const active = new Set(visibleLocations.map(location => location.id));
+  for(const layer of [boundaryLayer,centerMarker])if(layer){if(focusedMeetingPointId)map.removeLayer(layer);else if(!map.hasLayer(layer))layer.addTo(map);}
 
   for (const [id, marker] of markers.entries()) {
     if (!active.has(id)) {
@@ -284,7 +288,7 @@ function syncMarkers() {
     }
   }
 
-  for (const location of locations) {
+  for (const location of visibleLocations) {
     let marker = markers.get(location.id);
     const count = assignedCountAt(location.id);
     const tooltip = `${markerLabel(location)} — ${location.name} • ${count} assigned`;
@@ -353,8 +357,10 @@ function selectMeetingPoint(id, pan = false, keepFilters = false) {
 
   selectedMeetingPointId = location.id;
   nearestMeetingPointId = location.id;
+  if(focusedMeetingPointId)focusedMeetingPointId=location.id;
   void loadDrives(location.id);
   if(!keepFilters){els.searchInput.value='';els.statusFilter.value='all';els.meetingFilter.value='all';document.getElementById('addressFilter').value='all';}
+  if(focusedMeetingPointId)els.meetingFilter.value=location.id;
   if (isAdmin()) els.assignmentDestination.value = location.id;
   syncMarkers();
   renderMeetingPointList();
@@ -362,11 +368,52 @@ function selectMeetingPoint(id, pan = false, keepFilters = false) {
 
   locationUi?.meetingPointChosen(location);
   renderCongregationList();
+  renderMeetingFocus();
   if (pan && map) {
-    const nearest=filteredCongregations().map(c=>resolveHome(c).point).filter(Boolean).slice(0,10);
+    const candidates=focusedMeetingPointId?assignedCongregationsAt(location.id):filteredCongregations();
+    const nearest=candidates.map(c=>resolveHome(c).point).filter(Boolean).slice(0,focusedMeetingPointId?Infinity:10);
     map.fitBounds([[location.lat,location.lng],...nearest.map(p=>[p.lat,p.lng])],{padding:[55,55],maxZoom:13});
     markers.get(location.id)?.openTooltip();
   }
+}
+
+function focusMeetingPoint(id=selectedMeetingPointId){
+  if(!locations.some(p=>p.id===id))return;
+  focusedMeetingPointId=id;
+  els.searchInput.value='';els.statusFilter.value='all';els.meetingFilter.value=id;document.getElementById('addressFilter').value='all';
+  selectMeetingPoint(id,true,true);
+  document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function clearMeetingFocus(fit=false){
+  focusedMeetingPointId='';els.meetingFilter.value='all';
+  renderAll();
+  if(fit&&map){
+    const points=[...locations,...CONGREGATIONS.map(c=>resolveHome(c).point).filter(Boolean)].filter(p=>validPoint(p.lat,p.lng));
+    if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[55,55],maxZoom:13});
+  }
+}
+function renderMeetingFocus(){
+  const note=document.getElementById('assignmentMapNote'),point=locations.find(p=>p.id===focusedMeetingPointId);
+  note.classList.toggle('meeting-focused',Boolean(point));
+  if(!point){
+    note.textContent='Purple home icons show congregations at an address; tap to choose a congregation. Green lines show saved assignments; purple dashed lines show suggestions. The blue boundary is the DTC planning area.';
+    return;
+  }
+  const assigned=assignedCongregationsAt(point.id),mapped=assigned.filter(c=>resolveHome(c).point).length,missing=assigned.length-mapped;
+  note.innerHTML='<strong>'+escapeHtml(markerLabel(point)+' — '+point.name)+'</strong><br>'+assigned.length+' assigned congregation'+(assigned.length===1?'':'s')+' · '+mapped+' with map pins'+(missing?' · '+missing+' need an address or map pin':'')+'<br>Green lines show saved assignments, not driving routes.<br><button type="button" class="text-button" id="showAllMeetingLocations">Show all locations</button>';
+  document.getElementById('showAllMeetingLocations').addEventListener('click',()=>clearMeetingFocus(true));
+}
+
+function unassignButton(congregation) {
+  if (!isAdmin()) return '';
+  return '<button type="button" class="text-button unassign-button" data-unassign="'+escapeHtml(congregation.id)+'" aria-label="Unassign '+escapeHtml(congregation.name)+' from its meeting point" '+(publicReady?'':'disabled')+'>Unassign</button>';
+}
+function bindUnassignButtons(container) {
+  container.querySelectorAll('[data-unassign]').forEach(button=>button.addEventListener('click',async event=>{
+    event.stopPropagation();button.disabled=true;button.textContent='Unassigning…';
+    try{await locationUi?.unassign(button.dataset.unassign);}
+    finally{button.disabled=!isAdmin()||!publicReady;button.textContent='Unassign';}
+  }));
 }
 
 function renderSelectedMeetingPoint() {
@@ -385,8 +432,9 @@ function renderSelectedMeetingPoint() {
   els.selectedPointCount.textContent = `${assigned.length} assigned`;
   els.selectedPointDetail.innerHTML = `<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>`;
   els.selectedPointCongregations.innerHTML = assigned.length
-    ? assigned.map(congregation => `<div class="assigned-name">${escapeHtml(congregation.name)}</div>`).join('')
+    ? assigned.map(congregation => `<div class="assigned-name"><span>${escapeHtml(congregation.name)}</span>${unassignButton(congregation)}</div>`).join('')
     : '<div class="empty-list">No congregations have been assigned to this meeting point.</div>';
+  bindUnassignButtons(els.selectedPointCongregations);
   els.selectedPointActions.hidden = false;
   els.openPointMapLink.href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.address || `${location.lat},${location.lng}`)}`;
 }
@@ -418,6 +466,7 @@ function filteredCongregations() {
 
   const visible = CONGREGATIONS.filter(congregation => {
     const assignment = assignmentFor(congregation.id);
+    if(focusedMeetingPointId&&String(assignment?.meetingPointId)!==focusedMeetingPointId)return false;
     const point = meetingPointForAssignment(assignment);
     const isAssigned = Boolean(assignment);
 
@@ -512,11 +561,12 @@ function renderCongregationList() {
       </div>
       <div class="assignment-status">
         <span class="status-chip ${assigned ? 'assigned' : 'unassigned'}">${assigned ? 'Assigned' : 'Unassigned'}</span>
-        ${assigned ? `<strong>${escapeHtml(assignmentLabel ? `${assignmentLabel} — ${assignmentName}` : assignmentName)}</strong><small>${escapeHtml(assignmentAddress)}</small>` : '<small>No meeting point selected</small>'}
+        ${assigned ? `<strong>${escapeHtml(assignmentLabel ? `${assignmentLabel} — ${assignmentName}` : assignmentName)}</strong><small>${escapeHtml(assignmentAddress)}</small>${unassignButton(congregation)}` : '<small>No meeting point selected</small>'}
       </div>
     </div>`;
   }).join('') || '<div class="no-results">No congregations match the current filters.</div>';
 
+  bindUnassignButtons(els.congregationList);
   els.congregationList.querySelectorAll('[data-select]').forEach(checkbox => {
     checkbox.addEventListener('click', event => event.stopPropagation());
     checkbox.addEventListener('change', () => {
@@ -544,10 +594,12 @@ function renderCongregationList() {
 }
 
 function renderAll() {
+  if(focusedMeetingPointId&&!locations.some(p=>p.id===focusedMeetingPointId)){focusedMeetingPointId='';els.meetingFilter.value='all';}
   renderCongregationList();
   renderMeetingPointList();
   renderSelectedMeetingPoint();
   syncMarkers();
+  renderMeetingFocus();
 }
 
 async function assignSelected() {
@@ -637,7 +689,7 @@ async function clearSelectedAssignments() {
   } catch (error) {
     toast(friendlyError(error), true);
   } finally {
-    els.unassignSelectedButton.textContent = 'Clear Selected Assignments';
+    els.unassignSelectedButton.textContent = 'Unassign Selected';
     renderSelectionControls();
   }
 }
@@ -719,8 +771,9 @@ els.searchInput.addEventListener('input', renderCongregationList);
 els.statusFilter.addEventListener('change', renderCongregationList);
 els.meetingFilter.addEventListener('change', () => {
   const value = els.meetingFilter.value;
-  if (value !== 'all' && value !== 'unassigned') selectMeetingPoint(value, true, true);
-  renderCongregationList();
+  if (value !== 'all' && value !== 'unassigned'){focusMeetingPoint(value);return;}
+  focusedMeetingPointId='';
+  renderAll();
 });
 els.assignmentDestination.addEventListener('change', () => {
   const value = els.assignmentDestination.value;
@@ -731,11 +784,7 @@ els.selectAllShownButton.addEventListener('click', selectAllShown);
 els.clearSelectionButton.addEventListener('click', clearSelection);
 els.assignSelectedButton.addEventListener('click', assignSelected);
 els.unassignSelectedButton.addEventListener('click', clearSelectedAssignments);
-els.filterToPointButton.addEventListener('click', () => {
-  if (!selectedMeetingPointId) return;
-  els.meetingFilter.value = selectedMeetingPointId;
-  renderCongregationList();
-});
+els.filterToPointButton.addEventListener('click',()=>focusMeetingPoint());
 els.loginButton.addEventListener('click', openLogin);
 document.getElementById('cancelLogin').addEventListener('click', closeLogin);
 els.loginModal.addEventListener('click', event => {
@@ -766,7 +815,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:filteredCongregations,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,driveState,loadDrives,saveAddress,saveAssignment,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:filteredCongregations,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 populateMeetingPointOptions();
 renderAll();
 
@@ -798,6 +847,23 @@ async function saveAddress(congregation,values,version){
   addressProfiles.set(congregation.id,{...payload,addressVersion:version+1});
   renderAll();
   if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);
+}
+async function unassignCongregation(congregation){
+  if(!isAdmin()||!db||!publicReady)throw Error('Sign in and wait for shared data before unassigning.');
+  const expected=assignmentFor(congregation.id);
+  if(!expected)return;
+  const ref=doc(db,'halls',assignmentDocumentId(congregation.id));
+  await runTransaction(db,async transaction=>{
+    const snap=await transaction.get(ref);
+    if(!snap.exists())return;
+    const current=snap.data();
+    if(current.recordType!=='congregation-assignment'||String(current.congregationId)!==String(congregation.id))throw Error('This record is not a congregation assignment. Refresh the page before trying again.');
+    if(String(current.meetingPointId||'')!==String(expected.meetingPointId||''))throw Error('This congregation was assigned to another meeting point elsewhere. Review its current assignment before unassigning.');
+    transaction.delete(ref);
+  });
+  // Delete only this assignment. Addresses, map pins, and meeting locations stay intact.
+  if(assignmentFor(congregation.id)===expected)assignments.delete(String(congregation.id));
+  selectedCongregations.delete(congregation.id);
 }
 async function saveAssignment(congregation,pointId){
   if(!isAdmin()||!db||!publicReady)throw Error('Sign in and wait for shared data before saving.');

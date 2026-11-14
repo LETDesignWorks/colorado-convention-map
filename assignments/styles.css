@@ -158,3 +158,15 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 .pin-editor-actions{margin-top:9px}.pin-editor-title{font-size:14px;color:var(--navy);margin:18px 0 5px}
 #addressPreview{height:290px}
 @media(max-width:560px){.address-result-actions .btn,.pin-editor-actions .btn{flex:1 1 100%}#addressPreview{height:260px}}
+
+.assigned-name{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.assigned-name>span{min-width:0;overflow-wrap:anywhere}
+.unassign-button{color:#9b2e27;text-decoration:underline;text-underline-offset:3px;flex-shrink:0;min-height:34px;padding:6px}
+.unassign-button:disabled{opacity:.55;cursor:wait}
+
+.map-note.meeting-focused{border:2px solid #148151;background:#f3fff7;color:#244d3b;font-size:12px;max-width:420px}
+.map-note.meeting-focused strong{color:#083f73;font-size:13px}
+.map-note.meeting-focused .text-button{margin-top:5px;font-size:12px}
+@media print{.map-note.meeting-focused{display:block!important;max-width:500px}.map-note.meeting-focused button{display:none}}
+
+.focused-congregation-label{white-space:normal;max-width:220px;color:#4f2c81;border-color:#c6b5dc;font:700 11px/1.35 system-ui}

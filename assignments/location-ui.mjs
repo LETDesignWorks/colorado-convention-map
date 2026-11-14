@@ -14,14 +14,14 @@ export function initCongregationLocations(ctx){
     for(const c of congregations){const home=resolveHome(c);counts[home.status]++;if(home.point)placed++;}
     $('addressSummary').innerHTML=`<span class="coverage-count">${placed} on map</span>`+['missing','pin-needed','review'].map(key=>`<button type="button" class="coverage-count ${key}" data-address-status="${key}">${counts[key]} ${labels[key].toLowerCase()}</button>`).join('');
     $('addressSummary').querySelectorAll('[data-address-status]').forEach(b=>b.addEventListener('click',()=>{$('searchInput').value='';$('statusFilter').value='all';$('meetingFilter').value='all';$('addressFilter').value=b.dataset.addressStatus;ctx.refresh();$('congregationList').scrollIntoView({behavior:'smooth',block:'start'});}));
-    renderHomes();renderDetail();
+    renderHomes();renderDetail();if(!selected())drawLines();
   }
   function renderHomes(){
     if(!homesLayer)return;
     homesLayer.clearLayers();
-    const selectedIds=ctx.getSelected(),meeting=ctx.getMeetingPoint();
-    const visible=new Map(ctx.getVisible().map(c=>[c.id,c]));
-    for(const c of congregations)if(c.id===selectedId||selectedIds.has(c.id)||(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting))visible.set(c.id,c);
+    const selectedIds=ctx.getSelected(),meeting=ctx.getMeetingPoint(),focus=ctx.getFocusedMeetingPoint?.();
+    const visible=new Map((focus?congregations.filter(c=>ctx.getAssignment(c.id)?.meetingPointId===focus):ctx.getVisible()).map(c=>[c.id,c]));
+    if(!focus)for(const c of congregations)if(c.id===selectedId||selectedIds.has(c.id)||(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting))visible.set(c.id,c);
     for(const group of groupHomes([...visible.values()],resolveHome)){
       const active=group.congregations.some(c=>c.id===selectedId),checked=group.congregations.filter(c=>selectedIds.has(c.id)).length,assigned=group.congregations.filter(c=>meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting).length,over=group.congregations.every(c=>ctx.driveState(c,meeting).status==='over');
       const icon=L.divIcon({className:'',html:`<div class="congregation-pin${active?' active':''}${checked?' checked':''}${assigned?' saved-here':''}${over?' over-limit':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg><b>${group.congregations.length}</b>${checked?`<span class="selection-badge">✓${checked}</span>`:assigned?`<span class="assigned-badge">✓${assigned}</span>`:''}</div>`,iconSize:[46,28],iconAnchor:[-8,14]});
@@ -29,7 +29,7 @@ export function initCongregationLocations(ctx){
       const popup=document.createElement('div');popup.className='home-popup';popup.innerHTML=`<strong>${group.congregations.length} congregation${group.congregations.length===1?'':'s'}</strong><p>${esc(group.address)}</p>`;
       for(const c of group.congregations){const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)?'✓ Selected — ':meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting?'✓ Assigned here — ':'')+c.name;button.addEventListener('click',()=>{select(c.id,false);map.closePopup();});popup.append(button);}
       marker.bindPopup(popup,{maxHeight:300,maxWidth:310});
-      marker.bindTooltip(esc(group.congregations.map(c=>c.name).join(' · ')),{direction:'right'});
+      marker.bindTooltip(esc(group.congregations.map(c=>c.name).join(' · ')),{direction:'right',permanent:Boolean(focus),className:focus?'focused-congregation-label':''});
       if(group.congregations.length===1)marker.on('click',()=>select(group.congregations[0].id,false));
     }
   }
@@ -49,7 +49,7 @@ export function initCongregationLocations(ctx){
     if(draftPoint&&!locations.some(p=>p.id===draftPoint))draftPoint='';
     const suggested=ctx.isReady()?suggestionsFor(home,locations,ctx.getStatuses()):[];
     const savedName=point?pointLabel(point):assignment?.meetingPointName||'Unassigned';
-    $('congregationDetail').innerHTML=`<span class="eyebrow">SELECTED CONGREGATION</span><h2>${esc(c.name)}</h2><p class="home-address">${esc(home.address||'No address on file')}</p><div class="home-actions"><span class="address-chip ${home.status}">${labels[home.status]}</span><button type="button" class="btn outline" id="editSelectedAddress">${home.address?'Edit address / pin':'Add address'}</button></div>${home.status==='review'?'<p class="address-warning">This older directory address needs confirmation. Confirm or update it before using a suggested meeting point.</p>':''}<p class="saved-assignment"><strong>Saved meeting point:</strong> ${esc(savedName)}</p>
+    $('congregationDetail').innerHTML=`<span class="eyebrow">SELECTED CONGREGATION</span><h2>${esc(c.name)}</h2><p class="home-address">${esc(home.address||'No address on file')}</p><div class="home-actions"><span class="address-chip ${home.status}">${labels[home.status]}</span><button type="button" class="btn outline" id="editSelectedAddress">${home.address?'Edit address / pin':'Add address'}</button></div>${home.status==='review'?'<p class="address-warning">This older directory address needs confirmation. Confirm or update it before using a suggested meeting point.</p>':''}<p class="saved-assignment"><strong>Saved meeting point:</strong> ${esc(savedName)}</p>${assignment?`<button type="button" class="btn danger" id="unassignCongregation">${savingAssignment?'Please wait…':'Unassign from meeting point'}</button><p class="intro-copy">Removes this assignment and keeps the congregation, address and map pin.</p>`:''}
       <h3>Suggested meeting points</h3><p class="intro-copy">Nearest approved or conditional meeting points by straight-line distance. Check driving time, capacity and bus access before assigning.</p>
       <div class="suggestion-list">${suggested.length?suggested.map((p,i)=>`<button type="button" class="suggestion" data-suggestion="${esc(p.id)}"><span><strong>${i===0?'Suggested: ':''}${esc(pointLabel(p))}</strong><small>${p.miles<.05?'Same address area':p.miles.toFixed(1)+' mi straight-line'} · ${p.busStatus==='approved'?'Approved':'Conditional — review bus access'}</small></span><span>Choose</span></button>`).join(''):`<p class="intro-copy">${!ctx.isReady()?'Waiting for shared meeting-point reviews.':home.status==='missing'?'Add an address and map pin to see suggestions.':home.status==='review'?'Confirm this address to see suggestions.':!home.point?'Add a map pin for this address to see suggestions.':'No approved or conditional meeting points are available. Choose a meeting point manually below.'}</p>`}</div>
       <div class="field"><label for="congregationDestination">Choose or move this congregation to a meeting point</label><select id="congregationDestination"><option value="">Choose a meeting point…</option>${locations.map(p=>`<option value="${esc(p.id)}">${esc(pointLabel(p))}</option>`).join('')}</select><small>Choose a suggestion, use this list, or click a meeting-point marker. Save to apply the assignment. The congregation's address stays in place.</small></div>
@@ -65,7 +65,27 @@ export function initCongregationLocations(ctx){
       savingAssignment=true;renderDetail();
       try{await ctx.saveAssignment(target,targetPoint);ctx.toast(`${target.name} assigned. You can change this meeting point at any time.`);}catch(error){ctx.toast(error.message,true);}finally{savingAssignment=false;renderDetail();}
     });
+    if(assignment){
+      $('unassignCongregation').disabled=savingAssignment||(isAdmin()&&!ctx.isReady());
+      $('unassignCongregation').addEventListener('click',()=>void unassign(c.id));
+    }
     updateDraft();drawLines();
+  }
+  async function unassign(id=selectedId){
+    if(savingAssignment)return;
+    if(!isAdmin()){ctx.openLogin();return;}
+    if(!ctx.isReady()){ctx.toast('Wait for shared assignment data before unassigning.',true);return;}
+    const target=congregationById(id),assignment=ctx.getAssignment(id);
+    if(!target||!assignment)return;
+    selectedId=id;draftPoint=savedPoint=assignment.meetingPointId||'';
+    savingAssignment=true;renderDetail();
+    try{
+      await ctx.unassignCongregation(target);
+      if(selectedId===id)draftPoint=savedPoint=ctx.getAssignment(id)?.meetingPointId||'';
+      ctx.refresh();
+      ctx.toast(target.name+' is unassigned. Its address and map pin are kept.');
+    }catch(error){ctx.toast(error.message,true);}
+    finally{savingAssignment=false;render();}
   }
   function updateDraft(){
     if(!$('assignmentDraftStatus'))return;
@@ -75,18 +95,30 @@ export function initCongregationLocations(ctx){
     $('saveCongregationAssignment').disabled=savingAssignment||(isAdmin()&&(!ctx.isReady()||!draftPoint||draftPoint===savedPoint||!travel.allowed));
   }
   function drawLines(){
-    if(!linesLayer)return;linesLayer.clearLayers();const c=selected();if(!c)return;const home=resolveHome(c);if(!home.point)return;
+    if(!linesLayer)return;linesLayer.clearLayers();
+    const focus=ctx.getFocusedMeetingPoint?.();
+    if(focus){
+      const meeting=ctx.getLocations().find(p=>p.id===focus);
+      if(meeting&&validPoint(meeting.lat,meeting.lng)){
+        const assigned=congregations.filter(c=>ctx.getAssignment(c.id)?.meetingPointId===focus);
+        for(const home of groupHomes(assigned,resolveHome))L.polyline([[home.lat,home.lng],[meeting.lat,meeting.lng]],{color:'#148151',weight:2,opacity:.65,interactive:false}).addTo(linesLayer);
+      }
+      return;
+    }
+    const c=selected();if(!c)return;const home=resolveHome(c);if(!home.point)return;
     const locations=ctx.getLocations(),saved=locations.find(p=>p.id===savedPoint),draft=locations.find(p=>p.id===draftPoint),suggested=ctx.isReady()?suggestionsFor(home,locations,ctx.getStatuses())[0]:null;
     const line=(p,color,dash,label)=>{if(p&&validPoint(p.lat,p.lng))L.polyline([[home.point.lat,home.point.lng],[p.lat,p.lng]],{color,weight:3,dashArray:dash}).addTo(linesLayer).bindTooltip(esc(label+' — '+p.name));};
     line(saved,'#148151',null,'Saved assignment');if(draft&&draft.id!==saved?.id)line(draft,'#176eb5','5 5','Unsaved choice');else if(suggested&&suggested.id!==saved?.id)line(suggested,'#7950aa','7 7','Suggested meeting point');
   }
   function meetingPointChosen(point){if(!selected())return;draftPoint=point.id;renderDetail();}
   function fitSelected(){
+    if(ctx.getFocusedMeetingPoint?.())ctx.clearMeetingFocus?.();
     const chosen=congregations.filter(c=>ctx.getSelected().has(c.id)),points=chosen.map(c=>resolveHome(c).point).filter(Boolean);renderHomes();
     if(map&&points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[65,65],maxZoom:14});
     ctx.toast(chosen.length?`${chosen.length} selected · ${points.length} on map${chosen.length>points.length?' · add missing addresses to map the rest':''}.`:'Check congregations in the directory to highlight them on the map.');
   }
   function fitAll(){
+    if(ctx.getFocusedMeetingPoint?.())ctx.clearMeetingFocus?.();
     $('searchInput').value='';$('statusFilter').value='all';$('meetingFilter').value='all';$('addressFilter').value='all';ctx.refresh();
     const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(map&&points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});
   }
@@ -272,5 +304,5 @@ export function initCongregationLocations(ctx){
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   // Initial fit includes homes outside the original DTC planning boundary.
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
-  return{render,select,edit,meetingPointChosen,fitSelected};
+  return{render,select,edit,meetingPointChosen,fitSelected,unassign};
 }
