@@ -1,10 +1,10 @@
 import {PDF_BUILDER_URL, openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 
 export const SITE_TABS = [
-  ['', 'Full Planning Map'], ['operating-plan/', 'Operating Plan'],
+  ['', 'Full Planning Map'],
   ['assignments/', 'Congregation Assignments'], ['territories/', 'Territories'],
-  ['bus-access/', 'Bus Access Review'], ['routes/', 'Field Service Routes'],
-  ['rush-hour/', 'Rush-hour Routes'], ['activities/', 'Delegate Activities'],
+  ['bus-access/', 'Bus Access Review'],
+  ['travel-routes/', 'Travel Routes'], ['activities/', 'Delegate Activities'],
   ['activity-planning/', 'Activity Planning'], ['smpw/', 'SMPW'],
   ['south-dtc-rail/', 'South DTC Rail'], ['team/', 'Team Assignments'],
   ['pdf-tools/', 'PDFs & PowerPoint'], ['map-fullscreen.html', 'Full Screen Map'],
@@ -26,11 +26,20 @@ export function mountSiteNavigation() {
     nav.classList.add('convention-navigation');
     nav.setAttribute('aria-label', 'All planning sections');
   }
+  for (const anchor of [...nav.querySelectorAll('a[href]')]) {
+    const url = new URL(anchor.href);
+    if (pathOf(url) === pathOf(new URL('operating-plan/', base))) { anchor.remove(); continue; }
+    if (['routes/', 'rush-hour/'].some(path => pathOf(url) === pathOf(new URL(path, base)))) {
+      const destination = new URL('travel-routes/', base);
+      destination.search = url.search; destination.hash = url.hash;
+      anchor.href = destination.href; anchor.textContent = 'Travel Routes';
+    }
+  }
   const existing = [...nav.querySelectorAll('a[href]')];
   const fragment = document.createDocumentFragment();
   for (const [path, label] of SITE_TABS) {
     const url = new URL(path, base);
-    const matches = existing.filter(a => pathOf(a.href) === pathOf(url) && new URL(a.href).searchParams.get('mode') !== 'rtd');
+    const matches = existing.filter(a => pathOf(a.href) === pathOf(url));
     const link = matches.shift() || document.createElement('a');
     matches.forEach(a => a.remove());
     // Keep contextual links (for example a selected territory meeting place).
@@ -57,7 +66,7 @@ export function mountSiteNavigation() {
 }
 function start() {
   const css = document.createElement('link'); css.rel = 'stylesheet';
-  css.href = new URL('./site-navigation.css?v=access-20261114-1', import.meta.url).href;
+  css.href = new URL('./site-navigation.css?v=travel-20261114-1', import.meta.url).href;
   document.head.append(css);
   mountSiteNavigation();
   // Branding adds links synchronously at DOMContentLoaded; reconcile once after it.

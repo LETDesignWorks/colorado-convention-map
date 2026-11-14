@@ -5,7 +5,7 @@ export const SECTIONS = [
   ['assignments', 'Congregation Assignments', 'Addresses, pins and meeting assignments are public.'],
   ['busAccess', 'Bus Access & Meeting Locations', 'Private reviews and contacts; shared location details and approval status. Photo storage remains owner-only.'],
   ['territories', 'Territories', 'Saved territory boundaries, plans, addresses and PDFs.'],
-  ['routes', 'Field Service Routes', 'Saved bus routes, route plans and custom rail stops.'],
+  ['routes', 'Travel Routes', 'Saved car, bus, rail and walking trips, start times and custom stops.'],
   ['activities', 'Delegate Activities', 'Saved activity bus schedules.'],
   ['activityPlanning', 'Activity Planning', 'Shared activity routes. Other schedules require access to their own sections.'],
   ['rail', 'South DTC Rail', 'Preferred rail connections are public.'],

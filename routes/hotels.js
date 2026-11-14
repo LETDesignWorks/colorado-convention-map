@@ -21,3 +21,4 @@ export const HOTELS = [
   {id:'H18', name:'Hampton Inn & Suites Denver/South-RidgeGate', address:'10030 Trainstation Cir, Lone Tree, CO 80124', region:'Lone Tree / RidgeGate', lat:39.53584, lng:-104.86903},
   {id:'H19', name:'Hilton Garden Inn Denver Tech Center', address:'7675 E Union Ave, Denver, CO 80237', region:'Denver Tech Center', lat:39.62914, lng:-104.89920}
 ];
+

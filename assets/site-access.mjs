@@ -45,3 +45,4 @@ export function observeSiteAccess(auth, callback) {
   });
   return () => {generation++; stopPolicy?.(); stopAuth();};
 }
+

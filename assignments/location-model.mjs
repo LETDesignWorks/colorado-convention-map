@@ -75,3 +75,4 @@ export function rankCongregations(congregations,point,resolve){
     return (ad===bd?0:ad-bd)||a.name.localeCompare(b.name,'en',{numeric:true});
   });
 }
+

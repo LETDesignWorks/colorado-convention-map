@@ -60,3 +60,4 @@ export function parkingAdvice(station) {
   if (Number.isFinite(station.parkingSpaces)) return `Use the signed RTD Park-n-Ride at this station. RTD lists ${station.parkingSpaces.toLocaleString()} total spaces (not live availability). ${station.parkingSpaces < 100 ? 'This is a small lot; consider Arapahoe, Lincoln or RidgeGate Parkway if it is full. ' : ''}Check the posted entrance, parking restrictions and payment requirements.`;
   return 'Confirm the designated public parking or drop-off area with the station before travel. Parking availability and permission have not been verified for this added station.';
 }
+

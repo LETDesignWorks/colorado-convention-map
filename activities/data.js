@@ -98,3 +98,4 @@ export function getActivity(id) {
 export function getActivityPoint(id) {
   return ACTIVITY_POINTS.find(point => point.id === id) || null;
 }
+

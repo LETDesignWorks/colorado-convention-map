@@ -1,4 +1,4 @@
-import {mountSiteNavigation} from './site-navigation.mjs?v=access-20261114-1';
+import {mountSiteNavigation} from './site-navigation.mjs?v=travel-20261114-1';
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=access-20261114-1';
@@ -217,14 +217,14 @@ function addActivityPlanningLink() {
 function addRushHourLink() {
   const nav = navHost();
   if (!nav) return;
-  const destination = new URL('rush-hour/', siteHomeUrl);
+  const destination = new URL('travel-routes/', siteHomeUrl);
   const existing = [...nav.querySelectorAll('a[href]')].find(a => new URL(a.href, location.href).pathname.replace(/index\.html$/, '').replace(/\/$/, '') === destination.pathname.replace(/\/$/, ''));
   if (existing) return;
   const link = document.createElement('a');
   link.className = linkClassForCurrentPage('rush-hour-link');
   link.href = destination.href;
-  link.textContent = 'Rush-hour Routes';
-  link.setAttribute('aria-label', 'Rush-hour Routes');
+  link.textContent = 'Travel Routes';
+  link.setAttribute('aria-label', 'Travel Routes');
   insertBeforeRouteOrBus(nav, link);
 }
 
@@ -232,19 +232,19 @@ function addRushHourLink() {
 function addFieldServiceRoutesLink() {
   const nav = navHost();
   if (!nav) return;
-  const destination = new URL('routes/', siteHomeUrl);
+  const destination = new URL('travel-routes/', siteHomeUrl);
   const existing = [...nav.querySelectorAll('a[href]')].find(a => {
     const url = new URL(a.href, location.href);
     return url.pathname.replace(/index\.html$/, '').replace(/\/$/, '') === destination.pathname.replace(/\/$/, '') && url.searchParams.get('mode') !== 'rtd';
   });
   if (existing) {
-    if (existing.textContent !== 'Field Service Routes') existing.textContent = 'Field Service Routes';
+    if (existing.textContent !== 'Travel Routes') existing.textContent = 'Travel Routes';
     return;
   }
   const link = document.createElement('a');
   link.className = linkClassForCurrentPage('field-service-routes-link');
   link.href = destination.href;
-  link.textContent = 'Field Service Routes';
+  link.textContent = 'Travel Routes';
   link.setAttribute('aria-label', 'Open the field service bus and RTD route planner');
   insertBeforeRouteOrBus(nav, link);
 }

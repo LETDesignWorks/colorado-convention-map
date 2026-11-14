@@ -12,3 +12,4 @@ export const LOCATIONS=[
 const fourMile=LOCATIONS.find(p=>p.id==='four-mile-historic-park');
 Object.assign(fourMile,{address:'4846 E Exposition Ave, Glendale, CO',lat:null,lng:null,note:'Park parking entrance on E. Exposition Ave. Confirm the final coach loading area.',source:'https://www.fourmilepark.org/plan-your-visit/map-directions/'});
 export const SOURCES=[['Four Mile parking / drop-off','https://www.fourmilepark.org/plan-your-visit/map-directions/'],['Georgetown rail depot','https://www.georgetownlooprr.com/faqs-directions/'],['Cabin Creek Brewing','https://www.cabincreekbrewing.com/contact']];
+

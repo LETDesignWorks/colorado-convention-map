@@ -34,3 +34,4 @@ try {
   const host = document.querySelector('.panel, .side-panel, .control-panel') || document.body;
   host.prepend(warning);
 }
+

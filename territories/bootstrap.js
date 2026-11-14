@@ -1,4 +1,4 @@
-const version = 'access-20261114-1';
+const version = 'travel-20261114-1';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -27,7 +27,7 @@ try {
       notice.textContent='Territory check-out / check-in sheet could not load. Save any unsaved work, then refresh the planner to retry.';
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
-  await import('../assets/branding.js?v=access-20261114-1');
+  await import('../assets/branding.js?v=travel-20261114-1');
   await import('./app-main.js?v=access-20261114-1');
   await import('./address-duplicates-ui.js?v=access-20261114-1');
   await import('./directions.js?v=ribbons-20261107-1');
