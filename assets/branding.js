@@ -186,6 +186,7 @@ function applyDenver2027Branding() {
   addActivityPlanningLink();
   addPdfToolsLink();
   addRushHourLink();
+  addFieldServiceRoutesLink();
   addMapLogo();
 }
 
@@ -222,6 +223,27 @@ function addRushHourLink() {
   link.href = destination.href;
   link.textContent = 'Rush-hour Routes';
   link.setAttribute('aria-label', 'Rush-hour Routes');
+  insertBeforeRouteOrBus(nav, link);
+}
+
+
+function addFieldServiceRoutesLink() {
+  const nav = navHost();
+  if (!nav) return;
+  const destination = new URL('routes/', siteHomeUrl);
+  const existing = [...nav.querySelectorAll('a[href]')].find(a => {
+    const url = new URL(a.href, location.href);
+    return url.pathname.replace(/index\.html$/, '').replace(/\/$/, '') === destination.pathname.replace(/\/$/, '') && url.searchParams.get('mode') !== 'rtd';
+  });
+  if (existing) {
+    if (existing.textContent !== 'Field Service Routes') existing.textContent = 'Field Service Routes';
+    return;
+  }
+  const link = document.createElement('a');
+  link.className = linkClassForCurrentPage('field-service-routes-link');
+  link.href = destination.href;
+  link.textContent = 'Field Service Routes';
+  link.setAttribute('aria-label', 'Open the field service bus and RTD route planner');
   insertBeforeRouteOrBus(nav, link);
 }
 
