@@ -67,11 +67,21 @@ test('editors can save their section; cannot change types or overwrite another s
 test('public hall record types have separate edit permissions',async()=>{
  await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));
  await seed('halls/1',{name:'Hall'});await seed('halls/cart',{recordType:'smpw-location'});
- const db=user();await assertSucceeds(setDoc(doc(db,'halls/address'),{recordType:'congregation-address',lat:39.7,lng:-105}));
- await assertSucceeds(setDoc(doc(db,'halls/assignment'),{recordType:'congregation-assignment'}));
+ const db=user();await assertSucceeds(setDoc(doc(db,'halls/congregation-address-c001'),{recordType:'congregation-address',congregationId:'C001',lat:39.7,lng:-105}));
+ await assertSucceeds(setDoc(doc(db,'halls/congregation-c001'),{recordType:'congregation-assignment',congregationId:'C001'}));
  await assertFails(updateDoc(doc(db,'halls/1'),{name:'Changed'}));
  await assertFails(deleteDoc(doc(db,'halls/cart')));
  await assertFails(setDoc(doc(db,'halls/1'),{recordType:'congregation-assignment'}));
+ await assertFails(setDoc(doc(db,'halls/2'),{recordType:'congregation-assignment',congregationId:'C002',busStatus:'approved'}));
+ await assertFails(updateDoc(doc(db,'halls/congregation-c001'),{busStatus:'approved',customLocation:true}));
+});
+test('SMPW and rail editors cannot inject meeting-location fields into public records',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({smpw:'edit',rail:'edit'}));
+ const db=user();
+ await assertSucceeds(setDoc(doc(db,'halls/abcdefghijklmnopqrst'),{recordType:'smpw-location',name:'Cart',lat:39.7,lng:-105}));
+ await assertFails(updateDoc(doc(db,'halls/abcdefghijklmnopqrst'),{customLocation:true,busStatus:'approved'}));
+ await assertSucceeds(setDoc(doc(db,'halls/rail-hotel-hall'),{recordType:'south-dtc-rail-connection',hotelId:'hotel',meetingPointId:'hall'}));
+ await assertFails(updateDoc(doc(db,'halls/rail-hotel-hall'),{busStatus:'approved'}));
 });
 test('bus review access covers contacts, missing reviews and traffic layouts, not photos or policies',async()=>{
  await seed('reviews/site-access-helper@example.com',grant({busAccess:'edit'}));

@@ -40,12 +40,26 @@ service cloud.firestore {
     function sameType() {
       return resource.data.get('recordType', '') == request.resource.data.get('recordType', '');
     }
+    function validHallRecord(id, data) {
+      let kind = data.get('recordType', '');
+      return kind == 'congregation-assignment'
+        ? data.get('congregationId', '') is string && id == 'congregation-' + data.congregationId.lower()
+          && data.keys().hasOnly(['recordType','congregationId','congregationName','sourceName','homeAddress','meetingPointId','meetingPointLabel','meetingPointName','meetingPointAddress','meetingPointType','assigned','updatedByEmail','updatedAt'])
+        : kind == 'congregation-address'
+        ? data.get('congregationId', '') is string && id == 'congregation-address-' + data.congregationId.lower()
+          && data.keys().hasOnly(['recordType','congregationId','congregationName','homeAddress','lat','lng','addressNeedsReview','pinSource','addressVersion','updatedByEmail','updatedAt'])
+        : kind == 'south-dtc-rail-connection'
+        ? id.matches('rail-.*') && data.keys().hasOnly(['recordType','hotelId','hotelName','meetingPointId','meetingPointLabel','meetingPointName','originStationId','originStationName','destinationStationId','destinationStationName','firstMileMode','lastMileMode','publicNote','updatedByEmail','updatedAt'])
+        : kind == 'smpw-location'
+        ? id.matches('[A-Za-z0-9]{20}') && data.keys().hasOnly(['recordType','markerLabel','name','address','lat','lng','status','cartCount','schedule','contact','notes','updatedByEmail','updatedAt','createdByEmail','createdAt'])
+        : kind == '' && !id.matches('congregation-.*') && !id.matches('rail-.*');
+    }
     // Successful server read proves these rules are installed. No data is stored here.
     match /siteAccessCapabilities/v1 { allow get: if true; }
     match /halls/{hallId} {
       allow read: if true;
-      allow create: if isOwner() || canEdit(hallSection(request.resource.data));
-      allow update: if isOwner() || (sameType() && canEdit(hallSection(resource.data)));
+      allow create: if isOwner() || (validHallRecord(hallId, request.resource.data) && canEdit(hallSection(request.resource.data)));
+      allow update: if isOwner() || (sameType() && validHallRecord(hallId, request.resource.data) && canEdit(hallSection(resource.data)));
       allow delete: if isOwner() || canEdit(hallSection(resource.data));
     }
     match /reviews/{reviewId} {
