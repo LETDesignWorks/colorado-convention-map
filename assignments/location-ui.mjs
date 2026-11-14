@@ -16,7 +16,25 @@ export function initCongregationLocations(ctx){
     for(const c of congregations){const home=resolveHome(c);counts[home.status]++;if(home.point)placed++;}
     $('addressSummary').innerHTML=`<span class="coverage-count">${placed} on map</span>`+['missing','pin-needed','review'].map(key=>`<button type="button" class="coverage-count ${key}" data-address-status="${key}">${counts[key]} ${labels[key].toLowerCase()}</button>`).join('');
     $('addressSummary').querySelectorAll('[data-address-status]').forEach(b=>b.addEventListener('click',()=>{$('searchInput').value='';$('statusFilter').value='all';$('meetingFilter').value='all';$('addressFilter').value=b.dataset.addressStatus;ctx.refresh();$('congregationList').scrollIntoView({behavior:'smooth',block:'start'});}));
-    renderHomes();renderDetail();if(!selected())drawLines();
+    highlightDirectory();renderHomes();renderDetail();if(!selected())drawLines();
+  }
+  function highlightDirectory(){
+    const checked=ctx.getSelected();
+    $('congregationList').querySelectorAll('[data-congregation]').forEach(row=>{
+      const id=row.dataset.congregation,active=id===selectedId,isChecked=checked.has(id);
+      row.classList.toggle('active-congregation',active);
+      row.classList.toggle('selected',isChecked);
+      const indicator=row.querySelector('[data-selection-indicator]');
+      if(indicator){indicator.hidden=!active&&!isChecked;indicator.textContent=isChecked?'Selected for assignment':'Selected congregation';}
+      const button=row.querySelector('[data-open-home]');
+      if(button){if(active)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');}
+    });
+  }
+  function selectionChanged(id,checked){
+    render();
+    if(!checked)return;
+    const c=congregationById(id),home=c&&resolveHome(c);
+    if(home?.point)map?.panInside?.([home.point.lat,home.point.lng],{padding:[85,85]});
   }
   function renderHomes(){
     if(!homesLayer)return;
@@ -26,12 +44,13 @@ export function initCongregationLocations(ctx){
     if(!focus)for(const c of congregations)if(c.id===selectedId||selectedIds.has(c.id)||(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting))visible.set(c.id,c);
     for(const group of groupHomes([...visible.values()],resolveHome)){
       const active=group.congregations.some(c=>c.id===selectedId),checked=group.congregations.filter(c=>selectedIds.has(c.id)).length,assigned=group.congregations.filter(c=>meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting).length,over=group.congregations.every(c=>ctx.driveState(c,meeting).status==='over');
-      const icon=L.divIcon({className:'',html:`<div class="congregation-pin${active?' active':''}${checked?' checked':''}${assigned?' saved-here':''}${over?' over-limit':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg><b>${group.congregations.length}</b>${checked?`<span class="selection-badge">✓${checked}</span>`:assigned?`<span class="assigned-badge">✓${assigned}</span>`:''}</div>`,iconSize:[46,28],iconAnchor:[-8,14]});
-      const marker=L.marker([group.lat,group.lng],{icon,zIndexOffset:600,title:group.congregations.map(c=>c.name).join('; ')}).addTo(homesLayer);
+      const icon=L.divIcon({className:'',html:`<div class="congregation-pin${active?' active':''}${checked?' checked':''}${assigned?' saved-here':''}${over?' over-limit':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg><b>${group.congregations.length}</b>${checked||active?`<span class="selection-badge">${checked>1?checked+' selected':'Selected'}</span>`:''}${assigned?`<span class="assigned-badge">✓${assigned}</span>`:''}</div>`,iconSize:[46,28],iconAnchor:[-8,14]});
+      const marker=L.marker([group.lat,group.lng],{icon,zIndexOffset:active||checked?1100:600,title:group.congregations.map(c=>c.name).join('; ')}).addTo(homesLayer);
       const popup=document.createElement('div');popup.className='home-popup';popup.innerHTML=`<strong>${group.congregations.length} congregation${group.congregations.length===1?'':'s'}</strong><p>${esc(group.address)}</p>`;
-      for(const c of group.congregations){const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)?'✓ Selected — ':meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting?'✓ Assigned here — ':'')+c.name;button.addEventListener('click',()=>{select(c.id,false);map.closePopup();});popup.append(button);}
+      for(const c of group.congregations){const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)||c.id===selectedId?'Selected — ':'')+(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting?'✓ Assigned here — ':'')+c.name;button.addEventListener('click',()=>{select(c.id,false);map.closePopup();});popup.append(button);}
       marker.bindPopup(popup,{maxHeight:300,maxWidth:310});
-      marker.bindTooltip(esc(group.congregations.map(c=>c.name).join(' · ')),{direction:'right',permanent:Boolean(focus),className:focus?'focused-congregation-label':''});
+      const tooltipCongregations=!focus&&(active||checked)?group.congregations.filter(c=>c.id===selectedId||selectedIds.has(c.id)):group.congregations;
+      marker.bindTooltip(esc(tooltipCongregations.map(c=>c.name).join(' · ')),{direction:'right',permanent:Boolean(focus||active||checked),className:active||checked?'selected-congregation-label':focus?'focused-congregation-label':''});
       if(group.congregations.length===1)marker.on('click',()=>select(group.congregations[0].id,false));
     }
   }
@@ -346,5 +365,5 @@ export function initCongregationLocations(ctx){
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select,a[href]')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   // Initial fit includes homes outside the original DTC planning boundary.
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
-  return{render,select,edit,meetingPointChosen,fitSelected,unassign};
+  return{render,select,edit,meetingPointChosen,fitSelected,unassign,selectionChanged};
 }

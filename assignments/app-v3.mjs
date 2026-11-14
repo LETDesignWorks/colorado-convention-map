@@ -10,7 +10,7 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations} from './location-ui.mjs?v=coordinates-20261114-1';
+import {initCongregationLocations} from './location-ui.mjs?v=selection-blue-20261114-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';
@@ -396,7 +396,7 @@ function renderMeetingFocus(){
   const note=document.getElementById('assignmentMapNote'),point=locations.find(p=>p.id===focusedMeetingPointId);
   note.classList.toggle('meeting-focused',Boolean(point));
   if(!point){
-    note.textContent='Purple home icons show congregations at an address; tap to choose a congregation. Green lines show saved assignments; purple dashed lines show suggestions. The blue boundary is the DTC planning area.';
+    note.textContent='Blue home icons highlight selected congregations; purple icons show other congregations. Green check marks show saved assignments to the chosen meeting point. Green lines show saved assignments; purple dashed lines show suggestions.';
     return;
   }
   const assigned=assignedCongregationsAt(point.id),mapped=assigned.filter(c=>resolveHome(c).point).length,missing=assigned.length-mapped;
@@ -550,7 +550,7 @@ function renderCongregationList() {
     return `<div class="congregation-row${assigned ? ' assigned' : ''}${selected ? ' selected' : ''}${travel.status==='over'?' over-limit':''}" data-congregation="${escapeHtml(congregation.id)}">
       <input type="checkbox" aria-label="Select ${escapeHtml(congregation.name)}" data-select="${escapeHtml(congregation.id)}" ${selected ? 'checked' : ''} ${isAdmin()&&(selected||!selectedMeetingPointId||travel.allowed) ? '' : 'disabled'}>
       <div class="congregation-main">
-        <button class="congregation-name" data-open-home="${escapeHtml(congregation.id)}" type="button">${escapeHtml(congregation.name)}</button>
+        <button class="congregation-name" data-open-home="${escapeHtml(congregation.id)}" type="button">${escapeHtml(congregation.name)}</button><span class="selection-indicator" data-selection-indicator hidden>Selected congregation</span>
         <small>${escapeHtml([congregation.number?"No. "+congregation.number:"",congregation.language].filter(Boolean).join(" · "))}</small>
         <small>Current congregation address: ${escapeHtml(home.address||"Not provided")}</small>
         ${near?`<small class="proximity-chip">${home.point?distanceMiles(home.point,near).toFixed(1)+' mi to this meeting point (straight-line)':'Distance unavailable — add an address and map pin'}</small>`:''}
@@ -560,7 +560,7 @@ function renderCongregationList() {
         ${homeLocation ? `<small class="home-map-chip">Home Hall on map: ${escapeHtml(markerLabel(homeLocation))} — ${escapeHtml(homeLocation.name)}</small>` : ''}
       </div>
       <div class="assignment-status">
-        <span class="status-chip ${assigned ? 'assigned' : 'unassigned'}">${assigned ? 'Assigned' : 'Unassigned'}</span>
+        <span class="status-chip ${assigned ? 'assigned' : 'unassigned'}">${assigned ? '✓ Assigned' : 'Unassigned'}</span>
         ${assigned ? `<strong>${escapeHtml(assignmentLabel ? `${assignmentLabel} — ${assignmentName}` : assignmentName)}</strong><small>${escapeHtml(assignmentAddress)}</small>${unassignButton(congregation)}` : '<small>No meeting point selected</small>'}
       </div>
     </div>`;
@@ -574,7 +574,7 @@ function renderCongregationList() {
       else selectedCongregations.delete(checkbox.dataset.select);
       checkbox.closest('.congregation-row')?.classList.toggle('selected', checkbox.checked);
       renderSelectionControls();
-      locationUi?.render();
+      locationUi?.selectionChanged(checkbox.dataset.select,checkbox.checked);
     });
   });
 
