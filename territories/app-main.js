@@ -3645,7 +3645,7 @@ async function initialize() {
       return readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
     },
     readPdf: async record => {
-      if (!isAdmin()) throw new Error('Sign in to view saved PDFs.');
+      if (!canView('territories')) throw new Error('Sign in to view saved PDFs.');
       return readArchivePdf(record, await archiveParts(record, 'pdf'));
     }
   });
@@ -3661,7 +3661,7 @@ async function initialize() {
     observeSiteAccess(auth, user => {
       currentUser = user;
       updateAuthUi();
-      if (user && !isAdmin()) toast('This account has public viewing access only.', true);
+      
     });
     onSnapshot(collection(db, 'halls'), snapshot => {
       publicHallRecords.clear();

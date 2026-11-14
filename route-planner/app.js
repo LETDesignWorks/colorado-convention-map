@@ -603,7 +603,7 @@ observeSiteAccess(auth,user=>{
   currentUser=user;
   document.getElementById('loginButton').hidden=Boolean(user);
   document.getElementById('signOutButton').hidden=!user;
-  if(user&&!isAdmin())toast('This account has viewing access only.',true);
+  
   document.getElementById('saveMessage').textContent=isAdmin()?'Calculate a route, then save it to Firebase.':'Sign in as the administrator to save route plans.';
   startSavedRoutesListener();
 });

@@ -651,7 +651,7 @@ try {
     currentUser = user;
     els.loginButton.hidden = Boolean(user);
     els.signOutButton.hidden = !user;
-    if (user && !isAdmin()) toast('This account has viewing access only.', true);
+    
     subscribeRecords();
     updateSaveButton();
   });

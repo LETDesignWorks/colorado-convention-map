@@ -357,7 +357,7 @@ if(new URLSearchParams(location.search).get('mode')==='rtd')els.tripPurpose.valu
 handlePurposeChange();
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  observeSiteAccess(auth,user=>{currentUser=user;els.loginButton.hidden=Boolean(user);els.signOutButton.hidden=!user;if(user&&!isAdmin())toast('This account has viewing access only.',true);subscribeSavedRoutes();updateSaveButton();});
+  observeSiteAccess(auth,user=>{currentUser=user;els.loginButton.hidden=Boolean(user);els.signOutButton.hidden=!user;subscribeSavedRoutes();updateSaveButton();});
   onSnapshot(collection(db,'halls'),snapshot=>{publicHallData.clear();snapshot.forEach(s=>publicHallData.set(s.id,s.data()));rebuildLocations();},error=>toast('The saved meeting-location list could not be loaded: '+friendlyError(error),true));
 }catch(error){toast('Firebase could not initialize: '+friendlyError(error),true);}
 updateSaveButton();

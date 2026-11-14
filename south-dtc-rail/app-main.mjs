@@ -653,7 +653,7 @@ function updateAuthUi() {
   els.savePreferenceButton.hidden = !isAdmin();
   els.railNoteWrap.hidden = !isAdmin();
   els.clearPreferenceButton.hidden = !(isAdmin() && currentPreference());
-  if (signedIn && !isAdmin()) toast('This account has public viewing access only.', true);
+  
   updatePlanner(Boolean(currentPreference()));
 }
 
