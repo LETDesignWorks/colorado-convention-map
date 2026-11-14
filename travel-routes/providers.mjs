@@ -52,4 +52,3 @@ export function createRouter({data,key='',signal}){
   return {mode:'rail',depart,arrive:arrival,minutes:Math.ceil((arrival-depart)/minute),label:train.label,scheduled:train.scheduled,originStation:origin,endStation:end,segments:[walk1,...train.segments,walk2],platformReady:(train.segments[0]?.depart||train.depart)-board,trainDeparture:train.segments[0]?.depart||train.depart,allowanceMinutes:plan.allowance};
  };
 }
-

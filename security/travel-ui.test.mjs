@@ -62,4 +62,3 @@ test('new pages load shared navigation and no old static image map',()=>{
  for(const p of ['index.html','full-map.html','map-fullscreen.html']){assert.match(read(p),/planning-map\/app.mjs/);assert(!read(p).includes('full-map-content.html'));}
  assert.match(read('travel-routes/index.html'),/TomTom creates/);assert.match(read('routes/index.html'),/location.replace/);assert.match(read('rush-hour/index.html'),/location.replace/);
 });
-

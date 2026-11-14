@@ -14,4 +14,3 @@ export async function saveRoute(payload,id){
  await setDoc(ref,{...payload,updatedByEmail:auth.currentUser?.email||'',updatedAt:serverTimestamp()}, {merge:true});return ref.id;
 }
 export async function removeRoute(id){if(!canEdit('routes'))throw Error('Travel Routes edit access is required.');await deleteDoc(doc(db,'reviews',id));}
-

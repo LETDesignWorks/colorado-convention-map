@@ -42,4 +42,3 @@ export const RAIL_CORRIDORS = [
   { id:'southeast', points:['10-osage','alameda','i25-broadway','louisiana-pearl','university-denver','colorado','yale','southmoor','belleview','orchard','arapahoe','dry-creek','county-line','lincoln','sky-ridge','lone-tree-city-center','ridgegate'], color:'#087b63' },
   { id:'southwest', points:['10-osage','littleton-mineral'], color:'#3f7f9f' }
 ];
-

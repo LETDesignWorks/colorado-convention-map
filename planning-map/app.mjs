@@ -81,7 +81,7 @@ function renderPrivate(){
      const middle=s.points[Math.floor(s.points.length/2)];L.marker(middle,{icon:icon(mode.icon,mode.color,'transport-icon')}).addTo(layers.get(layer)).bindPopup(popup);
     }
     if(!hasPath&&points.length>1)L.polyline(points.map(p=>[p.lat,p.lng]),{color:'#087f8c',weight:3,dashArray:'5,8'}).addTo(layers.get(layer)).bindPopup(popup+'<br>Saved stop connection; recalculate in Travel Routes for the road path.');
-    points.forEach(p=>pointMarker(p,layer,'🚌','#087f8c',popup));
+    points.forEach((p,i)=>{const mode=MODES[p.mode]||MODES[r.legs[i]?.mode]||MODES[r.legs.at(-1)?.mode]||MODES.bus;pointMarker(p,layer,mode.icon,mode.color,popup);});
     for(const p of points.filter(p=>p.id==='encouraging-gathering'))pointMarker(p,'activities','★','#bd4d3e',popup);
    }
   }
@@ -112,4 +112,3 @@ observeSiteAccess(auth,()=>{
  $('privateStatus').textContent=types.length?'Your permitted saved planning layers are available below.':'Sign in to show saved travel, activity and territory plans.';
  for(const {layer,type}of types)unsubs.push(watchRecords(type,list=>{if(token!==accessRevision)return;records.set(type,list);statusByLayer.delete(layer);renderPublic();},()=>{if(token!==accessRevision)return;records.delete(type);statusByLayer.set(layer,'Unavailable');renderPublic();}));
 });
-

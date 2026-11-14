@@ -1,4 +1,16 @@
 import {test} from 'node:test';
+
+test('older route-plan records preserve coordinates, date, buffers, notes and stored road geometry',()=>{
+ const record={recordType:'route-plan',originLat:39.7,originLng:-105,destinationLat:39.8,destinationLng:-104.9,hotelName:'Hotel',destinationName:'Hall',meetingDateTimeLocal:'2027-07-16T09:00',loadingBuffer:20,arriveEarly:10,routeBuffer:15,routeNotes:'Preserve this note',routeCoordinates:[{lat:39.7,lng:-105},{lat:39.8,lng:-104.9}]};
+ const p=legacyPlan(record);assert.equal(p.stops[0].lat,39.7);assert.equal(p.time,'2027-07-16T09:00');assert.equal(p.boarding,20);assert.equal(p.notes,'Preserve this note');
+ const r=savedRoute(record);assert.equal(r.planning,false);assert.deepEqual(r.legs[0].segments[0].points,[[39.7,-105],[39.8,-104.9]]);
+});
+test('connecting rail journeys preserve train identities and minimum transfer time',()=>{
+ const airport=data.stations.find(s=>s.name==='Denver Airport Station');
+ const r=planRail(data,airport.id,ridge.id,at('2026-11-20T07:00'),{transferMinutes:10});
+ assert(r.segments.length>=2);for(let i=1;i<r.segments.length;i++){assert.equal(r.segments[i-1].to,r.segments[i].from);assert(r.segments[i].depart-r.segments[i-1].arrive>=10*60000);}
+});
+
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {calculateSchedule,serializePlan,legacyPlan,validatePlan} from '../travel-routes/model.mjs';
@@ -95,4 +107,3 @@ test('TomTom car/bus requests use selected time and matching provider geometry',
  const original=globalThis.fetch;let url;globalThis.fetch=async u=>{url=new URL(u);return {ok:true,json:async()=>({routes:[{summary:{travelTimeInSeconds:600,lengthInMeters:1000},legs:[{points:[{latitude:39,longitude:-105},{latitude:40,longitude:-104}]}],guidance:{instructions:[]}}]})};};
  try{const r=await road({lat:39,lng:-105},{lat:40,lng:-104},at('2027-07-16T09:00'),true,'bus','example-key');assert.equal(url.searchParams.get('travelMode'),'bus');assert(url.searchParams.has('arriveAt'));assert(!url.searchParams.has('departAt'));assert.equal(url.searchParams.get('traffic'),'true');assert.deepEqual(r.points,[[39,-105],[40,-104]]);assert.equal(r.minutes,10);}finally{globalThis.fetch=original;}
 });
-

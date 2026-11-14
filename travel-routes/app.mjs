@@ -1,5 +1,5 @@
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs';
-import {loadRail} from '../assets/rail-network.mjs';
+import {loadRail,refreshStationLocations} from '../assets/rail-network.mjs';
 import {findAddress,validPoint} from '../assignments/location-model.mjs';
 import {denverInput,formatDenver} from '../routes/travel-plan.mjs';
 import {MODES,calculateSchedule,legacyPlan,serializePlan} from './model.mjs';
@@ -7,16 +7,16 @@ import {createRouter,nearestStation} from './providers.mjs';
 import {auth,canEdit,canView,observeSiteAccess,watchHalls,watchRecords,saveRoute,removeRoute} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),clone=x=>structuredClone(x),map=mapBase('map'),journey=L.featureGroup().addTo(map);
 const fields=['name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
-let locations=catalog(),rail=null,railMap=null,stops=[],result=null,activePlan=null,activeId=null,generation=0,request=null,picking=null,records=[],unsubscribers=[],lookupGeneration=0;
+let locations=catalog(),rail=null,railMap=null,stops=[],result=null,activePlan=null,activeId=null,generation=0,request=null,picking=null,records=[],unsubscribers=[],lookupGeneration=0,customStations=[],loadedShared=false;
 const status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
 const blank=()=>({id:'custom',name:'',address:'',lat:null,lng:null,mode:'bus',dwell:0,startTime:'',showRail:false,railFrom:'',railTo:''});
 function initial(){const tomorrow=new Date(Date.now()+86400000);const date=denverInput(tomorrow).slice(0,10);return {name:'',timing:'arrive',time:date+'T09:00',boarding:15,allowance:10,arrivalBuffer:10,transfer:10,wait:15,reminder:30,notes:'',parking:'',tickets:'mobile',extraReminders:'',stops:[{...blank(),...locations.find(p=>p.id==='H1')},{...blank(),...locations.find(p=>p.id==='ccc')}]};}
 function invalidate(){generation++;request?.abort();request=null;result=null;activePlan=null;$('results').hidden=true;$('calculate').disabled=false;journey.clearLayers();status('Locations or timing changed. Calculate the journey to update the schedule.');}
-function apply(plan,id=null){invalidate();activeId=id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));for(const key of fields)$(key).value=plan[key]??'';$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}
+function apply(plan,id=null){invalidate();activeId=id;loadedShared=!!id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));for(const key of fields)$(key).value=plan[key]??'';$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}
 function readPlan(){const plan=Object.fromEntries(fields.map(k=>[k,$(k).value]));for(const k of ['boarding','allowance','arrivalBuffer','transfer','wait','reminder'])plan[k]=Number(plan[k]);plan.stops=clone(stops);return plan;}
 function option(p,value){return '<option value="'+esc(p.id)+'"'+(p.id===value?' selected':'')+'>'+esc(p.name)+'</option>';}
 function locationOptions(s){
- const list=[...locations,...(s.showRail&&rail?rail.stations.map(p=>({...p,group:'Rail stations'})):[])],groups=new Map();
+ const list=[...locations,...(s.showRail?[...(rail?.stations||[]),...customStations].map(p=>({...p,group:'Rail stations'})):[])],groups=new Map();
  for(const p of list){if(!groups.has(p.group))groups.set(p.group,[]);groups.get(p.group).push(p);}
  let html='<option value="custom"'+(s.id==='custom'?' selected':'')+'>Independent address / map pin</option>';
  if(s.id!=='custom'&&!list.some(p=>p.id===s.id))html+=option(s,s.id);
@@ -46,7 +46,7 @@ $('stops').addEventListener('input',e=>{
 $('stops').addEventListener('change',e=>{
  const card=e.target.closest('[data-stop]'),action=e.target.dataset.action;if(!card||!action)return;const i=Number(card.dataset.stop),s=stops[i];
  if(action==='location'){
-  const p=[...locations,...(rail?.stations||[])].find(p=>p.id===e.target.value);
+  const p=[...locations,...(rail?.stations||[]),...customStations].find(p=>p.id===e.target.value);
   stops[i]={...s,...(p||{id:'custom',name:'',address:'',lat:null,lng:null})};
   if(stops[i].id==='encouraging-gathering'&&!s.startTime)stops[i].dwell=60;
   invalidate();renderStops();
@@ -76,9 +76,12 @@ $('clearKey').onclick=()=>{$('tomtomKey').value='';try{sessionStorage.removeItem
 function toggleRail(){if(!railMap)return;for(const [id,key] of [['showStations','stations'],['showLines','lines']]){if($(id).checked)railMap[key].addTo(map);else map.removeLayer(railMap[key]);}}
 $('showStations').onchange=toggleRail;$('showLines').onchange=toggleRail;
 async function refreshRail(refresh=false){try{
- const data=await loadRail({refresh});rail=data;
+ let data=await loadRail({refresh});
+ let stationNote='';
+ if(refresh){try{data=await refreshStationLocations(data);stationNote=' Station locations checked against RTD just now; timetable coverage is unchanged.';}catch{stationNote=' Current RTD station lookup failed; using the dated reference.';}}
+ rail=data;
  if(railMap){map.removeLayer(railMap.stations);map.removeLayer(railMap.lines);}railMap=railLayers(data,map,{stations:false,lines:false});toggleRail();renderStops();
- $('railStatus').textContent=data.stations.length+' RTD stations · timetable '+data.coverage.start.replace(/(....)(..)(..)/,'$1-$2-$3')+' through '+data.coverage.end.replace(/(....)(..)(..)/,'$1-$2-$3')+'. Outside these dates, rail times are planning estimates. Reference updated '+data.generatedAt.slice(0,10)+'.';
+ $('railStatus').textContent=data.stations.length+' RTD stations · timetable '+data.coverage.start.replace(/(....)(..)(..)/,'$1-$2-$3')+' through '+data.coverage.end.replace(/(....)(..)(..)/,'$1-$2-$3')+'. Outside these dates, rail times are planning estimates. Reference updated '+data.generatedAt.slice(0,10)+'.'+stationNote;
  if(refresh)invalidate();
  }catch(e){$('railStatus').textContent='Rail reference could not load. Road planning is still available. Use Reload rail reference to retry.';}}
 $('reloadRail').onclick=()=>refreshRail(true);
@@ -134,18 +137,19 @@ function renderSaved(){
  $('saved').innerHTML=records.length?records.map(r=>'<div class="saved-row"><strong>'+esc(r.routeName||r.name||'Saved route')+'</strong><button class="secondary" data-load="'+esc(r.id)+'">Load</button>'+(canEdit('routes')?'<button class="secondary danger" data-delete="'+esc(r.id)+'">Delete</button>':'')+'</div>').join(''):'<p class="empty-state">No saved routes available for this account.</p>';
 }
 $('saved').onclick=async e=>{
- if(e.target.dataset.load){const r=records.find(r=>r.id===e.target.dataset.load);if(r){apply(legacyPlan(r),r.recordType==='bus-route'?r.id:null);$('planner').scrollIntoView({behavior:'smooth'});}}
+ if(e.target.dataset.load){const r=records.find(r=>r.id===e.target.dataset.load);if(r){apply(legacyPlan(r),r.recordType==='bus-route'?r.id:null);loadedShared=true;$('planner').scrollIntoView({behavior:'smooth'});}}
  if(e.target.dataset.delete){const r=records.find(r=>r.id===e.target.dataset.delete);if(!r||!confirm('Delete saved route “'+(r.routeName||'Travel route')+'”?'))return;try{await removeRoute(r.id);if(activeId===r.id)activeId=null;status('Saved route deleted.');}catch(err){status(err.message,true);}}
 };
 let accessRevision=0;
 observeSiteAccess(auth,()=>{
- const token=++accessRevision;unsubscribers.forEach(f=>f());unsubscribers=[];records=[];renderSaved();updateSave();
+ const token=++accessRevision;unsubscribers.forEach(f=>f());unsubscribers=[];records=[];customStations=[];renderSaved();renderStops();updateSave();
  if(!canView('routes')){
-  if(activeId){activeId=null;apply(initial());}
+  if(activeId||loadedShared){activeId=null;apply(initial());}
   $('accessStatus').textContent='Sign in with Travel Routes access to view or save shared trips.';return;
  }
  $('accessStatus').textContent=canEdit('routes')?'You can view and save shared routes.':'You can view saved routes. Editing is disabled.';
  const byType=new Map();
+ unsubscribers.push(watchRecords('rtd-station',list=>{if(token!==accessRevision)return;customStations=list.filter(s=>validPoint(s.lat,s.lng)).map(s=>({...s,lines:[],note:'Custom station reference. Choose a published rail station for train routing.'}));renderStops();},()=>{}));
  for(const type of ['bus-route','route-plan'])unsubscribers.push(watchRecords(type,list=>{
   if(token!==accessRevision)return;byType.set(type,list);records=[...byType.values()].flat().filter(r=>!r.travelLocationOnly);renderSaved();
  },e=>{if(token===accessRevision)$('accessStatus').textContent='Some shared routes could not load: '+e.message;}));
@@ -157,4 +161,3 @@ for(const [parameter,index] of [['origin',0],['destination',1],['hall',1]]){
  if(point)firstPlan.stops[index]={...blank(),...point};
 }
 apply(firstPlan);refreshRail();
-

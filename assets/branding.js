@@ -271,5 +271,3 @@ if (document.readyState === 'loading') {
 } else {
   applyDenver2027Branding();
 }
-
-

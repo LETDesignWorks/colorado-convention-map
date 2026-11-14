@@ -2,7 +2,7 @@ import {
   HALLS as BASE_HALLS,
   DTC_BOUNDARY,
   DTC
-} from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
+} from '../bus-access/locations.mjs';
 
 const CCC_ONLY_ADDITIONS = [
   {
@@ -54,4 +54,3 @@ export const HALLS = [...byId.values()]
 
 export const CCC_WITHIN_45_HALL_IDS = HALLS.map(hall => String(hall.id));
 export { DTC_BOUNDARY, DTC };
-

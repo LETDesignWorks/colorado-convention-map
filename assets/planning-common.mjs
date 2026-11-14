@@ -1,6 +1,6 @@
-import {HALLS,DTC_BOUNDARY,DTC} from '../bus-access/data.js';
+import {HALLS,DTC_BOUNDARY,DTC} from '../bus-access/locations.mjs';
 import {HALLS as TERRITORY_HALLS} from '../territories/halls.js';
-import {HOTELS} from '../routes/hotels.js';
+import {HOTELS} from '../routes/hotel-data.mjs';
 import {ACTIVITY_POINTS} from '../activities/data.js';
 export {HALLS,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,DTC};
 export const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -18,4 +18,3 @@ export function railLayers(data,map,{stations=true,lines=true}={}){
  for(const s of data.stations)L.marker([s.lat,s.lng],{icon:icon('🚆',s.lines.length?'#5a458c':'#667085','rail-station-icon')}).bindPopup('<b>'+escapeHtml(s.name)+'</b><br>'+escapeHtml(s.address)+'<br>'+(s.lines.length?'Lines '+escapeHtml(s.lines.join(', ')):'No train trips in this timetable; confirm service')+'<br><a target="_blank" rel="noopener" href="https://app.rtd-denver.com/en-US/facilities">RTD station details</a>').addTo(stationLayer);
  if(stations)stationLayer.addTo(map);if(lines)lineLayer.addTo(map);return {stations:stationLayer,lines:lineLayer};
 }
-

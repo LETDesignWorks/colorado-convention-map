@@ -8,6 +8,11 @@ export function permittedTypes(canView){return Object.entries(PRIVATE_LAYERS).fl
 export function decode(value,fallback=null){try{return typeof value==='string'?JSON.parse(value):value??fallback;}catch{return fallback;}}
 export function savedRoute(record){
  if(record.travelSchemaVersion===1&&record.plan)return {name:record.routeName,points:record.plan.stops,legs:decode(record.resultJson,record.result)?.legs||[],source:'travel-routes',planning:false};
+ if(record.recordType==='route-plan'){
+  const points=[{lat:record.originLat,lng:record.originLng,name:record.hotelName,address:record.hotelAddress},{lat:record.destinationLat,lng:record.destinationLng,name:record.destinationName,address:record.destinationAddress}];
+  const path=(record.routeCoordinates||[]).map(p=>Array.isArray(p)?[p[1],p[0]]:[p.lat,p.lng]);
+  return {name:record.routeName,points,legs:path.length?[{mode:'bus',segments:[{mode:'bus',points:path}]}]:[],source:'travel-routes',planning:!path.length};
+ }
  if(record.recordType==='activity-multistop-route'){
   const plan=decode(record.planJson,{}),legs=decode(record.legsJson,[]);
   return {name:plan.name||record.planName,points:plan.stops||[],legs:legs.map(l=>({mode:'bus',segments:[{mode:'bus',points:(l.path||[]).map(p=>[p[1],p[0]])}]})),source:'activity-planning',planning:false};
@@ -20,4 +25,3 @@ export function territoryShapes(record){
  if(record.recordType==='territory-boundary'){const geometry=decode(record.boundaryJson||record.geometryJson||record.geometry);return geometry?[{geometry,name:record.name||record.congregation||'Territory boundary'}]:[];}
  return (decode(record.territoriesJson,[])||[]).flatMap(t=>{const geometry=decode(t.geometryJson||t.geometry);return geometry?[{geometry,name:t.name||record.planName||'Territory'}]:[];});
 }
-

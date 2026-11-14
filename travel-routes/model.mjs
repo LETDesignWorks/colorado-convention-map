@@ -45,6 +45,7 @@ export async function calculateSchedule(plan,router){
 }
 export function legacyPlan(record){
  if(record.travelSchemaVersion===1&&record.plan)return structuredClone(record.plan);
+ if(record.recordType==='route-plan')record={...record,origin:{lat:record.originLat,lng:record.originLng},destination:{lat:record.destinationLat,lng:record.destinationLng},meetingLocal:record.meetingDateTimeLocal,boardingBuffer:record.loadingBuffer,arrivalBuffer:record.arriveEarly,travelAllowance:record.routeBuffer,notes:record.routeNotes};
  const point=(p,fallback)=>({id:'custom',name:fallback.name||fallback.label||'Location',address:fallback.address||'',lat:p?.lat,lng:p?.lng,mode:'bus',dwell:0,startTime:''});
  const a=point(record.origin,{name:record.hotelName||record.originName,address:record.hotelAddress||record.originAddress});
  const b=point(record.destination,{name:record.destinationName||record.destinationLabel,address:record.destinationAddress});
@@ -59,4 +60,3 @@ export function serializePlan(plan,result){
  // Explicit fields only: session credentials can never enter a shared document.
  return {recordType:'bus-route',travelSchemaVersion:1,routeName:plan.name||'Travel route',plan:cleanPlan,resultJson:JSON.stringify(result),origin:{lat:first.lat,lng:first.lng},hotelName:first.name,hotelAddress:first.address,destination:{lat:last.lat,lng:last.lng},destinationName:last.name,destinationAddress:last.address,destinationId:last.id||'custom',meetingLocal:plan.timing==='arrive'?plan.time:last.startTime||'',departureLocal:denverInput(new Date(result.depart)),arrivalLocal:denverInput(new Date(result.arrive)),reportLocal:denverInput(new Date(result.ready)),plannedTravelMinutes:result.minutes,boardingBuffer:plan.boarding,arrivalBuffer:plan.arrivalBuffer,travelAllowance:plan.allowance,timeZone:'America/Denver',notes:plan.notes||''};
 }
-

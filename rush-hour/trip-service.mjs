@@ -33,4 +33,3 @@ export async function findRoad(from,to,options={}){
   const result=roadResult(await fetchJson('https://router.project-osrm.org/route/v1/driving/'+points+'?overview=full&geometries=geojson&steps=false',options));
   roadCache.set(points,result);return result;
 }
-

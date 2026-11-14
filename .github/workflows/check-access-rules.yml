@@ -28,4 +28,3 @@ jobs:
         working-directory: security
       - run: npm test
         working-directory: security
-

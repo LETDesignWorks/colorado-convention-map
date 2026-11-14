@@ -113,4 +113,3 @@ export const HOME_POINTS = [
     "checkedDate": "2026-11-13"
   }
 ];
-

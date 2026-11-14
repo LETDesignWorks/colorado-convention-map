@@ -20,4 +20,3 @@ export function openPdfBuilderWindow(w=globalThis.window){
   }
   target.focus?.();return target;
 }
-

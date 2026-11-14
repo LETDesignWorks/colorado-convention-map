@@ -71,5 +71,12 @@ function start() {
   mountSiteNavigation();
   // Branding adds links synchronously at DOMContentLoaded; reconcile once after it.
   setTimeout(mountSiteNavigation, 0);
+  // Reconcile older cached page modules that may add retired navigation later.
+  new MutationObserver(() => {
+    const nav = document.querySelector('.convention-navigation');
+    if (nav && [...nav.querySelectorAll('a[href]')].some(a =>
+      ['routes/', 'rush-hour/', 'operating-plan/'].some(path => pathOf(a.href) === pathOf(new URL(path, base)))
+    )) mountSiteNavigation();
+  }).observe(document.documentElement, {childList: true, subtree: true});
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true}); else start();

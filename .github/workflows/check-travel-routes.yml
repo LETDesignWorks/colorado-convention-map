@@ -17,4 +17,3 @@ jobs:
       - run: npm install --no-audit --no-fund
         working-directory: security
       - run: node --test security/navigation.test.mjs security/travel-ui.test.mjs
-

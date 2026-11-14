@@ -1,4 +1,5 @@
 import {parseDenver,denverInput} from '../routes/travel-plan.mjs';
+import {createRailDirectory} from '../rush-hour/trip-rail.mjs';
 export const minute=60000;
 const key=d=>denverInput(d).slice(0,10).replaceAll('-','');
 const dayString=k=>k.slice(0,4)+'-'+k.slice(4,6)+'-'+k.slice(6);
@@ -99,8 +100,15 @@ export function planRail(data,from,to,at,options={}){
  return inCoverage(data,new Date(at))?scheduledRail(data,from,to,at,options):estimatedRail(data,from,to,at,options);
 }
 let promise;
+export async function refreshStationLocations(data){
+ const live=await createRailDirectory().refresh(),known=new Map(data.stations.map(s=>[s.id,s]));
+ for(const station of live.stations){
+  const old=known.get(station.id);
+  known.set(station.id,{...station,lines:old?.lines||[]});
+ }
+ return {...data,stations:[...known.values()].sort((a,b)=>a.name.localeCompare(b.name)),stationsCheckedAt:live.checkedAt};
+}
 export function loadRail({refresh=false}={}){
  if(refresh)promise=null;
  return promise ||= fetch(new URL('../data/rtd-rail.json',import.meta.url),{cache:refresh?'reload':'default'}).then(r=>{if(!r.ok)throw Error('RTD rail reference unavailable.');return r.json();}).catch(e=>{promise=null;throw e;});
 }
-

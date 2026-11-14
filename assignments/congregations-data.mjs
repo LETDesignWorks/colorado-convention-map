@@ -1709,4 +1709,3 @@ export const CONGREGATIONS = [
   }
 ];
 export const CONGREGATION_SOURCE = {"count": 214, "spreadsheetCount": 211, "file": "Congregations.xlsx", "importedDate": "2026-11-13", "addedCount": 118, "retainedCount": 3};
-
