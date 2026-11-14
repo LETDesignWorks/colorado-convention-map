@@ -1,0 +1,24 @@
+name: Refresh public RTD rail reference
+on:
+  workflow_dispatch:
+  push:
+    branches: [travel-routes-20261114]
+    paths: ['tools/build_rtd_rail.py', '.github/workflows/refresh-rtd-rail.yml']
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tools/build_rtd_rail.py
+      - name: Save public rail data
+        run: |
+          git config user.name "RTD reference updater"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/rtd-rail.json
+          git diff --cached --quiet || git commit -m "Refresh official RTD rail timetable and station reference"
+          git push
