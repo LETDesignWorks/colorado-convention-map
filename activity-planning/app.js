@@ -1,3 +1,4 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPrintRibbons,waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {LOCATIONS,SOURCES} from './locations.js?v=rush-20261108-1';
 import {calculate,routePoints,validPoint,conflicts,decodeRecord,encodeRecord,RECORD_TYPE,wallTime} from './model.mjs?v=20261020-3';
@@ -74,7 +75,7 @@ function renderReview(){const records=filteredRecords();const toCheck=current?[.
 }
 function loadRoute(id){const route=allRecords().find(r=>r.id===id);if(!route)return;revision++;editingId=route.legacy?null:id;editingShared=!!route.shared;stops=clone(route.stops);if(route.legacy){$('routeForm').reset();$('name').value=route.name+' · activity extension';$('coachId').value=route.coachId;$('startLocal').value=route.startLocal;current=null;$('results').hidden=true;message('Copied the saved stops into a new route. Set stop durations and recalculate; the original schedule is unchanged.');}else{for(const id of fields)$(id).value=route[id]??'';$('roundTrip').checked=route.roundTrip;current={plan:clone(route),legs:clone(route.legs),summary:calculate(route,route.legs)};renderResults();message('Saved route loaded. Changes need recalculation before saving.');}renderStops();drawMap(true);$('routeForm').scrollIntoView({behavior:'smooth',block:'start'});}
 function saveLocal(){if(!current)return;const id=editingId&&!editingShared?editingId:'local-'+crypto.randomUUID();const r={...clone(current.plan),id,legs:clone(current.legs),summary:clone(current.summary),startLocal:current.summary.startLocal,endLocal:current.summary.endLocal,shared:false,kind:'Activity route'};try{saveDeviceList([...local.filter(p=>p.id!==id),r]);editingId=id;editingShared=false;renderResults();renderReview();drawMap();message('Route saved on this device. Export plans for a portable backup, or save a shared route after signing in.');}catch(error){message(error.message,true);}}
-async function saveShared(){if(!current)return;if(!user){$('login').showModal();return;}if(!cloud || user.email?.toLowerCase()!=='michaeltarin@hotmail.com'){message('The administrator account is required to save shared routes.',true);return;}
+async function saveShared(){if(!current)return;if(!user){$('login').showModal();return;}if(!cloud || !canEdit('activityPlanning')){message('The administrator account is required to save shared routes.',true);return;}
   const snapshot=clone(current),token=revision;$('saveShared').disabled=true;
   try{const record=encodeRecord(snapshot.plan,snapshot.legs);if(JSON.stringify(record).length>800000)throw new Error('This route is too large to save. Reduce the number of stops.');const ref=editingShared&&editingId?cloud.doc(cloud.db,'reviews',editingId):cloud.doc(cloud.collection(cloud.db,'reviews'));
     await cloud.setDoc(ref,{...record,updatedByEmail:user.email,updatedAt:cloud.serverTimestamp()},{merge:true});
@@ -91,10 +92,11 @@ async function connect(){
     const instance=app.getApps().length?app.getApp():app.initializeApp({apiKey:'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',authDomain:'convention-fs.firebaseapp.com',projectId:'convention-fs',storageBucket:'convention-fs.firebasestorage.app',messagingSenderId:'29365992209',appId:'1:29365992209:web:0bd35e723688b37d776ab0'});
     cloud={...dbApi,...authApi,auth:authApi.getAuth(instance),db:dbApi.getFirestore(instance)};
     await authApi.setPersistence(cloud.auth,authApi.browserLocalPersistence);
-    authApi.onAuthStateChanged(cloud.auth,account=>{user=account;if(unsub)unsub();unsub=null;shared=[];territories=[];if(editingShared){newPlan();}updateLocations();renderReview();drawMap();$('signIn').hidden=!!account;$('signOut').hidden=!account;
-      if(account?.email?.toLowerCase()!=='michaeltarin@hotmail.com'){$('dataStatus').textContent='Sign in as the administrator to review shared routes and saved territory plans. Device routes are available without sign-in.';return;}
+    observeSiteAccess(cloud.auth,account=>{user=account;if(unsub)unsub();unsub=null;shared=[];territories=[];if(editingShared){newPlan();}updateLocations();renderReview();drawMap();$('signIn').hidden=!!account;$('signOut').hidden=!account;
+      const types = [...(canView('activityPlanning')?[RECORD_TYPE]:[]),...(canView('routes')?['bus-route']:[]),...(canView('activities')?['activity-bus-plan']:[]),...(canView('territories')?['territory-plan']:[])];
+      if(!types.length){$('dataStatus').textContent='Sign in as the administrator to review shared routes and saved territory plans. Device routes are available without sign-in.';return;}
       $('dataStatus').textContent='Loading shared routes and territory plans…';
-      const q=dbApi.query(dbApi.collection(cloud.db,'reviews'),dbApi.where('recordType','in',[RECORD_TYPE,'bus-route','activity-bus-plan','territory-plan']));
+      const q=dbApi.query(dbApi.collection(cloud.db,'reviews'),dbApi.where('recordType','in',types));
       unsub=dbApi.onSnapshot(q,{includeMetadataChanges:true},snapshot=>{if(snapshot.metadata.hasPendingWrites)return;const records=snapshot.docs.map(d=>({...d.data(),id:d.id}));shared=records.map(decodeRecord).filter(Boolean);territories=records.filter(r=>r.recordType==='territory-plan');updateLocations();renderReview();drawMap();$('dataStatus').textContent=`${shared.length} shared routes / schedules · ${territories.length} saved territory plans${snapshot.metadata.fromCache?' · cached; reconnect to refresh':''}.`;},error=>{$('dataStatus').textContent='Shared records could not be loaded: '+error.message;});
     });
     dbApi.onSnapshot(dbApi.collection(cloud.db,'halls'),snapshot=>{for(const d of snapshot.docs){const p=d.data();if(!validPoint(p))continue;const hallId=String(d.id),existing=locations.find(l=>l.hallId===hallId);if(existing){if(p.name)existing.name=p.name;if(p.address)existing.address=p.address;existing.lat=Number(p.lat);existing.lng=Number(p.lng);}else if(p.customLocation===true)locations.push({...p,id:'hall-'+hallId,hallId,group:'Field service / meeting places',name:p.name||'Saved meeting place'});}updateLocations();applyLinkedHall();},error=>{$('dataStatus').textContent+=' Added meeting places could not load: '+error.message;});
@@ -134,3 +136,4 @@ $('loginForm').onsubmit=async event=>{event.preventDefault();if(!cloud){$('login
 $('signOut').onclick=async()=>{if(cloud)await cloud.signOut(cloud.auth);};
 $('sourceLinks').innerHTML='Location references: '+SOURCES.map(([label,url])=>`<a href="${url}" target="_blank" rel="noopener">${esc(label)} ↗</a>`).join('');
 initMap();newPlan();applyLinkedHall();renderReview();connect();
+

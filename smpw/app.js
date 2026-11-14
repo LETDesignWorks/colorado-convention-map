@@ -1,3 +1,4 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -57,7 +58,7 @@ function escapeHtml(value = '') {
     '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'
   }[char]));
 }
-function isAdmin() { return currentUser?.email?.toLowerCase() === ADMIN_EMAIL; }
+function isAdmin() { return canEdit('smpw'); }
 function statusLabel(status) {
   return ({ proposed:'Proposed', review:'Needs site review', approved:'Approved', unavailable:'Not available' })[status] || 'Proposed';
 }
@@ -545,7 +546,7 @@ function wireEvents() {
       await signInWithEmailAndPassword(auth, clean(els.loginEmail.value), els.loginPassword.value);
       els.loginPassword.value = '';
       closeLogin();
-      toast('Administrator signed in.');
+      toast('Signed in.');
     } catch (error) { toast(friendlyError(error), true); }
   });
   els.resetPassword.addEventListener('click', async () => {
@@ -594,7 +595,7 @@ try {
   window.__DENVER2027_SMPW_FIREBASE__ = { app: firebaseApp, auth, db };
   window.dispatchEvent(new CustomEvent('denver2027-smpw-firebase-ready', { detail: { app: firebaseApp, auth, db } }));
   await setPersistence(auth, browserLocalPersistence);
-  onAuthStateChanged(auth, user => { currentUser = user; updateAuthUi(); });
+  observeSiteAccess(auth, user => { currentUser = user; updateAuthUi(); });
   subscribeLocations();
 } catch (error) {
   toast(`Firebase could not initialize: ${friendlyError(error)}`, true);

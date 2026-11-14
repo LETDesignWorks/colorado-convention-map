@@ -1,3 +1,4 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {createJsPdfRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {TERRITORY_PDF_LAYOUT as PDF_PAGE, territoryPdfMapBox} from './pdf-page-layout.js?v=ribbons-20261107-1';
 import { validateTrimmedBoundary } from './territory-trim-tools.js?v=territories-20261023-50';
@@ -18,7 +19,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { makePdfArchive, readArchivePdf, readArchiveSnapshot, PDF_LAYOUT_VERSION } from './pdf-archive.js?v=ribbons-20261107-1';
 import { setupRecoveryImport } from './territory-recovery.js?v=territories-20261016-30';
-import { mountSavedTerritories } from './saved-territories-layer.js?v=territories-20261023-50';
+import { mountSavedTerritories } from './saved-territories-layer.js?v=access-20261114-1';
 import { compareStreetAddresses, streetAddressInfo, drawStreetAddressColumns } from './street-addresses.js?v=territories-20261017-31';
 import { workKey, latestWork, currentWorkFor, readPlanAddresses, readPlanTerritories, mergeTerritoryWork } from './saved-work-model.js?v=territories-20261023-50';
 import { createBackupTools } from './backup-merge-service.js?v=territories-20261023-50';
@@ -126,7 +127,7 @@ function escapeHtml(value = '') {
 function slug(value = '') {
   return clean(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'item';
 }
-function isAdmin() { return currentUser?.email?.toLowerCase() === ADMIN_EMAIL; }
+function isAdmin() { return canEdit('territories'); }
 function uniqueId(prefix = 'item') {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${crypto.randomUUID()}`;
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -2547,14 +2548,15 @@ function updateAuthUi() {
   els.loginButton.hidden = signedIn;
   els.signOutButton.hidden = !signedIn;
   document.querySelectorAll('.admin-control').forEach(control => { control.disabled = !isAdmin(); });
-  els.privacyCard.innerHTML = isAdmin()
-    ? '<span class="eyebrow">PRIVATE PLANNING WORKSPACE</span><h2>Administrator access active</h2><p>House-level assessor data, boundaries, and saved territory plans are available in this signed-in session.</p>'
-    : '<span class="eyebrow">PRIVATE PLANNING WORKSPACE</span><h2>House-level data requires sign-in</h2><p>Kingdom Hall markers are public. Assessor address points, saved boundaries, and saved territory plans are shown only after administrator sign-in and are stored in the private Firebase <code>reviews</code> collection.</p>';
+  els.privacyCard.innerHTML = canView('territories')
+    ? '<span class="eyebrow">PRIVATE PLANNING WORKSPACE</span><h2>Signed-in planning access</h2><p>House-level assessor data, boundaries, and saved territory plans are available in this signed-in session.</p>'
+    : '<span class="eyebrow">PRIVATE PLANNING WORKSPACE</span><h2>House-level data requires sign-in</h2><p>Kingdom Hall markers are public. Assessor address points, saved boundaries, and saved territory plans are shown only with the appropriate account access and are stored in the private Firebase <code>reviews</code> collection.</p>';
   updateSelectionUi();
-  if (isAdmin()) subscribeReviews();
+  if (canView('territories')) subscribeReviews();
   else {
     if (reviewsUnsubscribe) { reviewsUnsubscribe(); reviewsUnsubscribe = null; }
     reviewRecords.clear();
+    clearPlanWorkspace(false);
     renderSavedRecords();
   }
   emitPlannerDataChange();
@@ -2753,7 +2755,7 @@ async function persistPlan(options = {}) {
   }
 }
 function subscribeReviews() {
-  if (!db || !isAdmin()) return;
+  if (!db || !canView('territories')) return;
   if (reviewsUnsubscribe) reviewsUnsubscribe();
   savedRecordsStatus = 'loading';
   reviewRecords.clear();
@@ -2781,7 +2783,7 @@ function savedBoundaries() { return [...reviewRecords.values()].filter(item => i
 function savedPlans() { return [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan' && !item.deletedAt).sort((a, b) => clean(a.planName).localeCompare(clean(b.planName))); }
 function renderSavedRecords() {
   renderSavedPdfs();
-  if (!isAdmin()) {
+  if (!canView('territories')) {
     els.savedBoundaries.innerHTML = '<div class="empty">Sign in to load saved boundaries.</div>';
     els.savedPlans.innerHTML = '<div class="empty">Sign in to load saved territory plans.</div>';
     return;
@@ -3084,25 +3086,25 @@ function renderSavedPdfs() {
   if (!element) return;
   const updateButton = document.getElementById('updateSavedPdfsButton');
   if (updateButton) { updateButton.disabled = !isAdmin() || savedPdfUpdateBusy; updateButton.onclick = updateSavedPdfs; }
-  if (!isAdmin()) { element.innerHTML = '<div class="empty">Sign in to see saved territory PDFs.</div>'; return; }
+  if (!canView('territories')) { element.innerHTML = '<div class="empty">Sign in to see saved territory PDFs.</div>'; return; }
   const dateValue = value => value?.toDate ? value.toDate().getTime() : new Date(value || 0).getTime();
   const records = [...reviewRecords.values()].filter(item => item.recordType === 'territory-pdf' && !item.deletedAt)
     .sort((a, b) => dateValue(b.updatedAt) - dateValue(a.updatedAt));
-  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}">Edit territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
+  element.innerHTML = records.length ? records.map(item => `<article class="saved-row"><div><strong>${escapeHtml(item.territoryName || 'Territory PDF')}</strong><small>${escapeHtml(item.hallName || '')} • ${escapeHtml(item.congregation || '')} • ${Number(item.houseCount || 0).toLocaleString()} homes • ${escapeHtml(formatDate(item.updatedAt))}</small><small>${Number(item.pdfLayoutVersion || 0) >= PDF_LAYOUT_VERSION ? `Updated format • Street-grouped addresses • ${Number(item.coffeeShopCount || 0)} coffee stops` : 'Earlier format — updates when downloaded'}</small></div><div class="row-actions"><button class="row-action" data-download-territory-pdf="${escapeHtml(item.id)}" ${savedPdfUpdateBusy ? 'disabled' : ''}>Download PDF</button><button class="row-action" data-load-territory-pdf="${escapeHtml(item.id)}" ${isAdmin()?'':'disabled'}>Edit territory</button>${item.originalPdf ? `<button class="row-action" data-original-territory-pdf="${escapeHtml(item.id)}">Original PDF</button>` : ''}</div></article>`).join('')
     : '<div class="empty">New PDF exports will appear here automatically, with a copy of the territory as it was printed.</div>';
   element.querySelectorAll('[data-download-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.downloadTerritoryPdf, button, false)));
   element.querySelectorAll('[data-load-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.loadTerritoryPdf, button, true)));
   element.querySelectorAll('[data-original-territory-pdf]').forEach(button => button.addEventListener('click', () => openSavedPdf(button.dataset.originalTerritoryPdf, button, false, true)));
 }
 async function openSavedPdf(id, button, restore, originalCopy = false) {
-  if (!requireAdmin()) return;
+  if (!canView('territories') || (restore && !requireAdmin())) return;
   let record = reviewRecords.get(id);
   if (!record || record.deletedAt) return;
   const generation = workspaceGeneration;
   const original = button.textContent;
   button.disabled = true; button.textContent = 'Loading…';
   try {
-    if (!restore && !originalCopy && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION) {
+    if (isAdmin() && !restore && !originalCopy && Number(record.pdfLayoutVersion || 0) < PDF_LAYOUT_VERSION) {
       button.textContent = 'Updating PDF…';
       record = await refreshSavedPdfRecord(id, message => savedPdfStatus(`${record.territoryName}: ${message}`));
       savedPdfStatus(`${record.territoryName} updated with street-grouped addresses and coffee shops. The earlier file is available under Original PDF.`, 'success');
@@ -3618,7 +3620,7 @@ function wireEvents() {
       await signInWithEmailAndPassword(auth, clean(els.loginEmail.value), els.loginPassword.value);
       els.loginPassword.value = '';
       closeLogin();
-      toast('Administrator signed in.');
+      toast('Signed in.');
     } catch (error) { toast(friendlyError(error), true); }
   });
   els.resetPassword.addEventListener('click', async () => {
@@ -3632,14 +3634,14 @@ async function initialize() {
   initMap();
   wireEvents();
   mountSavedTerritories({
-    map, L, turf, isAdmin, getHall: () => selectedHall,
+    map, L, turf, isAdmin, canRead: () => canView('territories'), getHall: () => selectedHall,
     editTerritory: editSavedTerritory,
     getWorkspace: sessionWorkspace, sessionManager: meetingSessionManager,
     libraryManager, versionPdf: libraryVersionPdf, getCongregation: () => selectedCongregation, loadSavedSet: loadPlanRecord,
     saveNameChoice: (name, key) => backupTools.saveNameChoice(name, key),
     getRecords: () => reviewRecords, getStatus: () => savedRecordsStatus,
     readSnapshot: async record => {
-      if (!isAdmin()) throw new Error('Sign in to view saved territories.');
+      if (!canView('territories')) throw new Error('Sign in to view saved territories.');
       return readArchiveSnapshot(record, await archiveParts(record, 'snapshot'));
     },
     readPdf: async record => {
@@ -3656,7 +3658,7 @@ async function initialize() {
     auth = getAuth(app);
     db = getFirestore(app);
     await setPersistence(auth, browserLocalPersistence);
-    onAuthStateChanged(auth, user => {
+    observeSiteAccess(auth, user => {
       currentUser = user;
       updateAuthUi();
       if (user && !isAdmin()) toast('This account has public viewing access only.', true);
@@ -3831,7 +3833,7 @@ async function saveLibrarySnapshot(snapshot, options = {}) {
   return id;
 }
 async function libraryVersionPdf(version, progress, options = {}) {
-  if (!isAdmin() || String(selectedHall?.id) !== String(version.hallId)) throw new Error('Select the saved territory\'s meeting place first.');
+  if (!canView('territories') || String(selectedHall?.id) !== String(version.hallId)) throw new Error('Select the saved territory\'s meeting place first.');
   const hall = { ...selectedHall };
   return buildReviewedVersionPdf(version, hall, progress, {
     allowReviewCopy: Boolean(options.allowReviewCopy),

@@ -1,0 +1,12 @@
+.convention-navigation-header{height:auto!important;min-height:0!important;flex-shrink:0!important;flex-wrap:wrap!important}
+body:has(.shell>.convention-navigation-header){overflow:auto!important}
+.shell:has(>.convention-navigation-header){min-height:100%;height:auto!important;grid-template-rows:auto minmax(320px,1fr)}
+.convention-navigation{display:flex!important;flex-wrap:wrap!important;justify-content:flex-start!important;align-items:center!important;gap:8px!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important;box-sizing:border-box!important;grid-column:1 / -1!important;padding:10px 4px!important;flex:1 1 100%!important}
+.convention-navigation>.convention-tab{display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;width:84px!important;height:84px!important;min-width:84px!important;max-width:84px!important;flex:0 0 84px!important;border-radius:50%!important;padding:9px!important;white-space:normal!important;line-height:1.15!important;font:700 11px/1.15 system-ui,sans-serif!important;text-align:center!important;text-decoration:none!important;background:#164f80!important;color:#fff!important;border:1px solid #7695b2!important;box-shadow:0 2px 5px #001f3330}
+.convention-navigation>.convention-tab[aria-current=page]{background:#fff!important;color:#103f69!important;outline:3px solid #eac154!important;outline-offset:1px}
+.convention-navigation>.convention-tab:focus-visible{outline:3px solid #eac154!important;outline-offset:3px}
+.convention-navigation>[hidden]{display:none!important}
+.convention-navigation-header>.header-row,.convention-navigation-header>.topbar-inner{flex-wrap:wrap!important}
+@media(max-width:980px){.convention-navigation{flex-wrap:wrap!important;overflow:visible!important}.convention-navigation>.convention-tab{width:76px!important;height:76px!important;min-width:76px!important;max-width:76px!important;flex-basis:76px!important;font-size:10px!important}}
+@media(max-width:560px){.convention-navigation{gap:7px!important}.convention-navigation>.convention-tab{width:70px!important;height:70px!important;min-width:70px!important;max-width:70px!important;flex-basis:70px!important;font-size:9.5px!important}}
+@media print{.convention-navigation{display:none!important}}

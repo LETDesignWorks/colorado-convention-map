@@ -11,7 +11,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="styles.css?v=selection-blue-20261114-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
+<script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
 </head>
 <body>
 <div class="app">
@@ -26,7 +27,7 @@
       <a class="btn ghost" href="../bus-access/">Bus Access Review</a>
       <a class="btn ghost" href="../routes/">Field Service Routes</a>
       <a class="btn ghost optional-nav" href="../activities/">Delegate Activities</a>
-      <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+      <button class="btn white" id="loginButton" type="button">Sign In</button>
       <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
     <a class="btn ghost" href="../rush-hour/">Rush-hour Routes</a></nav>
   </div>
@@ -161,7 +162,7 @@
 
 <div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal-card">
-    <h2 id="loginTitle">Administrator Sign In</h2>
+    <h2 id="loginTitle">Sign In</h2>
     <p>Sign in with the Firebase administrator account to save congregation assignments.</p>
     <form id="loginForm">
       <div class="field">
@@ -211,6 +212,7 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=selection-blue-20261114-1"></script>
+<script type="module" src="app-v3.mjs?v=access-20261114-1"></script>
 </body>
 </html>
+

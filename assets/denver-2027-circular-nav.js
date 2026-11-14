@@ -162,9 +162,9 @@ function installStyles() {
         margin-top: 10px !important;
         padding: 2px 2px 8px !important;
         justify-content: flex-start !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        overflow-y: hidden !important;
+        flex-wrap: wrap !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
         scrollbar-width: thin;
         scroll-snap-type: x proximity;
         -webkit-overflow-scrolling: touch;
@@ -179,7 +179,7 @@ function installStyles() {
          host. Keep its title and circular return button on one row. */
       .${HEADER_CLASS}.${NAV_CLASS} {
         display: flex !important;
-        flex-wrap: nowrap !important;
+        flex-wrap: wrap !important;
         overflow: visible !important;
       }
 
@@ -285,3 +285,4 @@ if (document.readyState === 'loading') {
 } else {
   start();
 }
+

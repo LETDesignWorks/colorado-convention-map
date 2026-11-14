@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css?v=smpw-20260926-4"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
+  <script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
 </head>
 <body>
 <div class="app">
@@ -25,7 +26,7 @@
         <a class="btn ghost" href="../">Full Planning Map</a>
         <a class="btn ghost" href="../south-dtc-rail/">South DTC Rail</a>
         <a class="btn ghost" href="../activities/">Delegate Activities</a>
-        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn white" id="loginButton" type="button">Sign In</button>
         <button class="btn ghost" id="addLocationButton" type="button" hidden>＋ Add SMPW Location</button>
         <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
       <a class="btn ghost" href="../routes/">Field Service Routes</a>
@@ -115,7 +116,7 @@
 
 <div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal-card compact">
-    <h2 id="loginTitle">Administrator Sign In</h2>
+    <h2 id="loginTitle">Sign In</h2>
     <p>Public users can view the map. Administrator sign-in is required to add, edit, or delete SMPW cart locations.</p>
     <form id="loginForm">
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" value="michaeltarin@hotmail.com" required/></div>
@@ -153,7 +154,7 @@
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app.js?v=smpw-20260926-4"></script>
+<script type="module" src="app.js?v=access-20261114-1"></script>
 <script type="module" src="enhancements.js?v=smpw-20260926-4"></script>
 <script type="module" src="street-routes.js?v=ribbons-20261107-1"></script>
 </body>

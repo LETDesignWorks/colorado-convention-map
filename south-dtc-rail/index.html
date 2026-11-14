@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
+  <script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
 </head>
 <body>
 <div class="app">
@@ -26,7 +27,7 @@
         <a class="btn ghost" href="../assignments/">Congregation Assignments</a>
         <a class="btn ghost" href="../routes/?mode=rtd">Station Departure Plan</a>
         <a class="btn white" href="../bus-access/">Bus Access Review</a>
-        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn white" id="loginButton" type="button">Sign In</button>
         <button class="btn ghost" id="addLocationButton" type="button" hidden>＋ Add Meeting Point</button>
         <button class="btn ghost" id="signOutButton" type="button" hidden>Sign Out</button>
       <a class="btn ghost" href="../routes/">Field Service Routes</a>
@@ -185,7 +186,7 @@
 
 <div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal-card">
-    <h2 id="loginTitle">Administrator Sign In</h2>
+    <h2 id="loginTitle">Sign In</h2>
     <p>The map and route links are public. Sign-in is required to add meeting points or save a preferred rail connection.</p>
     <form id="loginForm">
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username" required value="michaeltarin@hotmail.com"/></div>
@@ -245,3 +246,4 @@
 <script type="module" src="app.js"></script>
 </body>
 </html>
+

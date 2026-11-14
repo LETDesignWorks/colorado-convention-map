@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null && request.auth.uid == 'jPTl6zfkjaTbbCJMI7A7xXE2BN93';
+    }
+    function verified() {
+      return request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email is string;
+    }
+    function policyKey() { return 'site-access-' + request.auth.token.email.lower(); }
+    function level(section) {
+      let policy = get(/databases/$(database)/documents/reviews/$(policyKey())).data;
+      return policy.get('schemaVersion', 0) == 1 && policy.get('enabled', false) == true
+        && policy.get('email', '') == request.auth.token.email.lower()
+        ? policy.get('permissions', {}).get(section, 'none') : 'none';
+    }
+    function canView(section) {
+      return section != '' && verified() && level(section) in ['view', 'edit'];
+    }
+    function canEdit(section) {
+      return section != '' && verified() && level(section) == 'edit';
+    }
+    function reserved(id) { return id.matches('site-access-.*') || id.matches('photo-library-.*'); }
+    function reviewSection(data) {
+      let kind = data.get('recordType', '');
+      return kind in ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf', 'territory-pdf-part', 'territory-name-choice'] ? 'territories'
+        : kind in ['bus-route', 'route-plan', 'rtd-station'] ? 'routes'
+        : kind == 'activity-bus-plan' ? 'activities'
+        : kind == 'activity-multistop-route' ? 'activityPlanning'
+        : kind == '' ? 'busAccess' : '';
+    }
+    function hallSection(data) {
+      let kind = data.get('recordType', '');
+      return kind in ['congregation-assignment', 'congregation-address'] ? 'assignments'
+        : kind == 'smpw-location' ? 'smpw'
+        : kind == 'south-dtc-rail-connection' ? 'rail'
+        : kind == '' ? 'busAccess' : '';
+    }
+    function sameType() {
+      return resource.data.get('recordType', '') == request.resource.data.get('recordType', '');
+    }
+    // Successful server read proves these rules are installed. No data is stored here.
+    match /siteAccessCapabilities/v1 { allow get: if true; }
+    match /halls/{hallId} {
+      allow read: if true;
+      allow create: if isOwner() || canEdit(hallSection(request.resource.data));
+      allow update: if isOwner() || (sameType() && canEdit(hallSection(resource.data)));
+      allow delete: if isOwner() || canEdit(hallSection(resource.data));
+    }
+    match /reviews/{reviewId} {
+      allow get: if isOwner()
+        || (verified() && reviewId == policyKey())
+        || (!reserved(reviewId) && ((resource == null && canView('busAccess'))
+          || (resource != null && canView(reviewSection(resource.data)))));
+      // Clients must query only record types that their account can read.
+      allow list: if isOwner() || canView(reviewSection(resource.data));
+      allow create: if isOwner() || (!reserved(reviewId) && canEdit(reviewSection(request.resource.data)));
+      allow update: if isOwner() || (!reserved(reviewId) && sameType() && canEdit(reviewSection(resource.data)));
+      allow delete: if isOwner() || (!reserved(reviewId) && canEdit(reviewSection(resource.data)));
+    }
+  }
+}

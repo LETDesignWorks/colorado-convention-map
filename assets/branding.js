@@ -1,6 +1,7 @@
+import {mountSiteNavigation} from './site-navigation.mjs?v=access-20261114-1';
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
-import './denver-2027-circular-nav.js?v=sitewide-circles-20260926-2';
+import './denver-2027-circular-nav.js?v=access-20261114-1';
 import './bus-access-status-sync.js?v=congregation-homes-20261113-1';
 import './location-address-autofill.js?v=20260910-3';
 
@@ -188,6 +189,7 @@ function applyDenver2027Branding() {
   addRushHourLink();
   addFieldServiceRoutesLink();
   addMapLogo();
+  mountSiteNavigation();
 }
 
 function addActivityPlanningLink() {
@@ -269,4 +271,5 @@ if (document.readyState === 'loading') {
 } else {
   applyDenver2027Branding();
 }
+
 

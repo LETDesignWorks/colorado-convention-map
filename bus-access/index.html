@@ -11,7 +11,8 @@
 <link href="../apple-touch-icon.png" rel="apple-touch-icon"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link href="styles.css?v=photo-coverage-20261110-1" rel="stylesheet"/>
-<script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
+<script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
 </head>
 <body>
 <div class="app">
@@ -28,7 +29,7 @@
       <a class="btn primary" href="../team/">Team Assignments</a>
       <button class="btn secondary admin-add" hidden id="addLocationButton" type="button">＋ Add Location</button>
       <button class="btn secondary" hidden id="locationPresentationButton" type="button">Create locations PowerPoint</button>
-      <button class="btn primary" id="loginButton" type="button">Administrator Sign In</button>
+      <button class="btn primary" id="loginButton" type="button">Sign In</button>
       <button class="btn secondary" hidden id="signOutButton" type="button">Sign Out</button>
     </div>
   </div>
@@ -79,7 +80,7 @@
 
 <div aria-labelledby="loginTitle" aria-modal="true" class="modal" id="loginModal" role="dialog">
   <div class="modal-card">
-    <h2 id="loginTitle">Administrator Sign In</h2>
+    <h2 id="loginTitle">Sign In</h2>
     <p>Only the approved transportation administrator can save reviews or add locations. The public does not need to sign in to view the map.</p>
     <form id="loginForm">
       <div class="field"><label for="loginEmail">Email</label><input autocomplete="username" id="loginEmail" required type="email" value="michaeltarin@hotmail.com"/></div>
@@ -152,7 +153,8 @@
 </div>
 
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
-<script src="app.js?v=planning-20261113-1" type="module"></script>
+<script src="app.js?v=access-20261114-1" type="module"></script>
 </body>
 </html>
+
 

@@ -1,10 +1,11 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
   signOut, onAuthStateChanged, sendPasswordResetEmail
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import {
-  getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
+  getFirestore, query, where, collection, doc, onSnapshot, setDoc, deleteDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=pin-audit-20261108-1';
 import { HOTELS } from './hotels.js';
@@ -62,7 +63,7 @@ for(const id of ['tripPurpose','tripScope','rtdSetup','stationAdvice','stationEd
 function escapeHtml(value=''){return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function clean(value=''){return String(value??'').trim();}
 function numberValue(value,fallback=0){const n=Number(value);return Number.isFinite(n)?Math.max(0,n):fallback;}
-function isAdmin(){return currentUser?.email?.toLowerCase()===ADMIN_EMAIL;}
+function isAdmin() { return canEdit('routes'); }
 function toast(message,error=false){els.toast.textContent=message;els.toast.className='toast show'+(error?' error':'');clearTimeout(els.toast._timer);els.toast._timer=setTimeout(()=>els.toast.className='toast',3600);}
 function friendlyError(error){const code=error?.code||'';if(code.includes('invalid-credential'))return'The email or password is not correct.';if(code.includes('permission-denied'))return'Firebase denied this action. Confirm the administrator sign-in and Firestore rules.';if(code.includes('network-request-failed')||code.includes('unavailable'))return'The network or service is temporarily unavailable.';if(code.includes('unauthorized-domain'))return'Add letdesignworks.github.io to Firebase Authentication authorized domains.';return error?.message?.replace(/^Firebase:\s*/,'')||'Unknown error';}
 function readCache(){try{return JSON.parse(localStorage.getItem('conventionHotelGeocodes')||'{}');}catch{return{};}}
@@ -238,12 +239,12 @@ async function saveRoute(){
   finally{button.disabled=false;updateSaveButton();}
 }
 function subscribeSavedRoutes(){
-  if(savedRoutesUnsub){savedRoutesUnsub();savedRoutesUnsub=null;}savedRoutes=[];cloudStations=[];rebuildLocations();renderSavedRoutes();if(!isAdmin())return;
+  if(savedRoutesUnsub){savedRoutesUnsub();savedRoutesUnsub=null;}savedRoutes=[];cloudStations=[];rebuildLocations();renderSavedRoutes();if(!canView('routes'))return;
   els.savedRouteStatus.textContent='Loading saved routes…';
-  savedRoutesUnsub=onSnapshot(collection(db,'reviews'),snapshot=>{savedRoutes=[];cloudStations=[];snapshot.forEach(s=>{const data=s.data();if(data.recordType==='bus-route')savedRoutes.push({id:s.id,...data});if(data.recordType==='rtd-station'){const station=normalizeStation({...data,id:s.id});if(station)cloudStations.push(station);}});rebuildLocations();savedRoutes.sort((a,b)=>String(a.meetingLocal||'').localeCompare(String(b.meetingLocal||'')));renderSavedRoutes();},error=>{els.savedRouteStatus.textContent='Saved routes could not be loaded: '+friendlyError(error);});
+  savedRoutesUnsub=onSnapshot(query(collection(db,'reviews'),where('recordType','in',['bus-route','rtd-station'])),snapshot=>{savedRoutes=[];cloudStations=[];snapshot.forEach(s=>{const data=s.data();if(data.recordType==='bus-route')savedRoutes.push({id:s.id,...data});if(data.recordType==='rtd-station'){const station=normalizeStation({...data,id:s.id});if(station)cloudStations.push(station);}});rebuildLocations();savedRoutes.sort((a,b)=>String(a.meetingLocal||'').localeCompare(String(b.meetingLocal||'')));renderSavedRoutes();},error=>{els.savedRouteStatus.textContent='Saved routes could not be loaded: '+friendlyError(error);});
 }
 function renderSavedRoutes(){
-  if(!isAdmin()){els.savedRouteStatus.textContent='Sign in to view and manage saved routes.';els.savedRoutes.innerHTML='';return;}
+  if(!canView('routes')){els.savedRouteStatus.textContent='Sign in to view and manage saved routes.';els.savedRoutes.innerHTML='';return;}
   if(!savedRoutes.length){els.savedRouteStatus.textContent='No routes have been saved yet.';els.savedRoutes.innerHTML='';return;}
   els.savedRouteStatus.textContent=`${savedRoutes.length} saved route${savedRoutes.length===1?'':'s'}`;
   els.savedRoutes.innerHTML=savedRoutes.map(route=>`<article class="saved-route"><div class="saved-route-head"><div><h3>${escapeHtml(route.routeName||'Saved route')}</h3><p>${escapeHtml(route.hotelName||'Hotel')} → ${escapeHtml(route.destinationName||'Meeting location')}</p></div><strong>${escapeHtml(Number(route.distanceMiles||0).toFixed(1))} mi</strong></div><div class="schedule"><span>Depart ${escapeHtml(formatDateTime(route.departureLocal))}</span><span>Meeting ${escapeHtml(formatDateTime(route.meetingLocal))}</span><span>${escapeHtml(formatMinutes(route.plannedTravelMinutes||route.baseMinutes||0))} planned travel</span></div>${route.notes?`<p>${escapeHtml(route.notes)}</p>`:''}<div class="saved-route-actions"><button class="btn outline" data-load-route="${route.id}" type="button">Load Route</button><button class="btn outline danger" data-delete-route="${route.id}" type="button">Delete</button></div></article>`).join('');
@@ -339,7 +340,7 @@ function renderTravelPlan(plan){
 function openLogin(){els.loginModal.classList.add('open');setTimeout(()=>els.loginPassword.focus(),50);}
 function closeLogin(){els.loginModal.classList.remove('open');}
 els.loginButton.addEventListener('click',openLogin);document.getElementById('cancelLogin').addEventListener('click',closeLogin);els.loginModal.addEventListener('click',event=>{if(event.target===els.loginModal)closeLogin();});
-els.loginForm.addEventListener('submit',async event=>{event.preventDefault();try{await signInWithEmailAndPassword(auth,els.loginEmail.value.trim(),els.loginPassword.value);els.loginPassword.value='';closeLogin();toast('Administrator signed in.');}catch(error){toast(friendlyError(error),true);}});
+els.loginForm.addEventListener('submit',async event=>{event.preventDefault();try{await signInWithEmailAndPassword(auth,els.loginEmail.value.trim(),els.loginPassword.value);els.loginPassword.value='';closeLogin();toast('Signed in.');}catch(error){toast(friendlyError(error),true);}});
 document.getElementById('resetPassword').addEventListener('click',async()=>{try{await sendPasswordResetEmail(auth,els.loginEmail.value.trim()||ADMIN_EMAIL);toast('Password reset email sent.');}catch(error){toast(friendlyError(error),true);}});
 els.signOutButton.addEventListener('click',async()=>{await signOut(auth);toast('Signed out.');});
 els.form.addEventListener('input',invalidateRoute);els.form.addEventListener('change',invalidateRoute);
@@ -356,7 +357,7 @@ if(new URLSearchParams(location.search).get('mode')==='rtd')els.tripPurpose.valu
 handlePurposeChange();
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
-  onAuthStateChanged(auth,user=>{currentUser=user;els.loginButton.hidden=Boolean(user);els.signOutButton.hidden=!user;if(user&&!isAdmin())toast('This account has viewing access only.',true);subscribeSavedRoutes();updateSaveButton();});
+  observeSiteAccess(auth,user=>{currentUser=user;els.loginButton.hidden=Boolean(user);els.signOutButton.hidden=!user;if(user&&!isAdmin())toast('This account has viewing access only.',true);subscribeSavedRoutes();updateSaveButton();});
   onSnapshot(collection(db,'halls'),snapshot=>{publicHallData.clear();snapshot.forEach(s=>publicHallData.set(s.id,s.data()));rebuildLocations();},error=>toast('The saved meeting-location list could not be loaded: '+friendlyError(error),true));
 }catch(error){toast('Firebase could not initialize: '+friendlyError(error),true);}
 updateSaveButton();

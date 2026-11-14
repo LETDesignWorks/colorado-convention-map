@@ -11,7 +11,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="styles.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
+  <script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
 </head>
 <body>
 <div class="app">
@@ -28,7 +29,7 @@
         <a class="btn white" href="../rush-hour/?group=activities">Rush-hour Routes</a>
         <a class="btn ghost" href="../territories/">Territories</a>
         <a class="btn white" href="../bus-access/">Bus Access Review</a>
-        <button class="btn white" id="loginButton" type="button">Administrator Sign In</button>
+        <button class="btn white" id="loginButton" type="button">Sign In</button>
         <button class="btn ghost" id="signOutButton" hidden type="button">Sign Out</button>
       </nav>
     </div>
@@ -220,7 +221,7 @@
 
 <div class="modal" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
   <div class="modal-card">
-    <h2 id="loginTitle">Administrator Sign In</h2>
+    <h2 id="loginTitle">Sign In</h2>
     <p>The activity map and calculator are public. Sign-in is required only to save plans and compare them with saved field-service routes.</p>
     <form id="loginForm">
       <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" autocomplete="username" required type="email" value="michaeltarin@hotmail.com"/></div>
@@ -235,3 +236,4 @@
 <script type="module" src="app.js"></script>
 <script type="module" src="../rush-hour/activity-summary.js?v=rush-20261108-1"></script></body>
 </html>
+

@@ -1,3 +1,4 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -54,7 +55,7 @@ function escapeHtml(value=''){
   return String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
 function clean(value=''){return String(value??'').trim();}
-function isAdmin(){return currentUser?.email?.toLowerCase()===ADMIN_EMAIL;}
+function isAdmin() { return canEdit('routes'); }
 function findHotel(id){return HOTELS.find(h=>h.id===id);}
 function findLocation(id){return locations.find(l=>l.id===String(id));}
 function markerLabel(location){return clean(location.markerLabel||location.number||'M');}
@@ -486,7 +487,7 @@ function statusLabel(status){
 function renderSavedRoutes(){
   const signedOut=document.getElementById('savedRoutesSignedOut');
   const list=document.getElementById('savedRoutesList');
-  if(!isAdmin()){
+  if(!canView('routes')){
     signedOut.hidden=false;list.hidden=true;list.innerHTML='';return;
   }
   signedOut.hidden=true;list.hidden=false;
@@ -507,7 +508,7 @@ function renderSavedRoutes(){
       <div class="saved-route-actions">
         <button class="btn secondary" type="button" data-load-route="${escapeHtml(route.id)}">Load / Edit</button>
         <a class="btn secondary" target="_blank" rel="noopener" href="${mapsDirectionsUrl({address:route.hotelAddress},{address:route.destinationAddress})}">Google Maps</a>
-        <button class="btn secondary" type="button" data-delete-route="${escapeHtml(route.id)}">Delete</button>
+        <button class="btn secondary" type="button" data-delete-route="${escapeHtml(route.id)}" ${isAdmin()?'':'disabled'}>Delete</button>
       </div>
     </article>`;
   }).join('');
@@ -551,7 +552,7 @@ async function removeSavedRoute(id){
 }
 function startSavedRoutesListener(){
   if(savedRoutesUnsubscribe){savedRoutesUnsubscribe();savedRoutesUnsubscribe=null;}
-  if(!isAdmin()){savedRoutes=[];renderSavedRoutes();return;}
+  if(!canView('routes')){savedRoutes=[];renderSavedRoutes();return;}
   const routeQuery=query(collection(db,'reviews'),where('recordType','==','route-plan'));
   savedRoutesUnsubscribe=onSnapshot(routeQuery,snapshot=>{
     savedRoutes=snapshot.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.meetingTimeIso||'').localeCompare(String(b.meetingTimeIso||'')));
@@ -588,7 +589,7 @@ document.getElementById('loginForm').addEventListener('submit',async event=>{
   try{
     await signInWithEmailAndPassword(auth,document.getElementById('loginEmail').value.trim(),document.getElementById('loginPassword').value);
     document.getElementById('loginPassword').value='';
-    closeLogin();toast('Administrator signed in.');
+    closeLogin();toast('Signed in.');
   }catch(error){toast(friendlyError(error),true);}
 });
 document.getElementById('resetPassword').addEventListener('click',async()=>{
@@ -598,7 +599,7 @@ document.getElementById('resetPassword').addEventListener('click',async()=>{
 });
 document.getElementById('signOutButton').addEventListener('click',async()=>{await signOut(auth);toast('Signed out.');});
 
-onAuthStateChanged(auth,user=>{
+observeSiteAccess(auth,user=>{
   currentUser=user;
   document.getElementById('loginButton').hidden=Boolean(user);
   document.getElementById('signOutButton').hidden=!user;

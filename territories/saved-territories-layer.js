@@ -12,7 +12,7 @@ const sourceLabel = version => version.source === 'session' ? 'Current session â
 
 // Viewing stays isolated from the workspace. Only the explicit Edit action may
 // request an editable copy; the host validates it and confirms workspace replacement.
-export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHall, isAdmin, getRecords, getStatus, readSnapshot, readPdf, editTerritory, saveNameChoice, libraryManager, versionPdf, getCongregation = () => '', loadSavedSet, L, turf }) {
+export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHall, isAdmin, canRead = isAdmin, getRecords, getStatus, readSnapshot, readPdf, editTerritory, saveNameChoice, libraryManager, versionPdf, getCongregation = () => '', loadSavedSet, L, turf }) {
   const card = document.getElementById('savedTerritoriesCard');
   if (!card) return;
   const el = id => document.getElementById(id);
@@ -31,7 +31,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
   let libraryBusy = false;
   if (!map.getPane('savedTerritories')) map.createPane('savedTerritories').style.zIndex = '450';
   const versionFor = group => group.versions.find(v => v.id === selectedVersions.get(group.key)) || group.versions[0];
-  const active = () => visible && isAdmin() && String(getHall()?.id ?? '') === hallId;
+  const active = () => visible && canRead() && String(getHall()?.id ?? '') === hallId;
   const pdfView = createSavedPdfView({ isActive: active, readPdf,
     reviewDuplicates: async version => { const checker=globalThis.__denverDuplicateReview;if(!checker?.reviewVersion)throw new Error('The address checker is still loading. Try again.');return checker.reviewVersion(version); },
     buildPdf: (version, progress, options) => versionPdf ? versionPdf(version, progress, options)
@@ -39,7 +39,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
   const revokeUrls = () => pdfView.clear();
 
   function contextChanged() {
-    const nextId = String(getHall()?.id ?? ''), nextAdmin = isAdmin();
+    const nextId = String(getHall()?.id ?? ''), nextAdmin = canRead();
     if (nextId !== hallId || nextAdmin !== signedIn) {
       hideLayer(); hallId = nextId; signedIn = nextAdmin;
       if (autoShow.checked && nextAdmin && nextId) showLayer();
@@ -63,14 +63,14 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
     clearTimeout(sessionRefreshTimer);
     visible = false; epoch++; loadSequence++; loader.cancel(); revokeUrls();
     map.removeLayer(layer); layer.clearLayers(); layers.clear(); drawnVersions.clear();
-    if (!isAdmin()) loader.clearCache?.();
+    if (!canRead()) loader.clearCache?.();
     groups = []; allGroups = []; nameOverrides.clear(); selectedKey = ''; selectedVersions.clear();
     list.replaceChildren(); detail.replaceChildren(); detail.hidden = true; panel.hidden = true;
     hide.hidden = true; show.hidden = false; show.setAttribute('aria-expanded', 'false');
     status.textContent = 'Saved-territory layer hidden. Your current work is unchanged.';
   }
   function showLayer() {
-    if (!isAdmin() || !getHall()?.id) return;
+    if (!canRead() || !getHall()?.id) return;
     hallId = String(getHall().id); signedIn = true; visible = true;
     show.hidden = true; hide.hidden = false; panel.hidden = false; show.setAttribute('aria-expanded', 'true');
     layer.addTo(map); load();
@@ -143,7 +143,7 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
     }));
     detail.querySelectorAll('[data-keep-name]').forEach(button => button.addEventListener('click', async () => {
       const candidate = group.alternatives[Number(button.dataset.keepName)], startingHall = hallId;
-      if (!saveNameChoice || !active()) return;
+      if (!isAdmin() || !saveNameChoice || !active()) return;
       button.disabled = true;
       const message = detail.querySelector('#sameNameChoiceStatus');
       if (message) message.textContent = 'Saving your keep choiceâ€¦';
@@ -214,9 +214,9 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
       ${version.error ? `<p role="alert">This saved version is incomplete: ${esc(version.error)}</p>` : ''}
       ${!layers.has(group.key) ? '<p>This version has no usable boundary to display. Other saved versions remain available above.</p>' : ''}
       <div class="button-row"><button type="button" class="btn outline" id="zoomSavedTerritory"${layers.has(group.key) ? '' : ' disabled'}>Zoom to this version</button><button type="button" class="btn outline" id="openSavedTerritoryPdf"${version.error && !version.pdfRecord ? ' disabled' : ''}>View PDF</button></div>
-      ${editTerritory ? `<button type="button" class="btn primary full" id="editSavedTerritory"${version.error || !version.territory.id || !version.houses.some(h => !h.avoid) ? ' disabled' : ''}>Edit this territory</button><p class="section-copy">Open this version's boundary and addresses for editing. Saving creates an updated plan and PDF; the earlier PDF stays available. You will be asked before replacing work already on the map.</p><p id="savedTerritoryEditMessage" role="status"></p>` : ''}
-      ${libraryManager ? `<div class="button-row"><button class="btn save" id="keepExactVersion" type="button"${version.error ? ' disabled' : ''}>Save this version to keep</button><button class="btn outline" id="deleteOtherVersions" type="button"${group.keptVersionId && group.versions.length > 1 ? '' : ' disabled'}>Delete other versions</button><button class="btn outline" id="deletePreviewVersion" type="button"${group.keptVersionId && group.keptVersionId !== version.id ? '' : ' disabled'}>Delete this previewed version</button>${group.hiddenVersionCount ? '<button class="btn outline" id="restoreLibraryVersions" type="button">Restore removed versions</button>' : ''}</div><p id="libraryVersionStatus" role="status">${group.keptVersionId ? 'Your exact kept version is saved independently. Removing older versions does not delete other territories or the full location plan.' : 'Save the version you want to keep before removing alternatives.'}</p>` : ''}
-      ${sessionManager ? '<div class="button-row"><button type="button" class="btn outline" id="checkTerritoryAddresses">Check boundary addresses</button><button type="button" class="btn outline" id="findTerritoryGisHomes">Find missing assessor / GIS homes</button></div><p id="territoryMembershipStatus" role="status"></p>' : ''}
+      ${editTerritory && isAdmin() ? `<button type="button" class="btn primary full" id="editSavedTerritory"${version.error || !version.territory.id || !version.houses.some(h => !h.avoid) ? ' disabled' : ''}>Edit this territory</button><p class="section-copy">Open this version's boundary and addresses for editing. Saving creates an updated plan and PDF; the earlier PDF stays available. You will be asked before replacing work already on the map.</p><p id="savedTerritoryEditMessage" role="status"></p>` : ''}
+      ${libraryManager && isAdmin() ? `<div class="button-row"><button class="btn save" id="keepExactVersion" type="button"${version.error ? ' disabled' : ''}>Save this version to keep</button><button class="btn outline" id="deleteOtherVersions" type="button"${group.keptVersionId && group.versions.length > 1 ? '' : ' disabled'}>Delete other versions</button><button class="btn outline" id="deletePreviewVersion" type="button"${group.keptVersionId && group.keptVersionId !== version.id ? '' : ' disabled'}>Delete this previewed version</button>${group.hiddenVersionCount ? '<button class="btn outline" id="restoreLibraryVersions" type="button">Restore removed versions</button>' : ''}</div><p id="libraryVersionStatus" role="status">${group.keptVersionId ? 'Your exact kept version is saved independently. Removing older versions does not delete other territories or the full location plan.' : 'Save the version you want to keep before removing alternatives.'}</p>` : ''}
+      ${sessionManager && isAdmin() ? '<div class="button-row"><button type="button" class="btn outline" id="checkTerritoryAddresses">Check boundary addresses</button><button type="button" class="btn outline" id="findTerritoryGisHomes">Find missing assessor / GIS homes</button></div><p id="territoryMembershipStatus" role="status"></p>' : ''}
       <p id="savedTerritoryPdfStatus" role="status"></p><div id="savedTerritoryPdfLinks"></div>
       <button type="button" class="btn save" id="resolveTerritoryPdfDuplicates" hidden>Review and clean duplicates</button>
       <button type="button" class="btn outline" id="createReviewTerritoryPdf" hidden>Create review PDF (duplicates may remain)</button>
@@ -350,3 +350,4 @@ export function mountSavedTerritories({ getWorkspace, sessionManager, map, getHa
 
   contextChanged();
 }
+

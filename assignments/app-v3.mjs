@@ -1,3 +1,4 @@
+import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   getAuth, setPersistence, browserLocalPersistence, signInWithEmailAndPassword,
@@ -107,9 +108,7 @@ function escapeHtml(value = '') {
   }[char]));
 }
 
-function isAdmin() {
-  return currentUser?.email?.toLowerCase() === ADMIN_EMAIL;
-}
+function isAdmin() { return canEdit('assignments'); }
 
 function markerLabel(location) {
   return clean(location.markerLabel || location.number || 'M');
@@ -796,7 +795,7 @@ els.loginForm.addEventListener('submit', async event => {
     await signInWithEmailAndPassword(auth, els.loginEmail.value.trim(), els.loginPassword.value);
     els.loginPassword.value = '';
     closeLogin();
-    toast('Administrator signed in.');
+    toast('Signed in.');
   } catch (error) {
     toast(friendlyError(error), true);
   }
@@ -824,7 +823,7 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   await setPersistence(auth, browserLocalPersistence);
-  onAuthStateChanged(auth, user => {
+  observeSiteAccess(auth, user => {
     currentUser = user;
     updateAuthUi();
   });

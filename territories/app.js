@@ -23,3 +23,4 @@ try {
   const host = document.querySelector('.side-panel') || document.body;
   host.prepend(warning);
 }
+
