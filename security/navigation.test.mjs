@@ -26,3 +26,10 @@ test('territory template navigation is mounted after the asynchronous body repla
  assert.match(read('territories/bootstrap.js'),/app-main\.js\?v=access-20261114-1/);
  dom.window.close();
 });
+test('selected meeting context and page-specific controls survive navigation updates',()=>{
+ const dom=new JSDOM('<header><nav class="actions"><a href="../activity-planning/?hall=14">Activity Planning</a><button id="signOut">Sign out</button></nav></header>',{url:'https://letdesignworks.github.io/colorado-convention-map/territories/',runScripts:'outside-only'});
+ const context=dom.getInternalVMContext();vm.runInContext(moduleSource,context);vm.runInContext('mountSiteNavigation()',context);
+ assert.equal(new URL(dom.window.document.querySelector('[data-site-tab="activity-planning/"]').href).searchParams.get('hall'),'14');
+ assert.equal(dom.window.document.querySelectorAll('#signOut').length,1);
+ dom.window.close();
+});
