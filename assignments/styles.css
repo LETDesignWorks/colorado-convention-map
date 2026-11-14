@@ -148,3 +148,13 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 .congregation-main{min-width:0;overflow-wrap:anywhere}.congregation-name{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:560px){.congregation-row{grid-template-columns:24px minmax(0,1fr);min-width:0}.assignment-status{overflow-wrap:anywhere}}
 @media(max-width:820px){.map-area{height:auto;min-height:0;padding-top:420px}#map{height:420px;bottom:auto}.map-legend{position:relative;top:auto;right:auto;max-width:none;margin:8px;grid-template-columns:1fr 1fr}.map-legend>strong{grid-column:1/-1}.map-note{position:static;max-width:none;margin:8px}}
+
+/* Address search suggestions and explicit map pin selection */
+.address-result{border:1px solid #cbd6e1;border-radius:9px;background:#f6f9fc;padding:11px;overflow-wrap:anywhere}
+.address-result strong{display:block;font-size:13px;line-height:1.4;color:var(--navy)}
+.address-result p{font-size:12px;line-height:1.5;color:#516477;margin:6px 0 9px}
+.address-result-actions,.pin-editor-actions{display:flex;flex-wrap:wrap;gap:7px}
+.address-result-actions .btn,.pin-editor-actions .btn{white-space:normal;min-height:40px}
+.pin-editor-actions{margin-top:9px}.pin-editor-title{font-size:14px;color:var(--navy);margin:18px 0 5px}
+#addressPreview{height:290px}
+@media(max-width:560px){.address-result-actions .btn,.pin-editor-actions .btn{flex:1 1 100%}#addressPreview{height:260px}}

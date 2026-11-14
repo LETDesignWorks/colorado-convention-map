@@ -1,4 +1,4 @@
-import {addressKey,validPoint,distanceMiles,findAddress} from './location-model.mjs?v=homes-20261113-1';
+import {addressKey,validPoint,distanceMiles,findAddress} from './location-model.mjs?v=address-help-20261114-1';
 
 const aliases={colorado:'co',wyoming:'wy',nebraska:'ne','south dakota':'sd',kansas:'ks','new mexico':'nm',utah:'ut',arizona:'az',montana:'mt',oklahoma:'ok',texas:'tx',california:'ca',parkway:'pkwy',lane:'ln',place:'pl',terrace:'ter',highway:'hwy'};
 function normalized(value){
@@ -8,7 +8,7 @@ export function matchingAddressPin(query,candidates){
   const wanted=normalized(query),hasZip=/\b\d{5}$/.test(wanted);
   if(!/^\d+[a-z]?\s/.test(wanted))return null;
   const matches=candidates.filter(p=>{
-    if(!validPoint(p.lat,p.lng))return false;
+    if(p.approximate||!validPoint(p.lat,p.lng))return false;
     let address=normalized(p.address);
     if(!hasZip)address=address.replace(/\s\d{5}$/,'');
     return wanted===address;

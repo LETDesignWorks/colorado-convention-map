@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=homes-20261113-2"/>
+<link rel="stylesheet" href="styles.css?v=address-help-20261114-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=planning-20261113-1"></script>
 </head>
@@ -186,19 +186,23 @@
     <form id="addressForm">
       <div class="field"><label for="addressKnown">Use an existing hall address</label><select id="addressKnown"><option value="">Choose a hall, or enter an address below</option></select></div>
       <div class="field"><label for="homeAddress">Congregation meeting address</label><input id="homeAddress" maxlength="250" autocomplete="street-address" placeholder="Street address, city, state and ZIP"></div>
-      <p class="intro-copy">Use the congregation's meeting address. An empty address stays flagged as missing. The map pin is found automatically as you enter a complete address, using existing hall locations or Photon / OpenStreetMap.</p>
-      <button class="btn outline" id="findHomeAddress" type="button">Find address</button>
-      <div id="addressMatches" class="address-matches"></div>
-      <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
-      <p class="intro-copy">A matching address is pinned automatically. Drag the pin to adjust it, or click the map to place it yourself. If lookup cannot find an exact match, choose a result or save without a pin for later.</p>
+      <p class="intro-copy">Enter the meeting address. If it cannot be found, try the street and city or a nearby landmark, then place the pin on the building.</p>
+      <button class="btn outline" id="findHomeAddress" type="button">Find address &amp; suggestions</button>
+      <div id="addressMatches" class="address-matches" aria-live="polite"></div>
+      <h3 class="pin-editor-title">Choose the building on the map</h3>
+      <p class="intro-copy">Click the building to place a pin, or drag an existing pin. You can also zoom in, center the building, and choose <strong>Pin map center</strong>.</p>
       <div id="addressPreview" aria-label="Address pin preview"></div>
+      <div class="pin-editor-actions"><button class="btn outline" id="pinMapCenter" type="button">Pin map center</button><button class="btn outline" id="suggestPinAddress" type="button">Suggest address for pin</button></div>
+      <p id="nearbyAddressStatus" class="intro-copy" role="status"></p>
+      <div id="nearbyAddressMatches" class="address-matches"></div>
+      <p class="intro-copy">Placing or moving a pin looks for a nearby address. Review the suggestion before using it. Your pin stays where you placed it, and nothing is saved until you choose <strong>Save address</strong>. Lookup: Photon / OpenStreetMap.</p>
+      <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude (optional)</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude (optional)</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
       <p id="addressEditorStatus" role="status"></p>
       <div class="button-row"><button class="btn outline" id="cancelAddress" type="button">Cancel</button><button class="btn outline" id="saveWithoutPin" type="button" hidden>Save without pin</button><button class="btn primary" id="saveHomeAddress" type="submit">Save address</button></div>
     </form>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=auto-pin-20261114-1"></script>
+<script type="module" src="app-v3.mjs?v=address-help-20261114-1"></script>
 </body>
 </html>
-

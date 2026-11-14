@@ -24,11 +24,49 @@ export function addressPayload(congregation,address,lat,lng){
   if(hasLat!==hasLng||((hasLat||hasLng)&&!validPoint(lat,lng)))throw Error('Enter both a valid latitude and longitude, or leave both blank.');
   return {recordType:'congregation-address',congregationId:congregation.id,congregationName:congregation.name,homeAddress,lat:homeAddress&&hasLat?Number(lat):null,lng:homeAddress&&hasLng?Number(lng):null,addressNeedsReview:false};
 }
-export function addressCandidates(data){return (data?.features||[]).flatMap(f=>{const p=f.properties||{},[lng,lat]=f.geometry?.coordinates||[];if(!validPoint(lat,lng)||p.countrycode!=='US'||!p.housenumber||!p.street)return [];const address=[p.housenumber+' '+p.street,p.city||p.town||p.village,p.state,p.postcode].filter(Boolean).join(', ');return [{address,lat,lng}];});}
+export function addressCandidates(data){
+  const seen=new Set();
+  return (data?.features||[]).flatMap(f=>{
+    const p=f.properties||{},[lng,lat]=f.geometry?.coordinates||[];
+    if(!validPoint(lat,lng)||clean(p.countrycode).toUpperCase()!=='US')return [];
+    const full=Boolean(p.housenumber&&p.street);
+    const street=p.street||((p.type==='street'||p.osm_key==='highway')?p.name:'');
+    const kind=full?'address':street?'street':'area';
+    const first=full?p.housenumber+' '+p.street:p.name||street;
+    const address=[...new Set([first,street&&street!==first&&!full?street:'',p.city||p.town||p.village||p.locality||p.district||p.county,p.state,p.postcode].filter(Boolean))].join(', ');
+    if(!address)return [];
+    const key=addressKey(address)+':'+Number(lat).toFixed(5)+':'+Number(lng).toFixed(5);
+    if(seen.has(key))return [];seen.add(key);
+    return [{address,lat:Number(lat),lng:Number(lng),kind,name:clean(p.name),approximate:!full}];
+  });
+}
 export async function findAddress(query,{signal,fetcher=globalThis.fetch}={}){
-  if(clean(query).length<5)throw Error('Enter the street address, city and state first.');
-  const u=new URL('https://photon.komoot.io/api/');u.search=new URLSearchParams({q:clean(query),limit:'6',lang:'en',lat:'39.7392',lon:'-104.9903'}).toString();
-  const response=await fetcher(u,{signal});if(!response.ok)throw Error('The address lookup is unavailable. Try again or enter coordinates.');const candidates=addressCandidates(await response.json());if(!candidates.length)throw Error('No exact street-number match found. Check the address or enter latitude and longitude. You can still save the address for later.');return candidates;
+  const text=clean(query);
+  if(text.length<5)throw Error('Enter an address, street and city, or nearby place.');
+  const search=async q=>{
+    const u=new URL('https://photon.komoot.io/api/');
+    u.search=new URLSearchParams({q,limit:'8',lang:'en',countrycode:'US',lat:'39.7392',lon:'-104.9903'}).toString();
+    const response=await fetcher(u,{signal});
+    if(!response.ok)throw Error('The address lookup is unavailable.');
+    return addressCandidates(await response.json());
+  };
+  let candidates=await search(text);
+  // A missing house number in the source should still let someone locate the street.
+  const streetQuery=text.replace(/^\d+[a-z]?(?:-\d+)?\s+/i,'');
+  if(!candidates.length&&streetQuery!==text&&streetQuery.length>=5)candidates=await search(streetQuery);
+  if(!candidates.length)throw Error('No matching location found. Try the street and city, or a nearby landmark.');
+  return candidates;
+}
+export async function nearbyAddresses(point,{signal,fetcher=globalThis.fetch}={}){
+  if(!validPoint(point.lat,point.lng))throw Error('Place a map pin first.');
+  const u=new URL('https://photon.komoot.io/reverse');
+  u.search=new URLSearchParams({lat:String(point.lat),lon:String(point.lng),radius:'0.15',limit:'4',lang:'en'}).toString();
+  const response=await fetcher(u,{signal});
+  if(!response.ok)throw Error('Nearby address suggestions are unavailable.');
+  return addressCandidates(await response.json())
+    .map(p=>({...p,miles:distanceMiles(point,p)}))
+    .filter(p=>p.miles<=.15/1.609344)
+    .sort((a,b)=>a.miles-b.miles);
 }
 
 export function rankCongregations(congregations,point,resolve){

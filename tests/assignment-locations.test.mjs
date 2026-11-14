@@ -29,9 +29,9 @@ test('address writes cannot replace assignment fields and missing values remain 
  const p=addressPayload(c,'',39.7,-104.9);assert.equal(p.lat,null);assert.equal(p.homeAddress,'');assert.equal(p.recordType,'congregation-address');assert.equal(p.meetingPointId,undefined);
  assert.throws(()=>addressPayload(c,c.homeAddress,39.7,''));assert.throws(()=>addressPayload(c,c.homeAddress,95,0));assert.equal(addressPayload(c,c.homeAddress,'','').lat,null);
 });
-test('address lookup rejects street-only and wrong-country matches',()=>{
+test('address lookup labels street-only suggestions and rejects wrong-country matches',()=>{
  const f={properties:{housenumber:'123',street:'Main St',city:'Denver',countrycode:'US',state:'Colorado'},geometry:{coordinates:[-104.9,39.7]}};
- assert.equal(addressCandidates({features:[f]}).length,1);assert.equal(addressCandidates({features:[{...f,properties:{...f.properties,housenumber:null}}]}).length,0);assert.equal(addressCandidates({features:[{...f,properties:{...f.properties,countrycode:'CA'}}]}).length,0);
+ assert.equal(addressCandidates({features:[f]}).length,1);assert.equal(addressCandidates({features:[{...f,properties:{...f.properties,housenumber:null}}]})[0].approximate,true);assert.equal(addressCandidates({features:[{...f,properties:{...f.properties,countrycode:'CA'}}]}).length,0);
 });
 test('supplemental address points remain tied to source address and require valid coordinates',()=>{
  assert.equal(HOME_POINTS.length,14);for(const p of HOME_POINTS){assert.ok(validPoint(p.lat,p.lng));assert.ok(p.address);assert.ok(p.source);}
