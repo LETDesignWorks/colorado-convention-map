@@ -186,19 +186,19 @@
     <form id="addressForm">
       <div class="field"><label for="addressKnown">Use an existing hall address</label><select id="addressKnown"><option value="">Choose a hall, or enter an address below</option></select></div>
       <div class="field"><label for="homeAddress">Congregation meeting address</label><input id="homeAddress" maxlength="250" autocomplete="street-address" placeholder="Street address, city, state and ZIP"></div>
-      <p class="intro-copy">Use the congregation's meeting address. An empty address stays flagged as missing. Address lookup uses Photon / OpenStreetMap when you click Find address.</p>
+      <p class="intro-copy">Use the congregation's meeting address. An empty address stays flagged as missing. The map pin is found automatically as you enter a complete address, using existing hall locations or Photon / OpenStreetMap.</p>
       <button class="btn outline" id="findHomeAddress" type="button">Find address</button>
       <div id="addressMatches" class="address-matches"></div>
       <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
-      <p class="intro-copy">Choose a matching result, click the map to place a pin, or enter coordinates. Drag the pin to correct its location. Leave both coordinates empty to save an address that still needs a pin.</p>
+      <p class="intro-copy">A matching address is pinned automatically. Drag the pin to adjust it, or click the map to place it yourself. If lookup cannot find an exact match, choose a result or save without a pin for later.</p>
       <div id="addressPreview" aria-label="Address pin preview"></div>
       <p id="addressEditorStatus" role="status"></p>
-      <div class="button-row"><button class="btn outline" id="cancelAddress" type="button">Cancel</button><button class="btn primary" id="saveHomeAddress" type="submit">Save address</button></div>
+      <div class="button-row"><button class="btn outline" id="cancelAddress" type="button">Cancel</button><button class="btn outline" id="saveWithoutPin" type="button" hidden>Save without pin</button><button class="btn primary" id="saveHomeAddress" type="submit">Save address</button></div>
     </form>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=homes-20261113-1"></script>
+<script type="module" src="app-v3.mjs?v=auto-pin-20261114-1"></script>
 </body>
 </html>
 

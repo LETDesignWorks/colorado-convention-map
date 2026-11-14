@@ -1,10 +1,11 @@
-import {validPoint,suggestionsFor,groupHomes,findAddress} from './location-model.mjs?v=homes-20261113-1';
+import {validPoint,suggestionsFor,groupHomes} from './location-model.mjs?v=homes-20261113-1';
+import {resolveAddressPin} from './address-pin.mjs?v=auto-pin-20261114-1';
 
 export function initCongregationLocations(ctx){
   const {map,congregations,source,resolveHome,isAdmin,escapeHtml:esc}=ctx,$=id=>document.getElementById(id);
   const labels={mapped:'Address mapped',missing:'Missing address','pin-needed':'Address needs map pin',review:'Address needs review'};
   const homesLayer=map?L.layerGroup().addTo(map):null,linesLayer=map?L.layerGroup().addTo(map):null;
-  let selectedId='',draftPoint='',savedPoint='',savingAssignment=false,editor=null,editorMap,editorMarker,lookupAbort,lookupSequence=0,editorSaving=false;
+  let selectedId='',draftPoint='',savedPoint='',savingAssignment=false,editor=null,editorMap,editorMarker,lookupAbort,lookupSequence=0,editorSaving=false,lookupTimer,lookupTask=null,pinSource='';
   $('directorySource').textContent=`${source.spreadsheetCount} congregations from ${source.file} · ${source.retainedCount} existing entries retained · ${congregations.length} total.`;
   const congregationById=id=>congregations.find(c=>c.id===id);
   const pointLabel=p=>`${p.markerLabel||p.number||'M'} — ${p.name}`;
@@ -20,7 +21,7 @@ export function initCongregationLocations(ctx){
     homesLayer.clearLayers();
     const selectedIds=ctx.getSelected(),meeting=ctx.getMeetingPoint();
     const visible=new Map(ctx.getVisible().map(c=>[c.id,c]));
-    for(const c of congregations)if(selectedIds.has(c.id)||(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting))visible.set(c.id,c);
+    for(const c of congregations)if(c.id===selectedId||selectedIds.has(c.id)||(meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting))visible.set(c.id,c);
     for(const group of groupHomes([...visible.values()],resolveHome)){
       const active=group.congregations.some(c=>c.id===selectedId),checked=group.congregations.filter(c=>selectedIds.has(c.id)).length,assigned=group.congregations.filter(c=>meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting).length,over=group.congregations.every(c=>ctx.driveState(c,meeting).status==='over');
       const icon=L.divIcon({className:'',html:`<div class="congregation-pin${active?' active':''}${checked?' checked':''}${assigned?' saved-here':''}${over?' over-limit':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg><b>${group.congregations.length}</b>${checked?`<span class="selection-badge">✓${checked}</span>`:assigned?`<span class="assigned-badge">✓${assigned}</span>`:''}</div>`,iconSize:[46,28],iconAnchor:[-8,14]});
@@ -91,17 +92,17 @@ export function initCongregationLocations(ctx){
   }
   $('showAllHomes').addEventListener('click',fitAll);
   const modal=$('addressModal');
-  function cancelLookup(){lookupSequence++;lookupAbort?.abort();$('findHomeAddress').disabled=false;}
+  function cancelLookup(){lookupSequence++;clearTimeout(lookupTimer);lookupAbort?.abort();lookupTask=null;$('findHomeAddress').disabled=editorSaving;}
   function edit(id){
     if(!isAdmin()){ctx.openLogin();return;}
     if(!ctx.isReady()){ctx.toast('Wait for shared address information before editing.',true);return;}
     const c=congregationById(id);if(!c)return;
-    const home=resolveHome(c);editor={congregation:c,version:ctx.getProfile(id)?.addressVersion||0};cancelLookup();
+    const home=resolveHome(c);editor={congregation:c,version:ctx.getProfile(id)?.addressVersion||0};cancelLookup();pinSource=ctx.getProfile(id)?.pinSource||'';$('saveWithoutPin').hidden=true;
     $('addressCongregation').textContent=c.name;$('homeAddress').value=home.address;$('homeLat').value=home.point?.lat??'';$('homeLng').value=home.point?.lng??'';$('addressMatches').replaceChildren();$('addressEditorStatus').textContent='';
     const addresses=new Map();for(const location of ctx.getLocations())if(location.address)addresses.set(location.address,location);
     $('addressKnown').innerHTML='<option value="">Choose a hall, or enter an address below</option>'+[...addresses.values()].map(p=>`<option value="${esc(p.id)}">${esc(pointLabel(p))} · ${esc(p.address)}</option>`).join('');
     modal.classList.add('open');$('homeAddress').focus();
-    if(!editorMap&&globalThis.L){editorMap=L.map('addressPreview').setView([39.74,-104.99],10);editorMap.on('click',event=>{if(editorSaving||!$('homeAddress').value.trim())return;$('homeLat').value=event.latlng.lat.toFixed(7);$('homeLng').value=event.latlng.lng.toFixed(7);previewPin();$('addressEditorStatus').textContent='Pin placed. Check the location, then save.';});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(editorMap);}
+    if(!editorMap&&globalThis.L){editorMap=L.map('addressPreview').setView([39.74,-104.99],10);editorMap.on('click',event=>{if(editorSaving||!$('homeAddress').value.trim())return;cancelLookup();pinSource='Administrator-confirmed address pin';$('homeLat').value=event.latlng.lat.toFixed(7);$('homeLng').value=event.latlng.lng.toFixed(7);previewPin();$('addressEditorStatus').textContent='Pin placed. Check the location, then save.';});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(editorMap);}
     if(editorMap){editorMap.invalidateSize();previewPin();}
   }
   function closeEditor(){if(editorSaving)return;cancelLookup();modal.classList.remove('open');editor=null;}
@@ -109,26 +110,84 @@ export function initCongregationLocations(ctx){
     if(!editorMap)return;if(editorMarker){editorMap.removeLayer(editorMarker);editorMarker=null;}
     if(!validPoint($('homeLat').value,$('homeLng').value))return;
     editorMarker=L.marker([Number($('homeLat').value),Number($('homeLng').value)],{draggable:true}).addTo(editorMap);editorMap.setView(editorMarker.getLatLng(),16);
-    editorMarker.on('dragend',()=>{const p=editorMarker.getLatLng();$('homeLat').value=p.lat.toFixed(7);$('homeLng').value=p.lng.toFixed(7);$('addressEditorStatus').textContent='Pin adjusted. Save address to keep this change.';});
+    editorMarker.on('dragend',()=>{if(editorSaving)return;cancelLookup();pinSource='Administrator-confirmed address pin';const p=editorMarker.getLatLng();$('homeLat').value=p.lat.toFixed(7);$('homeLng').value=p.lng.toFixed(7);$('addressEditorStatus').textContent='Pin adjusted. Save address to keep this change.';});
   }
-  $('addressKnown').addEventListener('change',()=>{const p=ctx.getLocations().find(p=>p.id===$('addressKnown').value);if(!p)return;cancelLookup();$('homeAddress').value=p.address;$('homeLat').value=p.lat;$('homeLng').value=p.lng;$('addressMatches').replaceChildren();$('addressEditorStatus').textContent='Existing hall address and pin selected.';previewPin();});
-  $('homeAddress').addEventListener('input',()=>{cancelLookup();$('homeLat').value='';$('homeLng').value='';$('addressKnown').value='';$('addressMatches').replaceChildren();$('addressEditorStatus').textContent='Address changed. Find its location again or leave it flagged for a map pin.';previewPin();});
-  for(const id of ['homeLat','homeLng'])$(id).addEventListener('change',previewPin);
-  $('findHomeAddress').addEventListener('click',async()=>{
-    cancelLookup();const sequence=lookupSequence,query=$('homeAddress').value;lookupAbort=new AbortController();const timeout=setTimeout(()=>lookupAbort.abort(),18000);$('findHomeAddress').disabled=true;$('addressEditorStatus').textContent='Finding matching street addresses…';$('addressMatches').replaceChildren();
-    try{const results=await findAddress(query,{signal:lookupAbort.signal});if(sequence!==lookupSequence||!editor)return;
-      for(const p of results){const b=document.createElement('button');b.type='button';b.className='btn outline';b.textContent=p.address;b.addEventListener('click',()=>{$('homeAddress').value=p.address;$('homeLat').value=p.lat;$('homeLng').value=p.lng;$('addressMatches').replaceChildren();$('addressEditorStatus').textContent='Check the address and pin, then save.';previewPin();});$('addressMatches').append(b);}
-      $('addressEditorStatus').textContent='Choose the matching address. Confirm the street number and city.';
-    }catch(error){if(sequence===lookupSequence)$('addressEditorStatus').textContent=error.name==='AbortError'?'Address lookup timed out. Try again or enter coordinates.':error.message;}finally{clearTimeout(timeout);if(sequence===lookupSequence)$('findHomeAddress').disabled=false;}
+  $('addressKnown').addEventListener('change',()=>{const p=ctx.getLocations().find(p=>p.id===$('addressKnown').value);if(!p)return;cancelLookup();pinSource='Existing hall address pin';$('saveWithoutPin').hidden=true;$('homeAddress').value=p.address;$('homeLat').value=p.lat;$('homeLng').value=p.lng;$('addressMatches').replaceChildren();$('addressEditorStatus').textContent='Existing hall address and pin selected.';previewPin();});
+  function placeResult(p,source){
+    $('homeLat').value=p.lat;$('homeLng').value=p.lng;pinSource=source;
+    $('addressMatches').replaceChildren();$('saveWithoutPin').hidden=true;previewPin();
+    $('addressEditorStatus').textContent='Map pin found automatically. Save address to add it to the congregation map. You can drag the pin to adjust it.';
+  }
+  function lookupAddress(){
+    if(!editor)return Promise.resolve(false);
+    const query=$('homeAddress').value.trim();
+    if(query.length<5)return Promise.resolve(false);
+    if(lookupTask?.query===query)return lookupTask.promise;
+    cancelLookup();
+    const sequence=lookupSequence,controller=new AbortController();lookupAbort=controller;
+    const timeout=setTimeout(()=>controller.abort(),18000);
+    $('findHomeAddress').disabled=true;$('addressMatches').replaceChildren();
+    $('addressEditorStatus').textContent='Finding and placing the address pin…';
+    const promise=(async()=>{
+      try{
+        const result=await resolveAddressPin(query,ctx.getAddressPoints(),{signal:controller.signal});
+        if(sequence!==lookupSequence||!editor||$('homeAddress').value.trim()!==query)return false;
+        if(result.pin){placeResult(result.pin,result.source);return true;}
+        for(const p of result.candidates){
+          const b=document.createElement('button');b.type='button';b.className='btn outline';b.textContent=p.address;
+          b.addEventListener('click',()=>{
+            cancelLookup();$('homeAddress').value=p.address;placeResult(p,'Administrator-selected address lookup result');
+            $('addressEditorStatus').textContent='Address selected. Save to add this pin to the congregation map.';
+          });$('addressMatches').append(b);
+        }
+        $('saveWithoutPin').hidden=false;
+        $('addressEditorStatus').textContent='No single exact match. Choose the correct address below, place a pin on the map, or save without a pin for later.';
+        return false;
+      }catch(error){
+        if(sequence===lookupSequence&&editor){
+          $('saveWithoutPin').hidden=false;
+          $('addressEditorStatus').textContent=(error.name==='AbortError'?'Address lookup timed out.':error.message)+' You can retry, place a pin manually, or save without a pin.';
+        }
+        return false;
+      }finally{clearTimeout(timeout);if(sequence===lookupSequence){lookupTask=null;$('findHomeAddress').disabled=editorSaving;}}
+    })();
+    lookupTask={query,promise};return promise;
+  }
+  $('homeAddress').addEventListener('input',()=>{
+    cancelLookup();pinSource='';$('homeLat').value='';$('homeLng').value='';$('addressKnown').value='';
+    $('addressMatches').replaceChildren();$('saveWithoutPin').hidden=true;
+    $('addressEditorStatus').textContent='Enter the full street address, city and state. Its map pin will be found automatically.';
+    previewPin();
+    if($('homeAddress').value.trim().length>=12)lookupTimer=setTimeout(()=>void lookupAddress(),900);
   });
-  $('addressForm').addEventListener('submit',async event=>{
-    event.preventDefault();if(!editor||editorSaving)return;
-    const current=editor,values={address:$('homeAddress').value,lat:$('homeLat').value,lng:$('homeLng').value};cancelLookup();editorSaving=true;
-    const controls=[...$('addressForm').querySelectorAll('button,input,select')];controls.forEach(e=>e.disabled=true);$('addressEditorStatus').textContent='Saving shared address…';
-    try{await ctx.saveAddress(current.congregation,values,current.version);editorSaving=false;closeEditor();select(current.congregation.id,false);ctx.toast('Address saved. The meeting-point assignment was kept.');}
-    catch(error){$('addressEditorStatus').textContent=error.message;}
-    finally{editorSaving=false;controls.forEach(e=>e.disabled=false);}
+  for(const id of ['homeLat','homeLng'])$(id).addEventListener('input',()=>{
+    cancelLookup();pinSource='Administrator-confirmed address pin';$('addressMatches').replaceChildren();previewPin();
   });
+  $('findHomeAddress').addEventListener('click',()=>{cancelLookup();void lookupAddress();});
+  async function saveEditor(withoutPin=false){
+    if(!editor||editorSaving)return;
+    const current=editor;clearTimeout(lookupTimer);editorSaving=true;
+    const controls=[...$('addressForm').querySelectorAll('button,input,select')];controls.forEach(e=>e.disabled=true);
+    editorMarker?.dragging?.disable();
+    try{
+      if(!withoutPin&&$('homeAddress').value.trim()&&!$('homeLat').value.trim()&&!$('homeLng').value.trim()){
+        const matched=await lookupAddress();
+        if(!matched)return;
+      }else cancelLookup();
+      const values={address:$('homeAddress').value,lat:withoutPin?'':$('homeLat').value,lng:withoutPin?'':$('homeLng').value,pinSource};
+      $('addressEditorStatus').textContent='Saving shared address and map pin…';
+      await ctx.saveAddress(current.congregation,values,current.version);
+      editorSaving=false;closeEditor();select(current.congregation.id,true);
+      if(map&&validPoint(values.lat,values.lng)&&values.address.trim()){
+        map.setView([Number(values.lat),Number(values.lng)],15);
+        $('map').scrollIntoView({behavior:'smooth',block:'center'});
+        ctx.toast('Address saved and pinned on the map. The meeting-point assignment was kept.');
+      }else ctx.toast('Address saved. It is flagged until a map pin is added.');
+    }catch(error){$('addressEditorStatus').textContent=error.message;}
+    finally{editorSaving=false;controls.forEach(e=>e.disabled=false);editorMarker?.dragging?.enable();}
+  }
+  $('addressForm').addEventListener('submit',event=>{event.preventDefault();void saveEditor();});
+  $('saveWithoutPin').addEventListener('click',()=>void saveEditor(true));
   $('cancelAddress').addEventListener('click',closeEditor);modal.addEventListener('click',e=>{if(e.target===modal)closeEditor();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   // Initial fit includes homes outside the original DTC planning boundary.

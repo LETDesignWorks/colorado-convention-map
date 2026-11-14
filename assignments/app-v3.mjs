@@ -10,7 +10,7 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=homes-20261113-1';
-import {initCongregationLocations} from './location-ui.mjs?v=homes-20261113-1';
+import {initCongregationLocations} from './location-ui.mjs?v=auto-pin-20261114-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';
@@ -766,7 +766,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:filteredCongregations,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,driveState,loadDrives,saveAddress,saveAssignment,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:filteredCongregations,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,driveState,loadDrives,saveAddress,saveAssignment,escapeHtml,toast,selectMeetingPoint});
 populateMeetingPointOptions();
 renderAll();
 
@@ -787,13 +787,17 @@ try {
 
 async function saveAddress(congregation,values,version){
   if(!isAdmin()||!db||!publicReady)throw Error('Sign in and wait for shared data before saving.');
-  const payload=addressPayload(congregation,values.address,values.lat,values.lng);
+  const payload={...addressPayload(congregation,values.address,values.lat,values.lng),pinSource:values.pinSource||'Administrator-confirmed address pin'};
   const ref=doc(db,'halls','congregation-address-'+congregation.id.toLowerCase());
   await runTransaction(db,async transaction=>{
     const snap=await transaction.get(ref),current=snap.exists()?snap.data():{};
     if((current.addressVersion||0)!==version)throw Error('This address was changed elsewhere. Close and reopen the editor to review the latest address.');
     transaction.set(ref,{...payload,addressVersion:version+1,updatedAt:serverTimestamp(),updatedByEmail:currentUser.email},{merge:true});
   });
+  // The confirmed write is immediately available to the map, even before a later snapshot.
+  addressProfiles.set(congregation.id,{...payload,addressVersion:version+1});
+  renderAll();
+  if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);
 }
 async function saveAssignment(congregation,pointId){
   if(!isAdmin()||!db||!publicReady)throw Error('Sign in and wait for shared data before saving.');
