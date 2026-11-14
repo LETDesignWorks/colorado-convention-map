@@ -187,3 +187,11 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 .selection-indicator{display:block;width:fit-content;margin:6px 0;padding:4px 7px;border-radius:6px;background:#1566d3;color:#fff;font-size:10px;font-weight:800}
 .selected-congregation-label{white-space:normal;max-width:240px;color:#084391;border:2px solid #1672e8;background:#f2f7ff;font:800 12px/1.35 system-ui}
 .legend-selected{background:#1566d3}
+
+/* Saved assignments keep their own color; blue outlines still indicate selection.
+   The existing gray over-limit rule and assignment restrictions retain priority. */
+.congregation-pin.assigned{background:#b12769}
+.congregation-row.assigned:not(.over-limit){background:#fff0f6;border-color:#d990b2}
+.congregation-row.assigned:not(.over-limit) .congregation-name{color:#912256}
+.legend-assigned{position:relative;background:#b12769}
+.legend-assigned::after{content:'✓';position:absolute;top:-6px;right:-5px;width:13px;height:13px;border:1px solid white;border-radius:50%;background:#17774b;color:white;font:800 10px/12px system-ui;text-align:center}

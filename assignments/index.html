@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=selection-blue-20261114-1"/>
+<link rel="stylesheet" href="styles.css?v=assigned-magenta-20261114-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=access-20261114-1"></script>
 <script type="module" src="../assets/site-navigation.mjs?v=access-20261114-1"></script>
@@ -60,14 +60,14 @@
     <div id="map" role="application" aria-label="Interactive congregation meeting-point assignment map"></div>
     <div class="map-legend">
       <strong>Congregations & meeting points</strong>
-      <div><span class="home-legend" aria-hidden="true">⌂</span>Congregations at their address</div>
-      <div><span class="legend-selected">●</span>Blue: selected / currently viewing</div><div><span class="legend-assigned">✓</span>Assigned to chosen meeting point</div><div><span class="legend-over">⌂</span>Over 1 hr 20 min drive</div>
+      <div><span class="home-legend" aria-hidden="true">⌂</span>Unassigned congregations</div>
+      <div><span class="legend-selected">●</span>Blue highlight: selected / viewing</div><div><span class="legend-assigned" aria-hidden="true">⌂</span>Magenta + green check: assigned</div><div><span class="legend-over">⌂</span>Over 1 hr 20 min drive</div>
       <div><span class="legend-marker hall"></span>Current Kingdom Hall</div>
       <div><span class="legend-marker added-hall"></span>Added Kingdom Hall</div>
       <div><span class="legend-marker meeting"></span>Other meeting area</div>
       <div><span class="count-sample">4</span>Assigned congregation count</div>
     </div>
-    <div class="map-note" id="assignmentMapNote" role="status">Blue home icons highlight selected congregations; purple icons show other congregations. Green check marks show saved assignments to the chosen meeting point. Green lines show saved assignments; purple dashed lines show suggestions.</div>
+    <div class="map-note" id="assignmentMapNote" role="status">Magenta homes with green check marks are assigned. Blue highlights show selections; purple homes are unassigned. Assignment checks stay visible when you change meeting points. Green lines show saved assignments; dashed purple lines show suggestions.</div>
   </section>
 
   <aside class="side-panel">
@@ -212,7 +212,7 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=access-20261114-1"></script>
+<script type="module" src="app-v3.mjs?v=assigned-magenta-20261114-1"></script>
 </body>
 </html>
 

@@ -45,14 +45,14 @@ class Element{
  replaceChildren(){this.children=[];}
  scrollIntoView(){} focus(){}
 }
-function uiFixture({focus='',admin=true,ready=true,fail=false}={}){
+function uiFixture({focus='',admin=true,ready=true,fail=false,meeting='a'}={}){
  const els=new Map(),get=id=>{if(!els.has(id))els.set(id,new Element());return els.get(id);};
  globalThis.document={getElementById:get,createElement:()=>new Element(),addEventListener(){}};
  const layers=[];
  globalThis.L={
   layerGroup:()=>{const layer={items:[],addTo(){return this;},clearLayers(){this.items=[];}};layers.push(layer);return layer;},
   divIcon:options=>options,
-  marker:(coords,options)=>({coords,options,addTo(layer){layer.items.push(this);return this;},bindPopup(){return this;},bindTooltip(text,options){this.tooltip={text,options};return this;},on(){return this;}}),
+  marker:(coords,options)=>({coords,options,addTo(layer){layer.items.push(this);return this;},bindPopup(popup){this.popup=popup;return this;},bindTooltip(text,options){this.tooltip={text,options};return this;},on(){return this;}}),
   polyline:(coords,options)=>({coords,options,addTo(layer){layer.items.push(this);return this;},bindTooltip(){return this;}})
  };
  const congregations=[
@@ -67,11 +67,11 @@ function uiFixture({focus='',admin=true,ready=true,fail=false}={}){
  const selected=new Set(['outside']),toasts=[];let loggedIn=0,unassigned=0,ui;
  const ctx={map:{fitBounds(){},setView(){},closePopup(){}},congregations,source:{spreadsheetCount:5,file:'Test',retainedCount:0},escapeHtml:String,
  resolveHome:c=>({address:c.homeAddress,point:c.point||null,status:c.point?'mapped':'missing'}),getLocations:()=>locations,getAddressPoints:()=>locations,getStatuses:()=>new Map(),getProfile:()=>null,
- getAssignment:id=>assignments.get(id),getMeetingPoint:()=>focus||'a',getFocusedMeetingPoint:()=>focus,getVisible:()=>congregations,getSelected:()=>selected,
+ getAssignment:id=>assignments.get(id),getMeetingPoint:()=>focus||meeting,getFocusedMeetingPoint:()=>focus,getVisible:()=>congregations,getSelected:()=>selected,
  isAdmin:()=>admin,isReady:()=>ready,driveState:()=>({allowed:false,status:'over',label:'Over 1 hr 20 min'}),loadDrives:async()=>{},openLogin:()=>loggedIn++,toast:(...args)=>toasts.push(args),
  unassignCongregation:async c=>{unassigned++;if(fail)throw Error('Save failed');assignments.delete(c.id);},refresh:()=>ui.render()};
  ui=initCongregationLocations(ctx);
- return {ui,get,layers,congregations,assignments,toasts,setFocus:value=>focus=value,unassigned:()=>unassigned,logins:()=>loggedIn};
+ return {ui,get,layers,congregations,assignments,toasts,selected,setMeeting:value=>meeting=value,setFocus:value=>focus=value,unassigned:()=>unassigned,logins:()=>loggedIn};
 }
 test('focused map shows only assigned homes with visible names and one line per shared address',()=>{
  const f=uiFixture();f.ui.select('outside');f.setFocus('a');f.ui.render();
@@ -91,6 +91,38 @@ test('unassign UI keeps saved data on failure and enforces sign-in and fresh sha
  const failed=uiFixture({fail:true});await failed.ui.unassign('one');assert.ok(failed.assignments.has('one'));assert.match(failed.toasts.at(-1)[0],/Save failed/);
  const signedOut=uiFixture({admin:false});await signedOut.ui.unassign('one');assert.equal(signedOut.unassigned(),0);assert.equal(signedOut.logins(),1);
  const loading=uiFixture({ready:false});await loading.ui.unassign('one');assert.equal(loading.unassigned(),0);assert.ok(loading.assignments.has('one'));
+});
+
+test('saved map check marks remain across other meeting selections, no selection, and a fresh render',()=>{
+ const f=uiFixture();f.ui.render();
+ const marker=name=>f.layers[0].items.find(item=>item.options.title.includes(name));
+ for(const meeting of ['a','b','']){
+  f.setMeeting(meeting);f.ui.render();
+  assert.match(marker('One').options.icon.html,/congregation-pin[^\"]* assigned/);
+  assert.match(marker('One').options.icon.html,/assigned-badge[^>]*>✓2</);
+  assert.match(marker('Outside').options.icon.html,/assigned-badge[^>]*>✓1</);
+  assert.doesNotMatch(marker('Unassigned').options.icon.html,/assigned-badge/);
+ }
+ assert.match(marker('One').popup.children[0].textContent,/✓ Assigned to Meeting A/);
+ const reopened=uiFixture({meeting:''});reopened.ui.render();
+ assert.equal(reopened.layers[0].items.filter(item=>item.options.icon.html.includes('assigned-badge')).length,2);
+});
+
+test('saved assignment and green check remain while the congregation is actively selected',()=>{
+ const f=uiFixture({meeting:'b'});f.selected.add('one');f.ui.select('one');
+ const html=f.layers[0].items.find(item=>item.options.title.includes('One')).options.icon.html;
+ assert.match(html,/congregation-pin[^\"]* active[^\"]* checked[^\"]* assigned/);
+ assert.match(html,/selection-badge/);assert.match(html,/assigned-badge[^>]*>✓2</);
+});
+
+test('shared-address badges count all saved assignments and disappear only after the last one is removed',async()=>{
+ const f=uiFixture({meeting:'b'});f.ui.render();
+ const home=()=>f.layers[0].items.find(item=>item.options.title.includes('One'));
+ await f.ui.unassign('one');assert.match(home().options.icon.html,/assigned-badge[^>]*>✓1\/2</);
+ await f.ui.unassign('two');assert.doesNotMatch(home().options.icon.html,/assigned-badge|congregation-pin[^\"]* assigned/);
+ assert.deepEqual(home().coords,[39.7,-105]);
+ f.assignments.set('one',{meetingPointId:'a'});f.ui.render();
+ assert.match(home().options.icon.html,/assigned-badge[^>]*>✓1\/2</);
 });
 
 test('meeting focus removes unrelated meeting markers and DTC context, then restores them',()=>{

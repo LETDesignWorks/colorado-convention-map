@@ -11,7 +11,7 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations} from './location-ui.mjs?v=selection-blue-20261114-1';
+import {initCongregationLocations} from './location-ui.mjs?v=assigned-magenta-20261114-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';
@@ -395,7 +395,7 @@ function renderMeetingFocus(){
   const note=document.getElementById('assignmentMapNote'),point=locations.find(p=>p.id===focusedMeetingPointId);
   note.classList.toggle('meeting-focused',Boolean(point));
   if(!point){
-    note.textContent='Blue home icons highlight selected congregations; purple icons show other congregations. Green check marks show saved assignments to the chosen meeting point. Green lines show saved assignments; purple dashed lines show suggestions.';
+    note.textContent='Magenta homes with green check marks are assigned. Blue highlights show selections; purple homes are unassigned. Assignment checks stay visible when you change meeting points. Green lines show saved assignments; dashed purple lines show suggestions.';
     return;
   }
   const assigned=assignedCongregationsAt(point.id),mapped=assigned.filter(c=>resolveHome(c).point).length,missing=assigned.length-mapped;
@@ -648,8 +648,8 @@ async function assignSelected() {
   try {
     await batch.commit();
     selectedCongregations.clear();
-    renderCongregationList();
     selectedMeetingPointId = destination.id;
+    renderAll();
     toast(`${selected.length} congregation${selected.length === 1 ? '' : 's'} assigned to ${markerLabel(destination)} — ${destination.name}.`);
   } catch (error) {
     toast(friendlyError(error), true);
