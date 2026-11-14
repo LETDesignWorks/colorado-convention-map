@@ -1,6 +1,8 @@
 import {validPoint,suggestionsFor,groupHomes,nearbyAddresses} from './location-model.mjs?v=address-help-20261114-1';
 import {resolveAddressPin} from './address-pin.mjs?v=address-help-20261114-1';
 
+import {formatCoordinates,parseCoordinatePair,googleSearchUrl,findCensusAddress} from './address-tools.mjs?v=coordinates-20261114-1';
+
 export function initCongregationLocations(ctx){
   const {map,congregations,source,resolveHome,isAdmin,escapeHtml:esc}=ctx,$=id=>document.getElementById(id);
   const labels={mapped:'Address mapped',missing:'Missing address','pin-needed':'Address needs map pin',review:'Address needs review'};
@@ -126,13 +128,46 @@ export function initCongregationLocations(ctx){
   const modal=$('addressModal');
   const manualSource='Administrator-confirmed address pin';
   function cancelNearby(){nearbySequence++;nearbyAbort?.abort();$('suggestPinAddress').disabled=editorSaving;}
-  function cancelLookup(){lookupSequence++;clearTimeout(lookupTimer);lookupAbort?.abort();lookupTask=null;cancelNearby();$('findHomeAddress').disabled=editorSaving;}
+  function cancelLookup(){lookupSequence++;clearTimeout(lookupTimer);lookupAbort?.abort();lookupTask=null;cancelNearby();$('findHomeAddress').disabled=editorSaving;$('tryCensusAddress').disabled=editorSaving;}
+  function syncCoordinatePanel(message){
+    const pair=formatCoordinates($('homeLat').value,$('homeLng').value),query=$('homeAddress').value.trim();
+    $('copyHomeCoordinates').disabled=editorSaving||!pair;
+    $('googleAddressLookup').href=googleSearchUrl(query)||'#';$('googleAddressLookup').hidden=!query;
+    $('googlePinLookup').href=googleSearchUrl(pair)||'#';$('googlePinLookup').hidden=!pair;
+    $('homeCoordinateStatus').textContent=message||(pair?'Coordinates ready. Check the map pin before saving.':'Latitude and longitude will appear here when the address is found.');
+  }
+  function applyCoordinatePair(text=$('pastedCoordinates').value){
+    if(!editor||editorSaving)return;
+    const point=parseCoordinatePair(text);
+    if(!point){$('homeCoordinateStatus').textContent='Paste decimal latitude, longitude — for example 39.739200, -104.990300.';return;}
+    $('pastedCoordinates').value=formatCoordinates(point.lat,point.lng);
+    placeManualPin(point);
+    syncCoordinatePanel('Coordinates applied to the preview. Check the building, then Save address.');
+  }
+  $('usePastedCoordinates').addEventListener('click',()=>applyCoordinatePair());
+  $('pastedCoordinates').addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();applyCoordinatePair();}
+  });
+  $('pastedCoordinates').addEventListener('paste',event=>{
+    const text=event.clipboardData?.getData('text');
+    if(!editorSaving&&parseCoordinatePair(text)){event.preventDefault();applyCoordinatePair(text);}
+  });
+  $('copyHomeCoordinates').addEventListener('click',async()=>{
+    const pair=formatCoordinates($('homeLat').value,$('homeLng').value);if(!pair||editorSaving)return;
+    try{
+      if(!globalThis.navigator?.clipboard?.writeText)throw Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(pair);$('homeCoordinateStatus').textContent='Coordinates copied: '+pair;
+    }catch{
+      $('pastedCoordinates').value=pair;$('pastedCoordinates').focus();$('pastedCoordinates').select();
+      $('homeCoordinateStatus').textContent='Coordinates selected in the paste box. Press Ctrl+C (or Command+C) to copy.';
+    }
+  });
   function edit(id){
     if(!isAdmin()){ctx.openLogin();return;}
     if(!ctx.isReady()){ctx.toast('Wait for shared address information before editing.',true);return;}
     const c=congregationById(id);if(!c)return;
     const home=resolveHome(c);editor={congregation:c,version:ctx.getProfile(id)?.addressVersion||0};cancelLookup();pinSource=ctx.getProfile(id)?.pinSource||'';$('saveWithoutPin').hidden=true;
-    $('addressCongregation').textContent=c.name;$('homeAddress').value=home.address;$('homeLat').value=home.point?.lat??'';$('homeLng').value=home.point?.lng??'';$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';$('addressEditorStatus').textContent='';
+    $('pastedCoordinates').value='';$('addressCongregation').textContent=c.name;$('homeAddress').value=home.address;$('homeLat').value=home.point?.lat??'';$('homeLng').value=home.point?.lng??'';$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';$('addressEditorStatus').textContent='';
     const addresses=new Map();for(const location of ctx.getLocations())if(location.address)addresses.set(location.address,location);
     $('addressKnown').innerHTML='<option value="">Choose a hall, or enter an address below</option>'+[...addresses.values()].map(p=>'<option value="'+esc(p.id)+'">'+esc(pointLabel(p))+' · '+esc(p.address)+'</option>').join('');
     modal.classList.add('open');$('homeAddress').focus();
@@ -141,10 +176,12 @@ export function initCongregationLocations(ctx){
       editorMap.on('click',event=>{if(!editorSaving)placeManualPin(event.latlng);});
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(editorMap);
     }
-    if(editorMap){editorMap.invalidateSize();if(!home.point)editorMap.setView([39.74,-104.99],10);previewPin();}
+    if(editorMap){editorMap.invalidateSize();if(!home.point)editorMap.setView([39.74,-104.99],10);}
+    previewPin();
   }
   function closeEditor(){if(editorSaving)return;cancelLookup();modal.classList.remove('open');editor=null;}
   function previewPin(){
+    syncCoordinatePanel();
     if(!editorMap)return;if(editorMarker){editorMap.removeLayer(editorMarker);editorMarker=null;}
     if(!validPoint($('homeLat').value,$('homeLng').value))return;
     editorMarker=L.marker([Number($('homeLat').value),Number($('homeLng').value)],{draggable:true}).addTo(editorMap);
@@ -167,7 +204,7 @@ export function initCongregationLocations(ctx){
   function resultCard(parent,p,note){
     const card=document.createElement('div');card.className='address-result';
     const title=document.createElement('strong');title.textContent=p.address;card.append(title);
-    const description=document.createElement('p');description.textContent=note;card.append(description);
+    const description=document.createElement('p');description.textContent=note+' Latitude: '+Number(p.lat).toFixed(6)+' · Longitude: '+Number(p.lng).toFixed(6)+'.';card.append(description);
     const actions=document.createElement('div');actions.className='address-result-actions';card.append(actions);parent.append(card);
     return actions;
   }
@@ -187,7 +224,7 @@ export function initCongregationLocations(ctx){
         const actions=resultCard($('nearbyAddressMatches'),p,note);
         if(p.kind==='address')action(actions,'Use this address',()=>{
           cancelLookup();$('homeAddress').value=p.address;$('addressKnown').value='';
-          $('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='Suggested address used. Your chosen pin has not moved.';
+          $('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='Suggested address used. Your chosen pin has not moved.';syncCoordinatePanel();
           $('addressEditorStatus').textContent='Check the address and pin, then Save address.';
         });
       }
@@ -213,25 +250,27 @@ export function initCongregationLocations(ctx){
     $('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';$('saveWithoutPin').hidden=true;previewPin();
     $('addressEditorStatus').textContent='Map pin found automatically. Save address to add it to the congregation map. You can drag the pin to adjust it.';
   }
-  function lookupAddress(){
+  function lookupAddress(provider='photon'){
     if(!editor)return Promise.resolve(false);
     const query=$('homeAddress').value.trim();
     if(query.length<5){$('addressEditorStatus').textContent='Enter an address, street and city, or nearby place.';return Promise.resolve(false);}
-    if(lookupTask?.query===query)return lookupTask.promise;
+    if(lookupTask?.query===query&&lookupTask.provider===provider)return lookupTask.promise;
     cancelLookup();
     const sequence=lookupSequence,controller=new AbortController();lookupAbort=controller;
     const timeout=setTimeout(()=>controller.abort(),18000);
     $('homeLat').value='';$('homeLng').value='';pinSource='';previewPin();
-    $('findHomeAddress').disabled=true;$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';
-    $('addressEditorStatus').textContent='Finding the address or nearby street…';
+    $('findHomeAddress').disabled=true;$('tryCensusAddress').disabled=true;$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';
+    $('addressEditorStatus').textContent=provider==='census'?'Checking U.S. Census address records…':'Finding the address or nearby street…';
+    $('homeCoordinateStatus').textContent='Looking up latitude and longitude…';
     const promise=(async()=>{
       try{
-        const result=await resolveAddressPin(query,ctx.getAddressPoints(),{signal:controller.signal});
+        const result=provider==='census'?{pin:null,candidates:await findCensusAddress(query,{signal:controller.signal})}:await resolveAddressPin(query,ctx.getAddressPoints(),{signal:controller.signal});
         if(sequence!==lookupSequence||!editor||$('homeAddress').value.trim()!==query)return false;
         if(result.pin){placeResult(result.pin,result.source);return true;}
+        if(!result.candidates.length)throw Error('No matching address coordinates found.');
         for(const p of result.candidates){
           const approximate=p.approximate===true;
-          const actions=resultCard($('addressMatches'),p,approximate?'Approximate street or area. Locate the building on the map before placing a pin.':'Suggested street address. Check the address and pin before saving.');
+          const actions=resultCard($('addressMatches'),p,p.precision==='street-estimate'?'U.S. Census street estimate. Check or move the pin to the building before saving.':approximate?'Approximate street or area. Locate the building on the map before placing a pin.':'Suggested street address. Check the address and pin before saving.');
           if(approximate){
             action(actions,'Show area on map',()=>{
               cancelLookup();$('homeLat').value='';$('homeLng').value='';pinSource='';previewPin();
@@ -241,7 +280,7 @@ export function initCongregationLocations(ctx){
             });
           }else{
             action(actions,'Use suggested address & pin',()=>{
-              cancelLookup();$('homeAddress').value=p.address;placeResult(p,'Administrator-selected address lookup result');
+              cancelLookup();$('homeAddress').value=p.address;placeResult(p,p.source||'Administrator-selected address lookup result');
               $('addressEditorStatus').textContent='Suggested address and pin selected. Check the building, then Save address.';
             });
             action(actions,'Pin & keep my address',()=>{
@@ -251,22 +290,24 @@ export function initCongregationLocations(ctx){
           }
         }
         $('saveWithoutPin').hidden=false;
-        $('addressEditorStatus').textContent='No single exact match. Review the suggestions below, or place a pin on the map yourself.';
+        $('addressEditorStatus').textContent='Review the suggested coordinates below, or use Google Maps and paste the coordinates above.';
+        $('homeCoordinateStatus').textContent='Suggested coordinates are listed below. Choose the correct result to fill latitude and longitude.';
         return false;
       }catch(error){
         if(sequence===lookupSequence&&editor){
           $('saveWithoutPin').hidden=false;
+          $('homeCoordinateStatus').textContent='Coordinates could not be found. Try the U.S. address lookup, Google Maps, or place a pin manually.';
           $('addressEditorStatus').textContent=(error.name==='AbortError'?'Address lookup timed out.':error.message)+' You can place a pin manually or save without a pin.';
         }
         return false;
-      }finally{clearTimeout(timeout);if(sequence===lookupSequence){lookupTask=null;$('findHomeAddress').disabled=editorSaving;}}
+      }finally{clearTimeout(timeout);if(sequence===lookupSequence){lookupTask=null;$('findHomeAddress').disabled=editorSaving;$('tryCensusAddress').disabled=editorSaving;}}
     })();
-    lookupTask={query,promise};return promise;
+    lookupTask={query,provider,promise};return promise;
   }
   $('homeAddress').addEventListener('input',()=>{
     const keepPin=pinSource===manualSource&&validPoint($('homeLat').value,$('homeLng').value);
     cancelLookup();$('addressKnown').value='';$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';$('saveWithoutPin').hidden=true;
-    if(keepPin){$('addressEditorStatus').textContent='Your chosen map pin is kept while you edit the address. Choose Find address & suggestions to search again.';return;}
+    if(keepPin){syncCoordinatePanel();$('addressEditorStatus').textContent='Your chosen map pin is kept while you edit the address. Choose Find address & suggestions to search again.';return;}
     pinSource='';$('homeLat').value='';$('homeLng').value='';previewPin();
     $('addressEditorStatus').textContent='Enter the full address, or search a street and city or nearby landmark.';
     if($('homeAddress').value.trim().length>=5)lookupTimer=setTimeout(()=>void lookupAddress(),900);
@@ -275,6 +316,7 @@ export function initCongregationLocations(ctx){
     cancelLookup();pinSource=manualSource;$('addressMatches').replaceChildren();$('nearbyAddressMatches').replaceChildren();$('nearbyAddressStatus').textContent='';previewPin();
   });
   $('findHomeAddress').addEventListener('click',()=>{cancelLookup();void lookupAddress();});
+  $('tryCensusAddress').addEventListener('click',()=>{if(!editorSaving){cancelLookup();void lookupAddress('census');}});
   async function saveEditor(withoutPin=false){
     if(!editor||editorSaving)return;
     const current=editor;clearTimeout(lookupTimer);editorSaving=true;
@@ -296,12 +338,12 @@ export function initCongregationLocations(ctx){
         ctx.toast('Address saved and pinned on the map. The meeting-point assignment was kept.');
       }else ctx.toast('Address saved. It is flagged until a map pin is added.');
     }catch(error){$('addressEditorStatus').textContent=error.message;}
-    finally{editorSaving=false;controls.forEach(e=>e.disabled=false);editorMarker?.dragging?.enable();}
+    finally{editorSaving=false;controls.forEach(e=>e.disabled=false);editorMarker?.dragging?.enable();syncCoordinatePanel($('homeCoordinateStatus').textContent);}
   }
   $('addressForm').addEventListener('submit',event=>{event.preventDefault();void saveEditor();});
   $('saveWithoutPin').addEventListener('click',()=>void saveEditor(true));
   $('cancelAddress').addEventListener('click',closeEditor);modal.addEventListener('click',e=>{if(e.target===modal)closeEditor();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select,a[href]')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   // Initial fit includes homes outside the original DTC planning boundary.
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
   return{render,select,edit,meetingPointChosen,fitSelected,unassign};

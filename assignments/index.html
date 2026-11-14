@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=unassign-20261114-1"/>
+<link rel="stylesheet" href="styles.css?v=coordinates-20261114-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=field-service-nav-20261114-1"></script>
 </head>
@@ -186,8 +186,17 @@
     <form id="addressForm">
       <div class="field"><label for="addressKnown">Use an existing hall address</label><select id="addressKnown"><option value="">Choose a hall, or enter an address below</option></select></div>
       <div class="field"><label for="homeAddress">Congregation meeting address</label><input id="homeAddress" maxlength="250" autocomplete="street-address" placeholder="Street address, city, state and ZIP"></div>
+      <section class="address-coordinate-panel" aria-labelledby="coordinatePanelTitle">
+        <h3 id="coordinatePanelTitle">Latitude &amp; longitude</h3>
+      <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
+
+        <p id="homeCoordinateStatus" class="intro-copy" role="status">Latitude and longitude will appear here when the address is found.</p>
+        <div class="coordinate-tools"><button class="btn outline" id="copyHomeCoordinates" type="button" disabled>Copy coordinates</button><a class="btn outline" id="googleAddressLookup" target="_blank" rel="noopener noreferrer" hidden>Find address in Google Maps ↗</a><a class="btn outline" id="googlePinLookup" target="_blank" rel="noopener noreferrer" hidden>Check pin in Google Maps ↗</a></div>
+        <div class="field coordinate-paste"><label for="pastedCoordinates">Paste coordinates from Google Maps or another map</label><input id="pastedCoordinates" type="text" placeholder="39.739200, -104.990300" autocomplete="off" spellcheck="false"><button class="btn outline" id="usePastedCoordinates" type="button">Use coordinates</button></div>
+        <p class="intro-copy">In Google Maps on a computer, right-click the building and click the coordinates to copy them. Paste them above to place the pin here. Check the location, then choose Save address.</p>
+      </section>
       <p class="intro-copy">Enter the meeting address. If it cannot be found, try the street and city or a nearby landmark, then place the pin on the building.</p>
-      <button class="btn outline" id="findHomeAddress" type="button">Find address &amp; suggestions</button>
+      <div class="coordinate-tools"><button class="btn outline" id="findHomeAddress" type="button">Find address &amp; suggestions</button><button class="btn outline" id="tryCensusAddress" type="button">Try U.S. address lookup</button></div>
       <div id="addressMatches" class="address-matches" aria-live="polite"></div>
       <h3 class="pin-editor-title">Choose the building on the map</h3>
       <p class="intro-copy">Click the building to place a pin, or drag an existing pin. You can also zoom in, center the building, and choose <strong>Pin map center</strong>.</p>
@@ -196,13 +205,12 @@
       <p id="nearbyAddressStatus" class="intro-copy" role="status"></p>
       <div id="nearbyAddressMatches" class="address-matches"></div>
       <p class="intro-copy">Placing or moving a pin looks for a nearby address. Review the suggestion before using it. Your pin stays where you placed it, and nothing is saved until you choose <strong>Save address</strong>. Lookup: Photon / OpenStreetMap.</p>
-      <div class="coordinate-fields"><div class="field"><label for="homeLat">Latitude (optional)</label><input id="homeLat" type="number" step="any" min="-90" max="90" placeholder="39.74"></div><div class="field"><label for="homeLng">Longitude (optional)</label><input id="homeLng" type="number" step="any" min="-180" max="180" placeholder="-104.99"></div></div>
       <p id="addressEditorStatus" role="status"></p>
       <div class="button-row"><button class="btn outline" id="cancelAddress" type="button">Cancel</button><button class="btn outline" id="saveWithoutPin" type="button" hidden>Save without pin</button><button class="btn primary" id="saveHomeAddress" type="submit">Save address</button></div>
     </form>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=unassign-20261114-1"></script>
+<script type="module" src="app-v3.mjs?v=coordinates-20261114-1"></script>
 </body>
 </html>

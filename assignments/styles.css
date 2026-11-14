@@ -170,3 +170,10 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 @media print{.map-note.meeting-focused{display:block!important;max-width:500px}.map-note.meeting-focused button{display:none}}
 
 .focused-congregation-label{white-space:normal;max-width:220px;color:#4f2c81;border-color:#c6b5dc;font:700 11px/1.35 system-ui}
+
+.address-coordinate-panel{margin:12px 0;padding:12px;border:1px solid #bfcfe0;background:#f3f8fe;border-radius:10px}
+.address-coordinate-panel h3{margin:0 0 10px;font-size:14px;color:var(--navy)}
+.address-coordinate-panel .coordinate-fields input{font-variant-numeric:tabular-nums;font-weight:700}
+.coordinate-tools{display:flex;gap:7px;flex-wrap:wrap}.coordinate-tools .btn{white-space:normal}
+.coordinate-paste{margin-top:12px}.coordinate-paste button{align-self:flex-start;margin-top:6px}
+@media(max-width:560px){.coordinate-tools .btn{flex:1 1 100%}.address-coordinate-panel{padding:10px}}

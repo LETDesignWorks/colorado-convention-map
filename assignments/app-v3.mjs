@@ -10,7 +10,7 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations} from './location-ui.mjs?v=unassign-20261114-1';
+import {initCongregationLocations} from './location-ui.mjs?v=coordinates-20261114-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';

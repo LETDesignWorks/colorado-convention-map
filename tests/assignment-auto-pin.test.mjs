@@ -126,11 +126,11 @@ test('known hall pin needs no network; exact remote match is usable; nearby alte
 class Element{
  constructor(id){this.id=id;this.value='';this.disabled=false;this.hidden=false;this.children=[];this.events={};this.classList={values:new Set(),add(v){this.values.add(v);},remove(v){this.values.delete(v);},contains(v){return this.values.has(v);}};this.innerHTML='';}
  addEventListener(type,cb){(this.events[type]??=[]).push(cb);}
- fire(type){for(const cb of this.events[type]||[])cb({preventDefault(){},target:this});}
+ fire(type,details={}){for(const cb of this.events[type]||[])cb({preventDefault(){},target:this,...details});}
  querySelectorAll(){return this.id==='addressForm'?this.controls||[]:[];}
  replaceChildren(){this.children=[];}
  append(child){this.children.push(child);}
- focus(){} scrollIntoView(){this.scrolled=true;}
+ focus(){} select(){this.selected=true;} remove(){this.removed=true;} scrollIntoView(){this.scrolled=true;}
 }
 function fixture({known=[hall],fetcher=async()=>({ok:true,json:async()=>({features:[feature()]})})}={}){
  const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,new Element(id));return elements.get(id);};
@@ -148,7 +148,7 @@ globalThis.L={
  const c={id:'new',name:'New congregation',homeAddress:''},profiles=new Map(),writes=[],map={setView(coords,zoom){this.lastView={coords,zoom};},fitBounds(){},closePopup(){}};
  const resolve=c=>homeFor(c,profiles.get(c.id),known);
  const ui=initCongregationLocations({map,congregations:[c],source:{spreadsheetCount:1,file:'Test',retainedCount:0},resolveHome:resolve,isAdmin:()=>true,escapeHtml:String,getSelected:()=>new Set(),getMeetingPoint:()=>'',getVisible:()=>[],getLocations:()=>known,getAddressPoints:()=>known,getProfile:id=>profiles.get(id),getAssignment:()=>null,getStatuses:()=>new Map(),isReady:()=>true,driveState:()=>({allowed:false,label:'Not selected'}),loadDrives:async()=>{},refresh(){},toast(){},saveAssignment(){},saveAddress:async(c,values)=>{writes.push(values);profiles.set(c.id,{homeAddress:values.address,lat:values.lat,lng:values.lng});}});
- get('addressForm').controls=['homeAddress','homeLat','homeLng','addressKnown','findHomeAddress','saveHomeAddress','saveWithoutPin','cancelAddress','pinMapCenter','suggestPinAddress'].map(get);
+ get('addressForm').controls=['homeAddress','homeLat','homeLng','addressKnown','findHomeAddress','saveHomeAddress','saveWithoutPin','cancelAddress','pinMapCenter','suggestPinAddress','tryCensusAddress','copyHomeCoordinates','pastedCoordinates','usePastedCoordinates'].map(get);
  ui.edit('new');
  return {get,ui,map,writes,profiles,layers,preview,markers,lookups:()=>lookups};
 }
@@ -185,4 +185,48 @@ test('typing automatically previews a pin, and a late lookup cannot replace a ne
  g.get('homeAddress').value='123 New Street, Denver CO 80202';g.get('homeAddress').fire('input');g.get('cancelAddress').fire('click');g.ui.edit('new');
  finish({ok:true,json:async()=>({features:[feature()]})});await flush();
  assert.equal(g.get('homeLat').value,'');assert.equal(g.get('homeAddress').value,'');assert.equal(g.writes.length,0);g.get('cancelAddress').fire('click');
+});
+
+
+test('address lookup displays coordinates and keeps Google address and pin links in sync',async()=>{
+ const f=fixture();f.get('homeAddress').value=hall.address;f.get('homeAddress').fire('input');
+ assert.equal(new URL(f.get('googleAddressLookup').href).searchParams.get('query'),hall.address);
+ f.get('findHomeAddress').fire('click');await flush();
+ assert.equal(Number(f.get('homeLat').value),hall.lat);assert.equal(f.get('copyHomeCoordinates').disabled,false);
+ assert.equal(new URL(f.get('googlePinLookup').href).searchParams.get('query'),'39.673760, -105.021750');
+ f.get('homeAddress').value='456 Another Street, Denver CO';f.get('homeAddress').fire('input');
+ assert.equal(f.get('homeLat').value,'');assert.equal(f.get('googlePinLookup').hidden,true);assert.equal(f.get('copyHomeCoordinates').disabled,true);
+ f.get('cancelAddress').fire('click');
+});
+test('pasting coordinates cancels stale automatic lookup and previews a pin without saving',async()=>{
+ let finish;
+ const f=fixture({known:[],fetcher:url=>url.pathname==='/reverse'?Promise.resolve({ok:true,json:async()=>({features:[]})}):new Promise(resolve=>finish=resolve)});
+ f.get('homeAddress').value=hall.address;f.get('findHomeAddress').fire('click');
+ let prevented=false;
+ f.get('pastedCoordinates').fire('paste',{clipboardData:{getData:()=> '39.739200, -104.990300'},preventDefault(){prevented=true;}});await flush();
+ assert.equal(prevented,true);assert.equal(f.get('homeLat').value,'39.7392000');assert.equal(f.get('homeLng').value,'-104.9903000');assert.equal(f.writes.length,0);
+ finish({ok:true,json:async()=>({features:[feature()]})});await flush();
+ assert.equal(f.get('homeLat').value,'39.7392000');
+ f.get('addressForm').fire('submit');await flush();assert.equal(f.writes[0].lat,'39.7392000');assert.equal(f.writes[0].address,hall.address);
+});
+test('invalid pasted coordinates preserve the current pin and offer a useful correction',async()=>{
+ const f=fixture();f.get('homeAddress').value=hall.address;f.get('findHomeAddress').fire('click');await flush();
+ f.get('pastedCoordinates').value='-105.2, 39.7';f.get('usePastedCoordinates').fire('click');
+ assert.equal(Number(f.get('homeLat').value),hall.lat);assert.match(f.get('homeCoordinateStatus').textContent,/decimal latitude/);assert.equal(f.writes.length,0);
+ f.get('copyHomeCoordinates').fire('click');await flush();
+ assert.equal(f.get('pastedCoordinates').value,'39.673760, -105.021750');assert.equal(f.get('pastedCoordinates').selected,true);
+ f.get('cancelAddress').fire('click');
+});
+test('backup address lookup shows coordinates and requires choosing a street-estimate result before saving',async()=>{
+ const f=fixture({known:[]}),scripts=[];
+ document.head={appendChild:script=>scripts.push(script)};
+ f.get('homeAddress').value=hall.address;f.get('tryCensusAddress').fire('click');
+ const callback=new URL(scripts[0].src).searchParams.get('callback');
+ globalThis[callback]({result:{addressMatches:[{matchedAddress:'2779 W WESLEY AVE, DENVER CO 80219',coordinates:{x:hall.lng,y:hall.lat}}]}});await flush();
+ assert.equal(f.get('homeLat').value,'');assert.equal(f.writes.length,0);
+ assert.match(f.get('addressMatches').children[0].children[1].textContent,/Census street estimate/);
+ assert.match(f.get('addressMatches').children[0].children[1].textContent,/Latitude: 39.673760/);
+ cardAction(f.get('addressMatches'),'Use suggested address & pin').fire('click');
+ f.get('addressForm').fire('submit');await flush();
+ assert.equal(f.writes.length,1);assert.equal(Number(f.writes[0].lng),hall.lng);assert.match(f.writes[0].pinSource,/Census/);
 });
