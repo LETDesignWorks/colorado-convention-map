@@ -6,7 +6,7 @@ export const SITE_TABS = [
   ['assignments/', 'Congregation Assignments'], ['territories/', 'Territories'],
   ['bus-access/', 'Bus Access Review'],
   ['travel-routes/', 'Travel Routes'],
-  ['activity-planning/', 'Activity Planning'], ['smpw/', 'SMPW'],
+  ['activity-planning/', 'Activity Planning'], ['convention-center/', 'Convention Center'], ['smpw/', 'SMPW'],
   ['south-dtc-rail/', 'South DTC Rail'], ['team/', 'Team Assignments'],
   ['pdf-tools/', 'PDFs & PowerPoint'], ['map-fullscreen.html', 'Full Screen Map'],
   ['access/', 'Sign-in & Access']
