@@ -19,10 +19,10 @@ jobs:
           dtc = urllib.request.urlopen('https://cdn.freebiesupply.com/logos/large/2x/denver-tech-center-logo-svg-vector.svg').read()
           assert b'<svg' in dtc and b'<script' not in dtc.lower()
           (root/'denver-tech-center.svg').write_bytes(dtc)
-          page = urllib.request.urlopen('https://drive.google.com/drive/folders/15gZlG2sk2isjObrh8kAxEZ3ezzWd9nib').read().decode()
-          for match in re.finditer(r'.{0,180}(?:\.png|\.jpg|\.zip|\.eps|\.ai|\.pdf).{0,150}', page, re.I):
-              print(html.unescape(match.group())[:400])
-          print('DTC SVG bytes:', len(dtc))
+          bear = urllib.request.urlopen('https://drive.google.com/uc?export=download&id=1jQaab-x41gtq0_EhXSebVROE9IY0le55').read()
+          assert bear[:3] == bytes([255,216,255]), 'Blue Bear download is not JPEG'
+          (root/'blue-bear.jpg').write_bytes(bear)
+          print('Verified original Blue Bear JPEG and DTC SVG:', len(bear), len(dtc))
       - name: Save artwork
         run: |
           git config user.name "github-actions[bot]"
