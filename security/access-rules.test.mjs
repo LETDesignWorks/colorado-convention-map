@@ -149,3 +149,12 @@ test('all typed private sections support scoped queries and immediate revocation
  await seed('reviews/site-access-helper@example.com',grant({},false));
  await assertFails(getDoc(doc(user(),'reviews/activityPlanning')));
 });
+test('bus-group plans use existing Activity Planning permissions for create, read, revise and delete',async()=>{
+ const path='reviews/bus-group-permissions',payload={recordType:'activity-multistop-route',planningSubtype:'bus-group-plan',busGroupsVersion:1,planName:'Multiple groups',groupsJson:'{"version":1,"groups":[]}',revision:1,updatedByEmail:'helper@example.com',updatedAt:new Date()};
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit'}));const db=user();
+ await assertSucceeds(setDoc(doc(db,path),payload));await assertSucceeds(getDoc(doc(db,path)));await assertSucceeds(getDocs(query(collection(db,'reviews'),where('recordType','==','activity-multistop-route'))));await assertSucceeds(updateDoc(doc(db,path),{revision:2,planName:'Updated bus departures'}));
+ await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),path)));
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'view'}));await assertSucceeds(getDoc(doc(db,path)));await assertFails(updateDoc(doc(db,path),{revision:3}));await assertFails(deleteDoc(doc(db,path)));
+ await seed('reviews/site-access-helper@example.com',grant({routes:'edit'}));await assertFails(getDoc(doc(db,path)));await assertFails(setDoc(doc(db,'reviews/another-bus-group'),payload));
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit'}));await assertSucceeds(deleteDoc(doc(db,path)));
+});
