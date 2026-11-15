@@ -23,7 +23,7 @@ import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, sugge
 import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=zoom-escape-20261115-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
-import {downloadAssignmentWorkbook} from './excel-export.mjs?v=reports-20261115-1';
+import {downloadAssignmentWorkbook} from './excel-export.mjs?v=meeting-groups-20261115-1';
 import {buildAssignmentReport} from './report-model.mjs?v=reports-20261115-1';
 import {createAssignmentReport} from './report-ui.mjs?v=reports-20261115-1';
 import {printAssignmentReport} from './report-pdf.mjs?v=reports-20261115-1';
@@ -981,7 +981,7 @@ document.getElementById('exportAssignments').addEventListener('click',async()=>{
     await loadDrives(selectedMeetingPointId);
     const delegatesPerCongregation=reportExportFactor();
     downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,serviceDaysFor,sharedReady:publicReady,delegatesPerCongregation});
-    toast('Excel export ready. The Overview sheet has assignment and daily charts; edit cell C5 to adjust delegates.');
+    toast('Excel export ready. By meeting location lists each location and its assigned congregations. Overview has the charts; edit C5 there to adjust delegates.');
   }catch(error){toast('Excel export failed: '+error.message,true);}finally{excelExportBusy=false;updateReportExportButtons();button.textContent='Export Excel';}
 });
 
