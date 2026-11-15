@@ -36,7 +36,7 @@ test('Excel summary uses the complete unique roster, saved IDs and every selecte
  const context=sample();context.congregations.push({...context.congregations[1]});
  const sheets=assignmentSheets(context),overview=sheets.find(sheet=>sheet.name==='Overview'),all=sheets.find(sheet=>sheet.name==='All congregations');
  assert.equal(sheets[0].name,'By meeting location');assert.equal(overview.name,'Overview');assert.equal(all.rows.length,5);
- assert.deepEqual(all.headers.slice(-2),['Saved meeting point ID','Congregation ID']);
+ assert.deepEqual(all.headers.slice(15,17),['Saved meeting point ID','Congregation ID']);
  assert.equal(sheets.find(sheet=>sheet.name==='Current directory').rows.length,1);
  assert.equal(sheets.find(sheet=>sheet.name==='Selected congregations').rows[0][1],'Congregation 5');
  const files=unzip(workbookBytes(sheets)),xml=worksheet(files,'Overview');
@@ -102,10 +102,10 @@ test('first worksheet lists each saved meeting location with all its congregatio
  const sheets=assignmentSheets(context),grouped=sheets[0];
  assert.equal(grouped.name,'By meeting location');
  assert.deepEqual(grouped.groupRows,[0,3,5]);
- assert.deepEqual(grouped.rows[0],['Meeting location','123 Current Street','2 assigned congregations','','','p1']);
- assert.deepEqual(grouped.rows[1],['','','Congregation 1','','Monday, Tuesday','']);
- assert.deepEqual(grouped.rows[2],['','','Congregation 2','','Monday, Thursday','']);
- assert.deepEqual(grouped.rows[3],['Saved location','456 Saved Street','1 assigned congregation','','','temporarily-missing']);
+ assert.deepEqual(grouped.rows[0].slice(0,6),['Meeting location','123 Current Street','2 assigned congregations','','','p1']);
+ assert.deepEqual(grouped.rows[1].slice(0,6),['','','Congregation 1','','Monday, Tuesday','']);
+ assert.deepEqual(grouped.rows[2].slice(0,6),['','','Congregation 2','','Monday, Thursday','']);
+ assert.deepEqual(grouped.rows[3].slice(0,6),['Saved location','456 Saved Street','1 assigned congregation','','','temporarily-missing']);
  assert.equal(grouped.rows[4][2],'Congregation 4');
  assert.equal(grouped.rows[5][0],'Unassigned congregations');
  assert.deepEqual(grouped.rows.slice(6).map(row=>row[2]),['Congregation 3','Congregation 5']);
@@ -135,4 +135,21 @@ test('grouped exports include wholly unassigned and empty rosters without invent
  assert.deepEqual(unassigned.groupRows,[0]);assert.equal(unassigned.rows[0][2],'5 unassigned congregations');assert.equal(unassigned.rows.length,6);
  const empty=assignmentSheets(sample({congregations:[],visible:[],selected:new Set()}))[0];
  assert.equal(empty.rows.length,1);assert.equal(empty.rows[0][2],'0 unassigned congregations');
+});
+
+test('assigned travel columns use each saved meeting location, with honest blanks and zeroes',()=>{
+ const context=sample(),seen=[];
+ context.point={id:'comparison',name:'Different comparison',lat:40,lng:-105};
+ context.resolveHome=c=>({address:'Hall '+c.id,status:'mapped',point:{lat:39.7,lng:-105}});
+ context.driveState=(c,id)=>{seen.push([c.id,id]);if(id==='comparison')return {status:'within',seconds:60,label:'Comparison only'};return c.id==='c1'?{status:'within',seconds:1800,meters:16093.44}:c.id==='c2'?{status:'over',seconds:4801,meters:32186.88}:{status:'no-destination'};};
+ const sheets=assignmentSheets(context),grouped=sheets[0],all=sheets.find(s=>s.name==='All congregations');
+ assert.deepEqual(grouped.rows[1].slice(6,9),['Hall c1','30 min',10]);
+ assert.deepEqual(grouped.rows[2].slice(6,9),['Hall c2','1 hr 21 min',20]);assert(grouped.grayRows.includes(2));
+ assert.deepEqual(grouped.rows[4].slice(7,9),['','']);assert.match(grouped.rows[4][9],/pin unavailable/);
+ assert.deepEqual(grouped.rows[6].slice(7,9),['','']);assert.match(grouped.rows[6][9],/Not assigned/);
+ assert.equal(all.rows[0][10],1);assert.equal(all.rows[0][17],30);assert.equal(all.rows[0][18],10);
+ assert.equal(all.headers[15],'Saved meeting point ID');assert.equal(all.headers[16],'Congregation ID');
+ assert(seen.some(([id,to])=>id==='c4'&&to==='temporarily-missing'));
+ context.driveState=()=>({status:'within',seconds:0,meters:0});const zero=assignmentSheets(context)[0].rows[1];assert.equal(zero[7],'0 min');assert.equal(zero[8],0);
+ context.driveState=()=>({status:'within',seconds:120,meters:null});const missing=assignmentSheets(context)[0].rows[1];assert.equal(missing[7],'2 min');assert.equal(missing[8],'');assert.match(missing[9],/distance unavailable/);
 });

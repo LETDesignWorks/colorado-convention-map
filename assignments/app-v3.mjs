@@ -20,10 +20,10 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=zoom-escape-20261115-1';
+import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=assigned-travel-20261115-1';
 
-import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
-import {downloadAssignmentWorkbook} from './excel-export.mjs?v=meeting-groups-20261115-1';
+import {createDriveTimes,prepareAssignmentDrives} from './drive-times.mjs?v=assigned-travel-20261115-1';
+import {downloadAssignmentWorkbook} from './excel-export.mjs?v=assigned-travel-20261115-1';
 import {buildAssignmentReport} from './report-model.mjs?v=reports-20261115-1';
 import {createAssignmentReport} from './report-ui.mjs?v=reports-20261115-1';
 import {printAssignmentReport} from './report-pdf.mjs?v=reports-20261115-1';
@@ -92,6 +92,13 @@ function selectFromMap(id){
 }
 const drives=createDriveTimes({onChange:()=>renderCongregationList()});
 const driveState=(c,id)=>drives.state(resolveHome(c),locations.find(p=>p.id===id));
+const availableMeetingPoints=()=>locations.filter(p=>(publicLocationData.get(String(p.id))?.busStatus||p.busStatus)!=='not-suitable');
+function mapTravelState(c){
+ if(selectedMeetingPointId)return driveState(c,selectedMeetingPointId);
+ if(!reportDataLoaded||railLoading)return {status:'pending',allowed:false,label:'Loading meeting locations before checking travel time'};
+ return drives.stateAny(resolveHome(c),availableMeetingPoints());
+}
+function loadMeetingCoverage(retry=false){if(!reportDataLoaded||railLoading)return;return drives.ensureAny(CONGREGATIONS.map(resolveHome),availableMeetingPoints(),{retry});}
 const loadDrives=(id,retry=false)=>drives.ensure(CONGREGATIONS.map(resolveHome),locations.find(p=>p.id===id),{retry});
 async function requireEligible(congregations,destination){
   await drives.ensure(congregations.map(resolveHome),destination);
@@ -449,7 +456,7 @@ function renderMeetingFocus(){
   const note=document.getElementById('assignmentMapNote'),point=locations.find(p=>p.id===focusedMeetingPointId);
   note.classList.toggle('meeting-focused',Boolean(point));
   if(!point){
-    note.textContent='Select a point to zoom to its area. Press Esc to clear the current selection and choose something else. Magenta homes with green check marks are assigned. Blue highlights show selections; purple homes are unassigned. Green lines show saved assignments; dashed purple lines show suggestions.';
+    note.textContent='Select a point to zoom to its area. Press Esc to clear the current selection and choose something else. Magenta homes with green check marks are assigned. Blue highlights show selections; purple homes are unassigned. Gray homes exceed 1 hr 20 min to the selected location, or to every available location when none is selected. Green lines show saved assignments; dashed purple lines show suggestions.';
     return;
   }
   const assigned=assignedCongregationsAt(point.id),mapped=assigned.filter(c=>resolveHome(c).point).length,missing=assigned.length-mapped;
@@ -594,15 +601,16 @@ function renderSelectionControls() {
 }
 
 function renderCongregationList() {
+  if(!selectedMeetingPointId)void loadMeetingCoverage();
   const visible = filteredCongregations();
   els.visibleCount.textContent = `${visible.length} shown`;
   const near=locations.find(p=>p.id===nearestMeetingPointId);
   document.getElementById('directoryOrder').textContent=near?'Closest to '+markerLabel(near)+' — '+near.name+' · straight-line distance; addresses without pins appear last.':'Alphabetical order. Select a meeting point to list congregations nearest to it.';
   document.getElementById('clearNearestSort').hidden=!near;
   const travelPoint=locations.find(p=>p.id===selectedMeetingPointId);
-  const times=travelPoint?CONGREGATIONS.map(c=>driveState(c,travelPoint.id)):[];
-  document.getElementById('driveTimeStatus').textContent=travelPoint?`To ${travelPoint.name}: ${times.filter(t=>t.status==='within').length} within 1 hr 20 min · ${times.filter(t=>t.status==='over').length} over limit · ${times.filter(t=>!['within','over'].includes(t.status)).length} need a check. Road estimates exclude live traffic, stops and bus delays.`:'Select a meeting point to check the 1 hr 20 min drive-time limit.';
-  document.getElementById('retryDriveTimes').hidden=!travelPoint;
+  const times=CONGREGATIONS.map(mapTravelState);
+  document.getElementById('driveTimeStatus').textContent=travelPoint?`To ${travelPoint.name}: ${times.filter(t=>t.status==='within').length} within 1 hr 20 min · ${times.filter(t=>t.status==='over').length} over limit · ${times.filter(t=>!['within','over'].includes(t.status)).length} need a check. Road estimates exclude live traffic, stops and bus delays.`:`${times.filter(t=>t.status==='over').length} congregations are over 1 hr 20 min from every available meeting location and shown in gray. ${times.filter(t=>t.status==='within').length} have a location within the limit; ${times.filter(t=>!['within','over'].includes(t.status)).length} still need a check. Unsuitable locations are excluded. Road estimates exclude live traffic.`;
+  document.getElementById('retryDriveTimes').hidden=!travelPoint&&!times.some(t=>t.status==='unknown');
 
   els.congregationList.innerHTML = visible.map(congregation => {
     const assignment = assignmentFor(congregation.id);
@@ -612,7 +620,7 @@ function renderCongregationList() {
     const addressLabels={missing:'Missing address', 'pin-needed':'Address needs map pin', review:'Address needs review', mapped:'Address mapped'};
     const assigned = Boolean(assignment);
     const selected = selectedCongregations.has(congregation.id);
-    const travel=driveState(congregation,selectedMeetingPointId);
+    const travel=mapTravelState(congregation);
 
     const assignmentName = point?.name || assignment?.meetingPointName || 'Assigned location not found';
     const assignmentLabel = point ? markerLabel(point) : assignment?.meetingPointLabel || '';
@@ -627,7 +635,7 @@ function renderCongregationList() {
         <small>Current congregation address: ${escapeHtml(home.address||"Not provided")}</small>
         ${near?`<small class="proximity-chip">${home.point?distanceMiles(home.point,near).toFixed(1)+' mi to this meeting point (straight-line)':'Distance unavailable — add an address and map pin'}</small>`:''}
         <span class="address-chip ${home.status}">${addressLabels[home.status]}</span>
-        ${selectedMeetingPointId?`<small class="travel-chip ${travel.status}">${escapeHtml(travel.label)}</small>`:''}
+        ${selectedMeetingPointId||travel.status==='over'?`<small class="travel-chip ${travel.status}">${escapeHtml(travel.label)}</small>`:''}
         <button class="text-button" data-edit-home="${escapeHtml(congregation.id)}" type="button">${home.address?"Edit address / pin":"Add address"}</button>
         ${homeLocation ? `<small class="home-map-chip">Home Hall on map: ${escapeHtml(markerLabel(homeLocation))} — ${escapeHtml(homeLocation.name)}</small>` : ''}
       </div>
@@ -842,7 +850,7 @@ async function loadRailMeetingPoints(){
  document.getElementById('railMeetingStatus').textContent='Loading rail station meeting points…';
  try{railLocations=railMeetingPoints(await loadRail());rebuildLocations();renderAll();if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);document.getElementById('railMeetingStatus').textContent=railLocations.length+' RTD rail stations available as meeting points. Select a train pin to assign congregations.';document.getElementById('retryRailMeetingPoints').hidden=true;}
  catch(error){document.getElementById('railMeetingStatus').textContent='Rail stations could not load. Your existing assignments are retained.';document.getElementById('retryRailMeetingPoints').hidden=false;}
- finally{railLoading=false;document.getElementById('retryRailMeetingPoints').disabled=false;}
+ finally{railLoading=false;document.getElementById('retryRailMeetingPoints').disabled=false;renderAll();}
 }
 document.getElementById('showRailMeetingPoints').addEventListener('change',syncMarkers);
 document.getElementById('meetingPointSearch').addEventListener('input',renderMeetingPointList);
@@ -904,7 +912,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 // Capture Escape before Leaflet consumes it while the map has keyboard focus.
 document.addEventListener('keydown',handleSelectionEscape,true);
 populateMeetingPointOptions();
@@ -970,7 +978,7 @@ async function saveAssignment(congregation,pointId){
   assignments.set(congregation.id,{meetingPointId:destination.id,meetingPointName:destination.name,meetingPointAddress:destination.address||''});if(revision===selectionRevision){selectedCongregations.delete(congregation.id);revealedCongregations.delete(congregation.id);}renderAll();
 }
 
-document.getElementById('retryDriveTimes').addEventListener('click',()=>{void loadDrives(selectedMeetingPointId,true);});
+document.getElementById('retryDriveTimes').addEventListener('click',()=>{if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId,true);else void loadMeetingCoverage(true);});
 document.getElementById('showSelectedHomes').addEventListener('click',()=>locationUi?.fitSelected());
 document.getElementById('exportAssignments').addEventListener('click',async()=>{
   if(excelExportBusy)return;
@@ -979,9 +987,10 @@ document.getElementById('exportAssignments').addEventListener('click',async()=>{
     reportExportFactor();
     const point=locations.find(p=>p.id===selectedMeetingPointId);
     await loadDrives(selectedMeetingPointId);
+    await prepareAssignmentDrives({congregations:CONGREGATIONS,locations,assignmentFor,resolveHome,drives,onProgress:(done,total)=>{button.textContent='Checking assigned travel '+done+' / '+total+'…';}});
     const delegatesPerCongregation=reportExportFactor();
     downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,serviceDaysFor,sharedReady:publicReady,delegatesPerCongregation});
-    toast('Excel export ready. By meeting location lists each location and its assigned congregations. Overview has the charts; edit C5 there to adjust delegates.');
+    toast('Excel export ready. By meeting location lists each location, its congregations, driving time and road miles. Overview has the charts; edit C5 there to adjust delegates.');
   }catch(error){toast('Excel export failed: '+error.message,true);}finally{excelExportBusy=false;updateReportExportButtons();button.textContent='Export Excel';}
 });
 

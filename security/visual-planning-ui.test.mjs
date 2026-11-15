@@ -9,6 +9,26 @@ import vm from 'node:vm';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {travelCostDraft,encodeTravelCost} from '../activity-planning/travel-cost-model.mjs';
 const settle=()=>new Promise(r=>setTimeout(r,5));
+test('congregation map applies the overall travel limit and keeps assignment check marks',()=>{
+ const source=fs.readFileSync(new URL('../assignments/location-ui.mjs',import.meta.url),'utf8');
+ const dom=new JSDOM('<body></body>'),icons=[],congregations=['far','near','unknown'].map(id=>({id,name:id}));
+ const context=vm.createContext({document:dom.window.document,congregations,selectedId:'',homesLayer:{clearLayers(){icons.length=0;}},resolveHome:()=>({}),esc:String,map:{},select(){},focusMapPoint(){},
+  groupHomes:cs=>cs.map(c=>({lat:39.7,lng:-105,address:'Hall address',congregations:[c]})),
+  L:{divIcon:options=>options,marker:(_point,options)=>{icons.push(options.icon.html);return {addTo(){return this;},bindPopup(){return this;},bindTooltip(){return this;},on(){return this;}};}},
+  ctx:{getSelected:()=>new Set(['far']),getMeetingPoint:()=>'',getVisible:()=>congregations,getAssignment:id=>id==='far'?{meetingPointId:'meeting'}:null,getLocations:()=>[{id:'meeting',name:'Meeting'}],mapTravelState:c=>({status:{far:'over',near:'within',unknown:'unknown'}[c.id]}),driveState:()=>{throw Error('Expected the overall map travel state');}}
+ });
+ vm.runInContext(source.slice(source.indexOf('  function renderHomes()'),source.indexOf('  function selected()')),context);context.renderHomes();
+ assert.match(icons[0],/over-limit/);assert.match(icons[0],/assigned-badge/);assert.match(icons[0],/✓1/);assert.match(icons[0],/selection-badge/);
+ assert.doesNotMatch(icons[1],/over-limit/);assert.doesNotMatch(icons[2],/over-limit/);dom.window.close();
+});
+test('overall map checks omit unsuitable meeting locations and selected-point checks stay specific',()=>{
+ const source=fs.readFileSync(new URL('../assignments/app-v3.mjs',import.meta.url),'utf8'),seen=[];
+ const ctx=vm.createContext({locations:[{id:'ok'},{id:'bad'},{id:'rail'}],publicLocationData:new Map([['bad',{busStatus:'not-suitable'}]]),selectedMeetingPointId:'',reportDataLoaded:true,railLoading:false,resolveHome:()=>({}),drives:{stateAny:(_home,points)=>{seen.push(points.map(p=>p.id));return {status:'within'};}},driveState:(_c,id)=>({status:'over',destination:id})});
+ vm.runInContext(source.slice(source.indexOf('const availableMeetingPoints='),source.indexOf('const loadDrives=')),ctx);
+ assert.equal(ctx.mapTravelState({}).status,'within');assert.deepEqual(Array.from(seen[0]),['ok','rail']);
+ ctx.selectedMeetingPointId='rail';assert.equal(ctx.mapTravelState({}).destination,'rail');assert.equal(seen.length,1);
+ ctx.selectedMeetingPointId='';ctx.railLoading=true;assert.equal(ctx.mapTravelState({}).status,'pending');
+});
 function record(id='trip'){return {id,recordType:'bus-route',travelSchemaVersion:1,plan:{name:'Hotel to Service',time:'2027-07-16T08:00',passengers:20,vehicle:'Bus 2',assignedHotelIds:['H1'],assignedCongregationIds:['C1'],stops:[{id:'H1',name:'Hotel',address:'1 Hotel St',group:'Hotels',mode:'bus'},{id:'hall-3',name:'Service meeting',address:'2 Hall St',group:'Field service / meeting places',mode:'rail',dwell:60,startTime:'2027-07-16T09:00'},{id:'activity',name:'Gathering',address:'3 Activity St',mode:'walk'}]},resultJson:JSON.stringify({legs:[{ready:1815745500000,depart:1815746400000,arrive:1815749100000},{ready:1815749100000,depart:1815749400000,arrive:1815750300000}]})};}
 function setup(){const dom=new JSDOM('<div id="costs"></div><div id="register"></div>',{url:'https://example.test/activity-planning/'});const doc=dom.window.document;globalThis.document=doc;const saves=[];let resolveSave=null;const costs=mountTravelCosts(doc.getElementById('costs'),{save:async(p,id)=>{saves.push({p,id});if(resolveSave)await resolveSave;return id||'estimate';}});return {dom,doc,costs,saves,pending:p=>resolveSave=p,$:s=>doc.querySelector(s),input(s,value){const el=doc.querySelector(s);el.value=value;el.dispatchEvent(new dom.window.Event('input',{bubbles:true}));},change(s,value){const el=doc.querySelector(s);el.value=value;el.dispatchEvent(new dom.window.Event('change',{bubbles:true}));}};}
 test('cost UI imports mixed legs, calculates entered fares, saves a snapshot and reopens it',async()=>{

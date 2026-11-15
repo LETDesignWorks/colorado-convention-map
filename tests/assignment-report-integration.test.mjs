@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {buildAssignmentReport, normalizeDelegateCount} from '../assignments/report-model.mjs';
+import {prepareAssignmentDrives} from '../assignments/drive-times.mjs';
 import {SERVICE_DAYS_TYPE, readServiceDays} from '../assignments/service-days-model.mjs';
 
 // Exercise the real page callbacks with a small Firestore/document boundary.
@@ -38,7 +39,7 @@ function fixture() {
     db: {}, collection: (_db, name) => name,
     onSnapshot: (_collection, _options, success, error) => {onSnapshotData = success; onSnapshotError = error; return () => {};},
     withMeetingStatus: (_id, data) => data, rebuildLocations() {}, locationUi: {render() {}},
-    renderAll: () => context.renderAssignmentReport(), loadDrives: async () => {},
+    renderAll: () => context.renderAssignmentReport(), loadDrives: async () => {}, prepareAssignmentDrives, drives:{ensure:async()=>{}},
     filteredCongregations: () => [congregations[2]], resolveHome: () => ({}), driveState: () => ({}),
     downloadAssignmentWorkbook: options => downloads.push(options),
     printAssignmentReport: report => {prints.push(report); return Promise.resolve();},
@@ -165,4 +166,14 @@ test('PDF validates before opening, preserves a zero assumption, and blocks dupl
   assert.match(f.toasts.at(-1).message, /Popup blocked/);
   assert.equal(f.context.pdfExportBusy, false);
   assert.equal(f.element('exportAssignmentPdf').disabled, false);
+});
+
+test('Excel waits for all assigned destination checks before creating the workbook',async()=>{
+ const f=fixture();f.feed([...savedA,{id:'assignment-b',recordType:'congregation-assignment',congregationId:'b',meetingPointId:'second'}]);
+ f.context.locations.push({id:'second',name:'Second meeting location'});
+ const checked=[];let finish;
+ f.context.drives.ensure=async(_homes,point,options)=>{checked.push([point.id,options.includeDistance]);if(point.id==='second')await new Promise(resolve=>{finish=resolve;});};
+ const exporting=f.excel();await new Promise(resolve=>setTimeout(resolve,0));
+ assert.deepEqual(checked,[['point',true],['second',true]]);assert.equal(f.downloads.length,0);
+ finish();await exporting;assert.equal(f.downloads.length,1);
 });

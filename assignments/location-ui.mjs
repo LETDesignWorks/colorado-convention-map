@@ -53,7 +53,7 @@ export function initCongregationLocations(ctx){
       const active=group.congregations.some(c=>c.id===selectedId),checked=group.congregations.filter(c=>selectedIds.has(c.id)).length;
       const assigned=group.congregations.filter(c=>ctx.getAssignment(c.id)?.meetingPointId).length;
       const assignedHere=group.congregations.filter(c=>meeting&&ctx.getAssignment(c.id)?.meetingPointId===meeting).length;
-      const over=group.congregations.every(c=>ctx.driveState(c,meeting).status==='over');
+      const over=group.congregations.every(c=>(ctx.mapTravelState?.(c)||ctx.driveState(c,meeting)).status==='over');
       const icon=L.divIcon({className:'',html:`<div class="congregation-pin${active?' active':''}${checked?' checked':''}${assigned?' assigned':''}${assignedHere?' saved-here':''}${over?' over-limit':''}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11 12 3l9 8M5 10v11h14V10M9 21v-7h6v7"/></svg><b>${group.congregations.length}</b>${checked||active?`<span class="selection-badge">${checked>1?checked+' selected':'Selected'}</span>`:''}${assigned?`<span class="assigned-badge" title="${assigned} of ${group.congregations.length} assigned">✓${assigned}${assigned<group.congregations.length?'/'+group.congregations.length:''}</span>`:''}</div>`,iconSize:[46,28],iconAnchor:[-8,14]});
       const marker=L.marker([group.lat,group.lng],{icon,zIndexOffset:active||checked?1100:600,title:group.congregations.map(c=>c.name).join('; ')}).addTo(homesLayer);
       const popup=document.createElement('div');popup.className='home-popup';popup.innerHTML=`<strong>${group.congregations.length} congregation${group.congregations.length===1?'':'s'}</strong><p>${esc(group.address)}</p>`;
