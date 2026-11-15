@@ -6,6 +6,7 @@ import {createTravelRegister} from '../assets/travel-register-ui.mjs';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
+import {travelCostDraft,encodeTravelCost} from '../activity-planning/travel-cost-model.mjs';
 const settle=()=>new Promise(r=>setTimeout(r,5));
 function record(id='trip'){return {id,recordType:'bus-route',travelSchemaVersion:1,plan:{name:'Hotel to Service',time:'2027-07-16T08:00',passengers:20,vehicle:'Bus 2',assignedHotelIds:['H1'],assignedCongregationIds:['C1'],stops:[{id:'H1',name:'Hotel',address:'1 Hotel St',group:'Hotels',mode:'bus'},{id:'hall-3',name:'Service meeting',address:'2 Hall St',group:'Field service / meeting places',mode:'rail',dwell:60,startTime:'2027-07-16T09:00'},{id:'activity',name:'Gathering',address:'3 Activity St',mode:'walk'}]},resultJson:JSON.stringify({legs:[{ready:1815745500000,depart:1815746400000,arrive:1815749100000},{ready:1815749100000,depart:1815749400000,arrive:1815750300000}]})};}
 function setup(){const dom=new JSDOM('<div id="costs"></div><div id="register"></div>',{url:'https://example.test/activity-planning/'});const doc=dom.window.document;globalThis.document=doc;const saves=[];let resolveSave=null;const costs=mountTravelCosts(doc.getElementById('costs'),{save:async(p,id)=>{saves.push({p,id});if(resolveSave)await resolveSave;return id||'estimate';}});return {dom,doc,costs,saves,pending:p=>resolveSave=p,$:s=>doc.querySelector(s),input(s,value){const el=doc.querySelector(s);el.value=value;el.dispatchEvent(new dom.window.Event('input',{bubbles:true}));},change(s,value){const el=doc.querySelector(s);el.value=value;el.dispatchEvent(new dom.window.Event('change',{bubbles:true}));}};}
@@ -21,6 +22,10 @@ test('cost date filter clears unavailable choices and read-only access blocks sh
 });
 test('revoked access clears imported private data even while a save finishes',async()=>{
  const f=setup();let resolve;f.pending(new Promise(r=>resolve=r));f.costs.setData({routes:[record()],access:true,canSave:true});f.costs.importRoute('trip');f.$('[data-cost-save]').click();f.costs.setData({routes:[],estimates:[],access:false,canSave:false,reset:true});resolve();await settle();assert(!f.doc.body.textContent.includes('Hotel to Service'));assert.equal(f.$('[data-cost-editor]').innerHTML,'');assert.equal(f.$('[data-cost-import]').disabled,true);f.dom.window.close();
+});
+test('saved estimate values render as text without injecting HTML',()=>{
+ const f=setup(),draft=travelCostDraft(record());draft.legs[0].stopMinutes='<img src=x onerror=alert(1)>';const saved={...encodeTravelCost(draft),id:'estimate'};
+ f.costs.setData({estimates:[saved],access:false,canSave:false});f.$('[data-cost-open]').click();assert.equal(f.$('[data-cost-editor] img'),null);assert.match(f.$('[data-cost-editor]').textContent,/<img src=x/);f.dom.window.close();
 });
 test('route register filters multiple trips for one hotel/day and clears private rows on sign-out',()=>{
  const f=setup(),register=createTravelRegister(f.$('#register')),a=record(),b=record('trip2');b.plan.name='Second group';b.plan.vehicle='Car group 1';const locations=a.plan.stops;
