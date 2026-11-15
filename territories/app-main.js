@@ -429,7 +429,7 @@ function selectHall(id, pan = true, preserveWork = false) {
 function hallIcon(location, selected = false) {
   return L.divIcon({
     className: '',
-    html: `<div class="hall-pin${selected ? ' selected' : ''}">${escapeHtml(markerLabel(location))}</div>`,
+    html: `<div data-bus-location-id="${escapeHtml(location.id)}" class="hall-pin${selected ? ' selected' : ''}">${escapeHtml(markerLabel(location))}</div>`,
     iconSize: [40, 40], iconAnchor: [20, 20]
   });
 }

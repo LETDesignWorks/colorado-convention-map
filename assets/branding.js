@@ -2,7 +2,7 @@ import {mountSiteNavigation} from './site-navigation.mjs?v=travel-20261114-1';
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=access-20261114-1';
-import './bus-access-status-sync.js?v=congregation-homes-20261113-1';
+import './bus-access-status-sync.js?v=suitability-20261115-1';
 import './location-address-autofill.js?v=20260910-3';
 
 const logoUrl = new URL('./denver-2027-logo.png', import.meta.url).href;

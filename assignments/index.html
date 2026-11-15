@@ -9,11 +9,11 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=visual-20261115-2"/>
+<link rel="stylesheet" href="styles.css?v=suitability-20261115-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script type="module" src="../assets/branding.js?v=travel-20261114-1"></script>
-<script type="module" src="../assets/site-navigation.mjs?v=travel-20261114-1"></script>
-<link rel="stylesheet" href="../assets/travel-register.css?v=visual-20261115-2"></head>
+<script type="module" src="../assets/branding.js?v=suitability-20261115-1"></script>
+<script type="module" src="../assets/site-navigation.mjs?v=suitability-20261115-1"></script>
+<link rel="stylesheet" href="../assets/travel-register.css?v=suitability-20261115-1"></head>
 <body>
 <div class="app">
 <header class="topbar">
@@ -47,6 +47,7 @@
     <option value="all">All meeting points</option>
     <option value="unassigned">Unassigned congregations</option>
   </select>
+  <select id="serviceDayFilter" aria-label="Filter by service weekday"><option value="all">All service days</option></select>
   <select id="addressFilter" aria-label="Filter by address status">
     <option value="all">All address statuses</option><option value="missing">Missing address</option><option value="pin-needed">Address needs map pin</option><option value="review">Address needs review</option><option value="mapped">Mapped addresses</option>
   </select>
@@ -82,6 +83,7 @@
     <section class="card congregation-detail" id="congregationDetail" aria-label="Selected congregation">
       <span class="eyebrow">CONGREGATION & SUGGESTED MEETING POINT</span><h2>Select a congregation</h2><p class="intro-copy">Choose a purple home icon or a congregation name below to review its address, suggestions and assignment.</p>
     </section>
+    <section class="card" id="serviceDaysCard"></section>
     <section class="card assignment-controls">
       <div class="card-heading">
         <div>
@@ -139,9 +141,9 @@
     <section class="card meeting-points-card">
       <div class="card-heading compact">
         <div><span class="eyebrow">CURRENT MAP LOCATIONS</span><h2>Meeting Points</h2></div>
-        <span class="count-chip" id="meetingPointCount">0</span>
+        <span class="count-chip" id="meetingPointCount">0</span><button id="toggleMeetingPointList" type="button" class="text-button" aria-controls="meetingPointListContent" aria-expanded="true">Minimize list</button>
       </div>
-      <label class="sr-only" for="meetingPointSearch">Search meeting points</label><input id="meetingPointSearch" type="search" placeholder="Search halls, meeting areas or rail stations"><p id="railMeetingStatus" class="intro-copy" role="status">Loading rail station meeting points…</p><button id="retryRailMeetingPoints" type="button" class="text-button" hidden>Retry rail stations</button><div class="meeting-point-list" id="meetingPointList"></div>
+      <div id="meetingPointListContent"><label class="sr-only" for="meetingPointSearch">Search meeting points</label><input id="meetingPointSearch" type="search" placeholder="Search halls, meeting areas or rail stations"><p id="railMeetingStatus" class="intro-copy" role="status">Loading rail station meeting points…</p><button id="retryRailMeetingPoints" type="button" class="text-button" hidden>Retry rail stations</button><div class="meeting-point-list" id="meetingPointList"></div></div>
     </section>
 
     <section class="card congregation-card">
@@ -215,6 +217,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=visual-20261115-2"></script>
+<script type="module" src="app-v3.mjs?v=suitability-20261115-1"></script>
 </body>
 </html>

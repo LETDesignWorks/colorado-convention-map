@@ -11,6 +11,19 @@ const seed = async (path, value) => env.withSecurityRulesDisabled(ctx=>setDoc(do
 before(async()=>{env=await initializeTestEnvironment({projectId:'demo-convention-access',firestore:{rules:fs.readFileSync(new URL('./firestore.rules',import.meta.url),'utf8')}});});
 after(async()=>{await env?.cleanup();});
 beforeEach(async()=>{await env.clearFirestore();});
+test('assignment editors can save weekday records without changing addresses or meeting assignments',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));const db=user();
+ const payload={recordType:'congregation-service-days',congregationId:'C001',congregationName:'First',serviceDays:['Monday','Thursday'],updatedBy:'Convention planning team'};
+ await assertSucceeds(getDoc(doc(db,'siteAccessCapabilities/serviceDaysV1')));await assertSucceeds(setDoc(doc(db,'halls/congregation-service-days-c001'),payload));
+ await assertFails(updateDoc(doc(db,'halls/congregation-service-days-c001'),{serviceDays:['Someday']}));await assertFails(updateDoc(doc(db,'halls/congregation-service-days-c001'),{meetingPointId:'26'}));
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'view'}));await assertFails(updateDoc(doc(db,'halls/congregation-service-days-c001'),{serviceDays:[]}));
+ await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'halls/congregation-service-days-c001')));
+});
+test('suitability changes require Bus Access edit permission and preserve other hall fields',async()=>{
+ await seed('halls/26',{name:'Castle Rock',busStatus:'approved',publicSummary:'Keep this review'});await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));const db=user();await assertFails(updateDoc(doc(db,'halls/26'),{busStatus:'not-suitable',suitabilityRevision:1}));
+ await seed('reviews/site-access-helper@example.com',grant({busAccess:'edit'}));await assertSucceeds(updateDoc(doc(db,'halls/26'),{busStatus:'not-suitable',suitabilityRevision:1}));
+ const result=await getDoc(doc(db,'halls/26'));if(result.data().publicSummary!=='Keep this review')throw Error('Review details were lost');
+});
 test('assignment editors can assign multiple congregations to one rail station; viewers cannot',async()=>{
  await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));
  const db=user(),batch=writeBatch(db);

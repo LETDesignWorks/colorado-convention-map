@@ -1,3 +1,4 @@
+import {effectiveMeetingStatus} from '../assets/meeting-suitability-model.mjs';
 import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
@@ -47,7 +48,7 @@ const markers=new Map();
 let map,selectedId=null;
 
 const escapeHtml=(value='')=>String(value??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-const statusKey=id=>publicData.get(String(id))?.busStatus||'not-reviewed';
+const statusKey=id=>effectiveMeetingStatus(id,publicData.get(String(id)));
 const statusInfo=id=>STATUS[statusKey(id)]||STATUS['not-reviewed'];
 const mapsUrl=h=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(h.address)}`;
 const directionsUrl=h=>`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(h.address)}`;
@@ -57,7 +58,7 @@ const reviewUrl=h=>`../bus-access/#location-${encodeURIComponent(h.id)}`;
 
 function markerIcon(h,selected=false){
   const info=statusInfo(h.id);
-  return L.divIcon({className:'',html:`<div class="marker-pin${selected?' selected':''}" style="background:${info.color}">${h.number}</div>`,iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-19]});
+  return L.divIcon({className:'',html:`<div data-bus-location-id="${escapeHtml(h.id)}" class="marker-pin${selected?' selected':''}" style="background:${info.color}">${h.number}</div>`,iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-19]});
 }
 
 function initMap(){

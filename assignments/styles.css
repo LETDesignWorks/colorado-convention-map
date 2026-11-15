@@ -202,3 +202,5 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 @media print{.map-assignment-tools{display:none}}
 
 .meeting-map-pin.rail-station,.point-marker.rail-station{background:#007f86;color:white}.meeting-map-pin.rail-station{border-radius:10px}.rail-meeting-toggle{display:flex;align-items:center;gap:6px;margin-top:7px}.rail-meeting-toggle input{width:auto}.meeting-points-card input[type="search"]{width:100%;box-sizing:border-box;border:1px solid #ccd8e7;border-radius:8px;padding:10px}
+
+.weekday-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.weekday-options label{display:flex;align-items:center;gap:6px}.weekday-options input{width:auto}.service-days-summary{max-height:180px;overflow:auto;font-size:12px}.service-days-summary p{margin:8px 0}.service-days-label{color:#275478}#serviceDaysCard fieldset{border:1px solid #d7e1ec;border-radius:9px;padding:10px}#serviceDaysCard fieldset:disabled{opacity:.6}

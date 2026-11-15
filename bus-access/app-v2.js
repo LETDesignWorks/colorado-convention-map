@@ -1,3 +1,4 @@
+import {effectiveMeetingStatus,withMeetingStatus,STATUS_REVISION} from '../assets/meeting-suitability-model.mjs';
 import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPhotoCoverage} from './photo-coverage.mjs?v=photo-coverage-20261110-1';
@@ -49,7 +50,7 @@ function isAdmin() { return canEdit('busAccess'); }
 function findLocation(id){return locations.find(x=>x.id===String(id));}
 function markerLabel(location){return clean(location.markerLabel||location.number||'A');}
 function typeLabel(location){return TYPE_LABELS[location.locationType]||'Planning location';}
-function statusKey(id){return publicData.get(String(id))?.busStatus||'not-reviewed';}
+function statusKey(id){return effectiveMeetingStatus(id,publicData.get(String(id)));}
 function statusInfo(id){return STATUS[statusKey(id)]||STATUS['not-reviewed'];}
 function summaryFor(id){const data=publicData.get(String(id))||{};return{status:statusInfo(id).label,busSize:BUS_SIZE_LABELS[data.busSize]||data.busSize,publicSummary:data.publicSummary};}
 function toast(message,error=false){const t=document.getElementById('toast');t.textContent=message;t.className='toast show'+(error?' error':'');clearTimeout(t._timer);t._timer=setTimeout(()=>t.className='toast',3600);}
@@ -82,7 +83,7 @@ function rebuildLocations(){
 }
 function markerIcon(location,selected=false){
   const info=statusInfo(location.id),label=markerLabel(location),meeting=location.locationType==='meeting-area';
-  return L.divIcon({className:'',html:`<div class="marker-pin${meeting?' meeting-marker':''}${label.length>2?' long-label':''}${selected?' selected':''}" style="background:${info.color}">${escapeHtml(label)}</div>`,iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-19]});
+  return L.divIcon({className:'',html:`<div data-bus-location-id="${escapeHtml(location.id)}" class="marker-pin${meeting?' meeting-marker':''}${label.length>2?' long-label':''}${selected?' selected':''}" style="background:${info.color}">${escapeHtml(label)}</div>`,iconSize:[38,38],iconAnchor:[19,19],popupAnchor:[0,-19]});
 }
 function createMarker(location){
   const marker=L.marker([location.lat,location.lng],{icon:markerIcon(location)}).addTo(map);
@@ -178,7 +179,7 @@ async function saveReview(event){
   const values=Object.fromEntries(new FormData(form).entries()),button=form.querySelector('button[type=submit]');button.disabled=true;button.textContent='Saving…';
   try{
     const batch=writeBatch(db);
-    batch.set(doc(db,'halls',location.id),{number:location.number,markerLabel:markerLabel(location),name:location.name,address:location.address,lat:location.lat,lng:location.lng,locationType:location.locationType,planningArea:location.planningArea||'dtc-45',customLocation:Boolean(location.customLocation),congregationCount:(location.congregations||[]).length,congregations:location.congregations||[],busStatus:values.busStatus,busSize:values.busSize,publicSummary:clean(values.publicSummary),updatedAt:serverTimestamp(),updatedBy:'Transportation review team'},{merge:true});
+    batch.set(doc(db,'halls',location.id),{number:location.number,markerLabel:markerLabel(location),name:location.name,address:location.address,lat:location.lat,lng:location.lng,locationType:location.locationType,planningArea:location.planningArea||'dtc-45',customLocation:Boolean(location.customLocation),congregationCount:(location.congregations||[]).length,congregations:location.congregations||[],busStatus:values.busStatus,suitabilityRevision:STATUS_REVISION,busSize:values.busSize,publicSummary:clean(values.publicSummary),updatedAt:serverTimestamp(),updatedBy:'Transportation review team'},{merge:true});
     batch.set(doc(db,'reviews',location.id),{hallNumber:markerLabel(location),entrance:values.entrance,exit:values.exit,turnaround:values.turnaround,loadingArea:values.loadingArea,busParking:values.busParking,overhead:values.overhead,propertyPermission:values.propertyPermission,onsiteVerification:values.onsiteVerification,contact1:{name:clean(values.contact1Name),phone:clean(values.contact1Phone),email:clean(values.contact1Email)},contact2:{name:clean(values.contact2Name),phone:clean(values.contact2Phone),email:clean(values.contact2Email)},internalNotes:clean(values.internalNotes),reviewerName:clean(values.reviewerName),reviewDate:values.reviewDate,updatedByEmail:currentUser.email,updatedAt:serverTimestamp()},{merge:true});
     pendingSelectId=location.id;await batch.commit();toast(`${typeLabel(location)} ${markerLabel(location)} review saved.`);
   }catch(error){toast('Save failed: '+friendlyError(error),true);}finally{button.disabled=false;button.textContent='Save Review';}
@@ -230,7 +231,7 @@ document.addEventListener('click',event=>{if(event.target.id==='openStreetFromFo
 try{
   app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);await setPersistence(auth,browserLocalPersistence);
   observeSiteAccess(auth,async user=>{currentUser=user;const admin=isAdmin();photoCoverageTracker?.contextChanged();trafficPlanner?.contextChanged();locationPhotos?.contextChanged();locationsPresentation?.contextChanged();document.getElementById('loginButton').hidden=Boolean(user);document.getElementById('signOutButton').hidden=!user;addLocationButton.hidden=!admin;presentationButton.hidden=!isOwner(currentUser)||!locationsPresentation;if(selectedId&&findLocation(selectedId))await renderDetail(findLocation(selectedId));});
-  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,item.data()));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();renderList();});
+  onSnapshot(collection(db,'halls'),snapshot=>{publicData.clear();snapshot.forEach(item=>publicData.set(item.id,withMeetingStatus(item.id,item.data())));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();showFirebaseWarning('');renderList();if(pendingSelectId&&findLocation(pendingSelectId)){const id=pendingSelectId;pendingSelectId=null;selectLocation(id,true);}else if(selectedId&&findLocation(selectedId))renderDetail(findLocation(selectedId));else if(locations.length)selectLocation(locations[0].id,false);},error=>{showFirebaseWarning('The public status database could not be read. The map is showing the built-in Hall list with “Not reviewed” defaults. '+friendlyError(error));rebuildLocations();photoCoverageTracker?.contextChanged();locationsPresentation?.contextChanged();renderList();});
 }catch(error){showFirebaseWarning('Firebase could not initialize. '+friendlyError(error));renderList();}
 
 initMap();renderList();

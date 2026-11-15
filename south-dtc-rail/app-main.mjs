@@ -246,7 +246,7 @@ function hotelIcon(hotel) {
 function meetingIcon(location, selected = false) {
   return L.divIcon({
     className: '',
-    html: `<div class="meeting-pin${location.customLocation ? ' manual' : ''}${selected ? ' selected' : ''}">${escapeHtml(markerLabel(location))}</div>`,
+    html: `<div data-bus-location-id="${escapeHtml(location.id)}" class="meeting-pin${location.customLocation ? ' manual' : ''}${selected ? ' selected' : ''}">${escapeHtml(markerLabel(location))}</div>`,
     iconSize: [38, 38], iconAnchor: [19, 19]
   });
 }

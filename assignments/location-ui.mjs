@@ -64,7 +64,7 @@ export function initCongregationLocations(ctx){
   function selected(){return congregationById(selectedId);}
   function select(id,pan=false,fromMap=false){
     if(!congregationById(id))return;
-    selectedId=id;savedPoint=ctx.getAssignment(id)?.meetingPointId||'';draftPoint=savedPoint;
+    selectedId=id;ctx.onCongregationSelected?.(id);savedPoint=ctx.getAssignment(id)?.meetingPointId||'';draftPoint=savedPoint;
     if(fromMap)ctx.mapSelect?.(id);
     render();if(draftPoint)void ctx.loadDrives(draftPoint);
     const home=resolveHome(selected());if(map&&home.point&&pan)map.setView([home.point.lat,home.point.lng],13);

@@ -1,6 +1,7 @@
+import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {landmarkIcon,sizeLandmarksForZoom} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
-import {catalog,escapeHtml as esc,icon,mapBase,railLayers,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,CENTERS} from '../assets/planning-common.mjs';
+import {catalog,escapeHtml as esc,icon,mapBase,railLayers,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,CENTERS} from '../assets/planning-common.mjs?v=suitability-20261115-1';
 import {loadRail} from '../assets/rail-network.mjs';
 import {CONGREGATIONS} from '../assignments/congregations-data.mjs';
 import {HOME_POINTS} from '../assignments/home-points.mjs';
@@ -34,7 +35,7 @@ function controls(){
  $('layers').innerHTML=definitions.map(([id,label,color])=>'<label><input type="checkbox" data-layer="'+id+'" '+(map.hasLayer(layers.get(id))?'checked':'')+'><span><i class="layer-dot" style="background:'+color+'"></i>'+esc(label)+'</span><small>'+esc(statusByLayer.get(id)||layers.get(id).getLayers().length)+'</small></label>').join('');
 }
 $('layers').onchange=e=>{const id=e.target.dataset.layer;if(!id)return;const layer=layers.get(id);if(e.target.checked)layer.addTo(map);else map.removeLayer(layer);prefs[id]=e.target.checked;try{localStorage.setItem('denver2027.full-map.layers',JSON.stringify(prefs));}catch{}};
-function pointMarker(p,layer,symbol,color,text=''){if(!validPoint(p.lat,p.lng))return;return L.marker([Number(p.lat),Number(p.lng)],{icon:landmarkIcon(p,{step:symbol,fallback:icon(symbol,color)})}).addTo(layers.get(layer)).bindPopup('<b>'+esc(p.name||'Location')+'</b><br>'+esc(p.address||'')+text);}
+function pointMarker(p,layer,symbol,color,text=''){if(!validPoint(p.lat,p.lng))return;return L.marker([Number(p.lat),Number(p.lng)],{icon:tagMeetingIcon(landmarkIcon(p,{step:symbol,fallback:icon(symbol,color)}),p)}).addTo(layers.get(layer)).bindPopup('<b>'+esc(p.name||'Location')+'</b><br>'+esc(p.address||'')+text);}
 function link(path,label){return '<br><a href="'+new URL('../'+path,import.meta.url).href+'">'+label+'</a>';}
 function renderPublic(){
  for(const id of ['landmarks','meetings','congregations','connections','hotels','activities','railPreferences','smpw','team','dtc'])layers.get(id).clearLayers();

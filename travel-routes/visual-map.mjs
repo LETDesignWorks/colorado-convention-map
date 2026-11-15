@@ -1,3 +1,4 @@
+import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {CONGREGATIONS} from '../assignments/congregations-data.mjs';
 import {HOME_POINTS} from '../assignments/home-points.mjs';
 import {homeFor,groupHomes,validPoint} from '../assignments/location-model.mjs';
@@ -14,7 +15,7 @@ export function createVisualTravelMap({map,icon,landmarkIcon,onChoose}){
   const choose=(point,event)=>{if(event?.originalEvent)L.DomEvent?.stopPropagation(event.originalEvent);onChoose(point);};
   function point(p,key,symbol,color){
     if(!validPoint(p.lat,p.lng))return;
-    const marker=L.marker([Number(p.lat),Number(p.lng)],{icon:landmarkIcon(p,{fallback:icon(symbol,color)}),title:p.name,zIndexOffset:100}).addTo(layers.get(key));
+    const marker=L.marker([Number(p.lat),Number(p.lng)],{icon:tagMeetingIcon(landmarkIcon(p,{fallback:icon(symbol,color)}),p),title:p.name,zIndexOffset:100}).addTo(layers.get(key));
     marker.bindTooltip(esc(p.name));marker.on('click',e=>choose(p,e));
   }
   return {update(locations,records=[]){

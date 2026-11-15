@@ -223,7 +223,7 @@ function locationIcon(location){
   const meeting=location.locationType==='meeting-area';
   return L.divIcon({
     className:'',
-    html:`<div class="location-marker${meeting?' meeting':''}">${escapeHtml(markerLabel(location))}</div>`,
+    html:`<div data-bus-location-id="${escapeHtml(location.id)}" class="location-marker${meeting?' meeting':''}">${escapeHtml(markerLabel(location))}</div>`,
     iconSize:[30,30],iconAnchor:[15,15]
   });
 }
@@ -278,7 +278,7 @@ function drawRoute(result){
   const origin=[result.originLat,result.originLng];
   const destination=[result.destinationLat,result.destinationLng];
   originMarker=L.marker(origin,{icon:landmarkIcon({name:result.hotelName},{fallback:L.divIcon({className:'',html:`<div class="route-origin-marker">${escapeHtml(result.hotelMarker)}</div>`,iconSize:[40,40],iconAnchor:[20,20]})})}).addTo(map).bindTooltip(result.hotelName,{direction:'top'});
-  destinationMarker=L.marker(destination,{icon:landmarkIcon({name:result.destinationName},{fallback:L.divIcon({className:'',html:'<div class="route-destination-marker">★</div>',iconSize:[42,42],iconAnchor:[21,21]})})}).addTo(map).bindTooltip(result.destinationName,{direction:'top'});
+  destinationMarker=L.marker(destination,{icon:landmarkIcon({name:result.destinationName},{fallback:L.divIcon({className:'',html:`<div data-bus-location-id="${escapeHtml(result.destinationId||'')}" class="route-destination-marker">★</div>`,iconSize:[42,42],iconAnchor:[21,21]})})}).addTo(map).bindTooltip(result.destinationName,{direction:'top'});
   const points=(Array.isArray(result.routeCoordinates)&&result.routeCoordinates.length>1)
     ?result.routeCoordinates.map(point=>Array.isArray(point)?[point[1],point[0]]:[Number(point.lat),Number(point.lng)]):[origin,destination];
   routeLayer=L.polyline(points,{color:ROUTE_COLORS[0],weight:6,opacity:.86,dashArray:result.routeCoordinates?.length>1?null:'9 7'}).addTo(map);

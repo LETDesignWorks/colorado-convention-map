@@ -1,7 +1,11 @@
+import {mountMeetingListToggle} from './meeting-list-toggle.mjs';
+import {SERVICE_DAYS,SERVICE_DAYS_TYPE,readServiceDays,serviceDaysId,serviceDaysPayload,serviceDaysLabel} from './service-days-model.mjs';
+import {createServiceDaysEditor} from './service-days-ui.mjs';
+import {withMeetingStatus,tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {loadRail} from '../assets/rail-network.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
-import {catalog as travelCatalog} from '../assets/planning-common.mjs';
+import {catalog as travelCatalog} from '../assets/planning-common.mjs?v=suitability-20261115-1';
 import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
@@ -10,16 +14,16 @@ import {
   signOut, onAuthStateChanged, sendPasswordResetEmail
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import {
-  getFirestore, collection, doc, onSnapshot, query, where, writeBatch, serverTimestamp, runTransaction
+  getFirestore, getDocFromServer, collection, doc, onSnapshot, query, where, writeBatch, serverTimestamp, runTransaction
 } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations} from './location-ui.mjs?v=visual-20261115-1';
+import {initCongregationLocations} from './location-ui.mjs?v=suitability-20261115-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
-import {downloadAssignmentWorkbook} from './excel-export.mjs?v=homes-20261113-1';
+import {downloadAssignmentWorkbook} from './excel-export.mjs?v=suitability-20261115-1';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',
@@ -60,6 +64,15 @@ const publicLocationData = new Map();
 const assignments = new Map();
 const markers = new Map();
 const selectedCongregations = new Set();
+const serviceDayProfiles=new Map();let serviceDayFocus='',serviceDaysSupported=false,serviceDayAccessRevision=0;
+const serviceDaysFor=id=>readServiceDays(serviceDayProfiles.get(id));
+const canSaveServiceDays=()=>isAdmin()&&(isOwner()||serviceDaysSupported);
+const serviceDayUi=createServiceDaysEditor(document.getElementById('serviceDaysCard'),{save:async(list,days)=>{
+ if(!canSaveServiceDays()||!publicReady)throw Error('Sign in and wait for current shared data before saving days.');
+ const batch=writeBatch(db);for(const c of list)batch.set(doc(db,'halls',serviceDaysId(c.id)),{...serviceDaysPayload(c,days),updatedAt:serverTimestamp()});await batch.commit();for(const c of list)serviceDayProfiles.set(c.id,serviceDaysPayload(c,days));renderAll();
+}});
+function renderServiceDays(){serviceDayUi.update({congregations:CONGREGATIONS,selected:[...selectedCongregations],focus:serviceDayFocus,profiles:serviceDayProfiles,canEdit:canSaveServiceDays(),ready:publicReady,needsRules:isAdmin()&&!isOwner()&&!serviceDaysSupported});}
+async function checkServiceDaysAccess(){const token=++serviceDayAccessRevision;serviceDaysSupported=isOwner();renderServiceDays();if(!db||!isAdmin()||isOwner())return;try{await getDocFromServer(doc(db,'siteAccessCapabilities','serviceDaysV1'));if(token===serviceDayAccessRevision)serviceDaysSupported=true;}catch{}if(token===serviceDayAccessRevision)renderServiceDays();}
 const revealedCongregations=new Set();let assignmentBusy=false,travelRevision=0,travelUnsubscribers=[],travelRecords=[];
 const routeRegister=createTravelRegister(document.getElementById('assignmentTravelRegister'));
 function updateTravelRegister(){routeRegister.update({records:travelRecords,locations:[...travelCatalog([...publicLocationData].map(([id,data])=>({...data,id}))),...railLocations],congregations:CONGREGATIONS,access:canView('routes')});}
@@ -248,7 +261,7 @@ function meetingPointIcon(location) {
   const className = location.locationType==='rail-station'?'rail-station':location.locationType === 'meeting-area'
     ? 'meeting-area'
     : (location.customLocation ? 'added-hall' : '');
-  return L.divIcon({
+  return tagMeetingIcon(L.divIcon({
     className: '',
     html: `<div class="meeting-map-pin ${className}${selected ? ' selected' : ''}">
       <span>${escapeHtml(markerLabel(location))}</span>
@@ -257,7 +270,7 @@ function meetingPointIcon(location) {
     iconSize: [42, 42],
     iconAnchor: [21, 21],
     popupAnchor: [0, -20]
-  });
+  }),location);
 }
 
 function initMap() {
@@ -485,6 +498,9 @@ function filteredCongregations({forMap=false}={}) {
     if(!forMap&&assignment&&!document.getElementById('showAssignedDirectory').checked&&!focusedMeetingPointId&&status!=='assigned'&&meeting==='all')return false;
     const point = meetingPointForAssignment(assignment);
     const isAssigned = Boolean(assignment);
+    const dayFilter=document.getElementById('serviceDayFilter').value;
+    if(dayFilter==='unset'&&serviceDaysFor(congregation.id).length)return false;
+    if(dayFilter!=='all'&&dayFilter!=='unset'&&!serviceDaysFor(congregation.id).includes(dayFilter))return false;
 
     const home=resolveHome(congregation), addressFilter=document.getElementById('addressFilter').value;
     if(addressFilter!=='all'&&home.status!==addressFilter)return false;
@@ -529,6 +545,7 @@ function renderStats() {
 }
 
 function renderSelectionControls() {
+  renderServiceDays();
   const count = selectedCongregations.size;
   const blocked=[...selectedCongregations].map(id=>CONGREGATIONS.find(c=>c.id===id)).filter(c=>!driveState(c,els.assignmentDestination.value).allowed);
   document.getElementById('selectionTravelStatus').hidden=!blocked.length;
@@ -579,6 +596,7 @@ function renderCongregationList() {
       <div class="congregation-main">
         <button class="congregation-name" data-open-home="${escapeHtml(congregation.id)}" type="button">${escapeHtml(congregation.name)}</button><span class="selection-indicator" data-selection-indicator hidden>Selected congregation</span>
         <small>${escapeHtml([congregation.number?"No. "+congregation.number:"",congregation.language].filter(Boolean).join(" · "))}</small>
+        <small class="service-days-label">Service days: ${escapeHtml(serviceDaysLabel(serviceDaysFor(congregation.id)))}</small>
         <small>Current congregation address: ${escapeHtml(home.address||"Not provided")}</small>
         ${near?`<small class="proximity-chip">${home.point?distanceMiles(home.point,near).toFixed(1)+' mi to this meeting point (straight-line)':'Distance unavailable — add an address and map pin'}</small>`:''}
         <span class="address-chip ${home.status}">${addressLabels[home.status]}</span>
@@ -732,12 +750,13 @@ function subscribeToPublicData() {
   assignmentsUnsubscribe = onSnapshot(collection(db, 'halls'), {includeMetadataChanges:true}, snapshot => {
     publicLocationData.clear();
     assignments.clear();
-    addressProfiles.clear();
+    addressProfiles.clear();serviceDayProfiles.clear();
     publicReady=!snapshot.metadata.fromCache;
 
     snapshot.forEach(item => {
-      const data = item.data();
-      if (data.recordType === 'congregation-assignment' && data.congregationId) {
+      const data = item.data().recordType?item.data():withMeetingStatus(item.id,item.data());
+      if(data.recordType===SERVICE_DAYS_TYPE&&data.congregationId){serviceDayProfiles.set(String(data.congregationId),data);}
+      else if (data.recordType === 'congregation-assignment' && data.congregationId) {
         assignments.set(String(data.congregationId), { id: item.id, ...data });
       } else if(data.recordType==='congregation-address' && data.congregationId){
         addressProfiles.set(String(data.congregationId),data);
@@ -767,6 +786,9 @@ async function loadRailMeetingPoints(){
 document.getElementById('showRailMeetingPoints').addEventListener('change',syncMarkers);
 document.getElementById('meetingPointSearch').addEventListener('input',renderMeetingPointList);
 document.getElementById('retryRailMeetingPoints').addEventListener('click',loadRailMeetingPoints);
+mountMeetingListToggle(document.getElementById('toggleMeetingPointList'),document.getElementById('meetingPointListContent'));
+document.getElementById('serviceDayFilter').innerHTML='<option value="all">All service days</option><option value="unset">Service days not set</option>'+SERVICE_DAYS.map(d=>'<option>'+d+'</option>').join('');
+document.getElementById('serviceDayFilter').addEventListener('change',renderCongregationList);
 document.getElementById('showAssignedDirectory').addEventListener('change',()=>{revealedCongregations.clear();renderCongregationList();});
 document.getElementById('mapAssignSelected').addEventListener('click',assignSelected);
 document.getElementById('mapUnassignSelected').addEventListener('click',clearSelectedAssignments);
@@ -821,7 +843,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 populateMeetingPointOptions();
 renderAll();
 void loadRailMeetingPoints();
@@ -833,7 +855,7 @@ try {
   await setPersistence(auth, browserLocalPersistence);
   observeSiteAccess(auth, user => {
     currentUser = user;
-    updateAuthUi();subscribeTravelRegister();
+    updateAuthUi();subscribeTravelRegister();void checkServiceDaysAccess();
   });
   subscribeToPublicData();
 } catch (error) {
@@ -889,7 +911,7 @@ document.getElementById('exportAssignments').addEventListener('click',async()=>{
   try{
     const point=locations.find(p=>p.id===selectedMeetingPointId);
     await loadDrives(selectedMeetingPointId);
-    downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,sharedReady:publicReady});
+    downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,serviceDaysFor,sharedReady:publicReady});
     toast('Excel export ready. It includes the current directory, all congregations, selections and meeting points.');
   }catch(error){toast('Excel export failed: '+error.message,true);}finally{button.disabled=false;button.textContent='Export Excel';}
 });

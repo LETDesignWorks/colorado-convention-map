@@ -1,8 +1,9 @@
+import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createVisualTravelMap,CONGREGATIONS} from './visual-map.mjs?v=visual-20261115-1';
 import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
 import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
-import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs';
+import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs?v=suitability-20261115-1';
 import {loadRail,refreshStationLocations} from '../assets/rail-network.mjs';
 import {findAddress,validPoint} from '../assignments/location-model.mjs';
 import {denverInput,formatDenver} from '../routes/travel-plan.mjs';
@@ -37,7 +38,7 @@ $('fitLocations').onclick=()=>visualMap.fit();
 function initial(){const tomorrow=new Date(Date.now()+86400000);const date=denverInput(tomorrow).slice(0,10);return {vehicle:'',passengers:0,planningStatus:'planned',assignedHotelIds:[],assignedCongregationIds:[],name:'',timing:'arrive',time:date+'T09:00',boarding:15,allowance:10,arrivalBuffer:10,transfer:10,wait:15,reminder:30,notes:'',parking:'',tickets:'mobile',extraReminders:'',stops:[{...blank(),...locations.find(p=>p.id==='H1')},{...blank(),...locations.find(p=>p.id==='ccc')}]};}
 function drawStopPins(){
  journey.clearLayers();landmarkReferences.refresh(stops);wireLandmarkPins();
- for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address)).on('click',()=>chooseMapLocation(s));
+ for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:tagMeetingIcon(landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),s),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address)).on('click',()=>chooseMapLocation(s));
 }
 function invalidate(){generation++;lookupGeneration++;picking=null;request?.abort();request=null;result=null;activePlan=null;$('results').hidden=true;$('calculate').disabled=false;drawStopPins();updateSave();status('Locations or timing changed. Calculate the journey to update the schedule.');}
 function apply(plan,id=null){invalidate();activeId=id;loadedShared=!!id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));rosterHotelIds=[...(plan.assignedHotelIds||[])];rosterCongregationIds=[...(plan.assignedCongregationIds||[])];renderRoster();for(const key of fields)$(key).value=plan[key]??({passengers:0,planningStatus:'planned'}[key]??'');$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();drawStopPins();updateSave();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}

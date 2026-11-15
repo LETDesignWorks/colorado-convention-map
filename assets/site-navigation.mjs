@@ -1,3 +1,4 @@
+import './bus-access-status-sync.js?v=suitability-20261115-1';
 import {PDF_BUILDER_URL, openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 
 export const SITE_TABS = [

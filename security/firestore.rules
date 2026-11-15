@@ -32,7 +32,7 @@ service cloud.firestore {
     }
     function hallSection(data) {
       let kind = data.get('recordType', '');
-      return kind in ['congregation-assignment', 'congregation-address'] ? 'assignments'
+      return kind in ['congregation-assignment', 'congregation-address', 'congregation-service-days'] ? 'assignments'
         : kind == 'smpw-location' ? 'smpw'
         : kind == 'south-dtc-rail-connection' ? 'rail'
         : kind == '' ? 'busAccess' : '';
@@ -42,7 +42,11 @@ service cloud.firestore {
     }
     function validHallRecord(id, data) {
       let kind = data.get('recordType', '');
-      return kind == 'congregation-assignment'
+      return kind == 'congregation-service-days'
+        ? data.get('congregationId', '') is string && id == 'congregation-service-days-' + data.congregationId.lower()
+          && data.keys().hasOnly(['recordType','congregationId','congregationName','serviceDays','updatedBy','updatedAt'])
+          && data.serviceDays is list && data.serviceDays.size() <= 7 && data.serviceDays.hasOnly(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'])
+        : kind == 'congregation-assignment'
         ? data.get('congregationId', '') is string && id == 'congregation-' + data.congregationId.lower()
           && data.keys().hasOnly(['recordType','congregationId','congregationName','sourceName','homeAddress','meetingPointId','meetingPointLabel','meetingPointName','meetingPointAddress','meetingPointType','assigned','updatedByEmail','updatedAt'])
         : kind == 'congregation-address'
@@ -56,6 +60,7 @@ service cloud.firestore {
     }
     // Successful server read proves these rules are installed. No data is stored here.
     match /siteAccessCapabilities/v1 { allow get: if true; }
+    match /siteAccessCapabilities/serviceDaysV1 { allow get: if true; }
     match /halls/{hallId} {
       allow read: if true;
       allow create: if isOwner() || (validHallRecord(hallId, request.resource.data) && canEdit(hallSection(request.resource.data)));
