@@ -8,3 +8,17 @@ body.travel-routes .denver-2027-map-brand{display:none!important}
 .travel-routes .remove-pin{margin:6px 0 10px}
 .travel-routes .duration-controls{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
 @media(max-width:560px){.travel-logo{width:46px;height:46px;flex-basis:46px}.travel-heading{gap:12px}}
+
+/* Visual route planning */
+.travel-routes .planner-layout{max-width:none;grid-template-columns:350px minmax(0,1fr)}
+.travel-routes #map{height:clamp(620px,calc(100dvh - 290px),980px);min-height:620px}
+.travel-routes .planner-main{position:static}
+.travel-routes .map-toolbar select{min-width:180px}
+.travel-routes .travel-congregation-pin>span{border-radius:50%;font-size:21px}
+.map-location-choice{display:block;width:100%;margin:6px 0;text-align:left}
+.travel-map-expanded .planner-sidebar{display:none}
+.travel-map-expanded .planner-layout{grid-template-columns:minmax(0,1fr)}
+.travel-map-expanded #map{height:calc(100dvh - 230px);min-height:600px}
+@media(max-width:900px){.travel-routes .planner-layout{grid-template-columns:300px minmax(0,1fr)}}
+@media(max-width:760px){.travel-routes #map{height:65dvh;min-height:420px}.travel-routes .map-toolbar{gap:8px}.travel-map-expanded #map{height:70dvh}}
+@media print{.travel-routes #map{height:350px;min-height:350px}#routeRegister{display:none}}

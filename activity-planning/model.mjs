@@ -1,3 +1,5 @@
+import {readTravel} from '../assets/travel-register.mjs';
+import {denverInput} from '../routes/travel-plan.mjs';
 // Times are Denver wall-clock values, independent of the viewer's device timezone.
 export const RECORD_TYPE = 'activity-multistop-route';
 export function wallTime(value) {
@@ -67,6 +69,10 @@ export function conflicts(records) {
   return result;
 }
 export function legacyRoute(record) {
+  if(record.travelSchemaVersion===1||record.recordType==='route-plan'){
+    const data=readTravel(record);if(!data)return null;const {plan,result}=data;
+    return {id:record.id,name:plan.name||'Travel route',coachId:plan.vehicle||'',startLocal:Number.isFinite(result?.ready)?denverInput(new Date(result.ready)):record.reportLocal||record.departureLocal||'',endLocal:Number.isFinite(result?.arrive)?denverInput(new Date(result.arrive)):record.arrivalLocal||record.meetingLocal||'',stops:plan.stops.filter(validPoint).map(p=>({...p,role:p.group||'Travel stop',boarding:0})),legacy:true,travelRoute:true,kind:'Travel route',sourcePath:'travel-routes',miles:0};
+  }
   const r=record, activity=r.recordType==='activity-bus-plan';
   if(!activity && r.recordType!=='bus-route') return null;
   const start={...(activity?r.hotel:r.origin),name:r.hotelName||'Hotel',address:r.hotelAddress||'',dwell:0,role:'Hotel'};
@@ -75,6 +81,7 @@ export function legacyRoute(record) {
   return {id:r.id,name:r.planName||r.routeName||'Saved route',coachId:r.coachId||'',startLocal:r.reportLocal||r.departureLocal||'',endLocal:r.availableLocal||r.hotelReturnLocal||r.meetingLocal||'',stops:stops.filter(validPoint),legacy:true,kind:activity?'Activity schedule':'Field-service route',sourcePath:activity?'activities':'routes',miles:activity?Number(r.outboundDistanceMiles||0)+Number(r.returnDistanceMiles||0):Number(r.distanceMiles||0)};
 }
 export function decodeRecord(record) {
+  if(record.planningSubtype==='travel-cost-estimate')return null;
   if(record.recordType!==RECORD_TYPE) return legacyRoute(record);
   try {const plan=JSON.parse(record.planJson),legs=JSON.parse(record.legsJson);const summary=calculate(plan,legs);return {...plan,id:record.id,legs,summary,startLocal:summary.startLocal,endLocal:summary.endLocal,kind:'Activity route',shared:true};}catch{return null;}
 }

@@ -9,11 +9,11 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=assigned-magenta-20261114-1"/>
+<link rel="stylesheet" href="styles.css?v=visual-20261115-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=travel-20261114-1"></script>
 <script type="module" src="../assets/site-navigation.mjs?v=travel-20261114-1"></script>
-</head>
+<link rel="stylesheet" href="../assets/travel-register.css?v=visual-20261115-1"></head>
 <body>
 <div class="app">
 <header class="topbar">
@@ -58,6 +58,7 @@
 <main class="workspace">
   <section class="map-area" aria-label="Meeting point map">
     <div id="map" role="application" aria-label="Interactive congregation meeting-point assignment map"></div>
+    <div class="map-assignment-tools" aria-label="Assign congregations on map"><strong id="mapSelectionCount">0 selected</strong><p id="mapSelectionNames"></p><p id="mapAssignmentDestination">Click a meeting-point marker to choose the destination.</p><div class="button-row"><button id="mapAssignSelected" class="btn primary" type="button" disabled>Assign selected</button><button id="mapUnassignSelected" class="btn danger" type="button" disabled>Unassign selected</button><button id="mapClearSelection" class="btn outline" type="button">Clear</button></div><p id="mapAssignmentStatus" role="status"></p></div>
     <div class="map-legend">
       <strong>Congregations & meeting points</strong>
       <div><span class="home-legend" aria-hidden="true">⌂</span>Unassigned congregations</div>
@@ -154,8 +155,10 @@
       </div>
       <p id="driveTimeStatus" class="intro-copy" role="status"></p><button id="retryDriveTimes" class="text-button" type="button" hidden>Retry unavailable travel times</button><p id="selectionTravelStatus" class="address-warning" role="status"></p>
       <p id="directoryOrder" class="intro-copy" role="status"></p><button class="text-button" id="clearNearestSort" type="button" hidden>Return to alphabetical order</button>
+      <label class="directory-visibility"><input id="showAssignedDirectory" type="checkbox"> Show assigned congregations in directory</label><p class="intro-copy">Assigned congregations stay on the map. Click one to reveal it here, even with this box unchecked. Clear selections to hide those entries again.</p>
       <div class="congregation-list" id="congregationList"></div>
     </section>
+    <section class="card" id="assignmentTravelRegister"></section>
   </aside>
 </main>
 </div>
@@ -212,6 +215,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=landmark-size-20261115-1"></script>
+<script type="module" src="app-v3.mjs?v=visual-20261115-1"></script>
 </body>
 </html>

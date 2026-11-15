@@ -1,26 +1,46 @@
+import {createVisualTravelMap,CONGREGATIONS} from './visual-map.mjs?v=visual-20261115-1';
+import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
 import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs';
 import {loadRail,refreshStationLocations} from '../assets/rail-network.mjs';
 import {findAddress,validPoint} from '../assignments/location-model.mjs';
 import {denverInput,formatDenver} from '../routes/travel-plan.mjs';
-import {MODES,calculateSchedule,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel} from './model.mjs?v=travel-controls-20261114-1';
+import {MODES,calculateSchedule,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel} from './model.mjs?v=visual-20261115-1';
 import {createRoutingKeyStore} from './key-store.mjs';
 import {createRouter,nearestStation} from './providers.mjs';
 import {auth,canEdit,canView,observeSiteAccess,watchHalls,watchRecords,saveRoute,removeRoute} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),clone=x=>structuredClone(x),map=mapBase('map'),journey=L.featureGroup().addTo(map);
 const landmarkReferences=addLandmarkReferences(map);
-const fields=['name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
+const fields=['vehicle','passengers','planningStatus','name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
 let locations=catalog(),rail=null,railMap=null,stops=[],result=null,activePlan=null,activeId=null,generation=0,request=null,picking=null,records=[],unsubscribers=[],lookupGeneration=0,customStations=[],loadedShared=false,saving=false;
 const status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
 const blank=()=>({id:'custom',name:'',address:'',lat:null,lng:null,mode:'bus',dwell:0,dwellUnit:'minutes',locationGroup:'all',pinRemoved:false,startTime:'',showRail:false,railFrom:'',railTo:''});
-function initial(){const tomorrow=new Date(Date.now()+86400000);const date=denverInput(tomorrow).slice(0,10);return {name:'',timing:'arrive',time:date+'T09:00',boarding:15,allowance:10,arrivalBuffer:10,transfer:10,wait:15,reminder:30,notes:'',parking:'',tickets:'mobile',extraReminders:'',stops:[{...blank(),...locations.find(p=>p.id==='H1')},{...blank(),...locations.find(p=>p.id==='ccc')}]};}
+let publicHallRecords=[],rosterHotelIds=[],rosterCongregationIds=[],linkedRouteLoaded=false;
+const routeRegister=createTravelRegister($('routeRegister'));
+const visualMap=createVisualTravelMap({map,icon,landmarkIcon,onChoose:chooseMapLocation});
+function renderRoster(){
+ const render=(id,list,selected)=>{$(id).innerHTML=list.map(p=>'<option value="'+esc(p.id)+'"'+(selected.includes(String(p.id))?' selected':'')+'>'+esc(p.name)+'</option>').join('');};
+ render('routeHotels',locations.filter(p=>p.group==='Hotels'),rosterHotelIds);render('routeCongregations',CONGREGATIONS,rosterCongregationIds);
+}
+for(const id of ['routeHotels','routeCongregations'])$(id).onchange=()=>{const ids=[...$(id).selectedOptions].map(o=>o.value);if(id==='routeHotels')rosterHotelIds=ids;else rosterCongregationIds=ids;invalidate();};
+function chooseMapLocation(point){
+ const i=picking!==null?picking:Number($('mapTarget').value||0);if(!stops[i])return;
+ const {mode,...location}=point;stops[i]={...stops[i],...location,locationGroup:'all',pinRemoved:false};
+ invalidate();renderStops();status((i===0?'Starting point':'Destination '+i)+' set to '+point.name+'. Choose the next stop or calculate the journey.');
+}
+function wireLandmarkPins(){landmarkReferences.eachLayer(marker=>{const id=marker.options?.icon?.options?.landmarkId,p=locations.find(p=>p.id===id);if(p)marker.on('click',()=>chooseMapLocation(p));});}
+function expandMap(expanded){document.body.classList.toggle('travel-map-expanded',expanded);$('expandMap').textContent=expanded?'Show route form':'Expand map';$('expandMap').setAttribute('aria-expanded',String(expanded));setTimeout(()=>map.invalidateSize?.(),0);}
+$('expandMap').onclick=()=>expandMap(!document.body.classList.contains('travel-map-expanded'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')expandMap(false);});
+$('fitLocations').onclick=()=>visualMap.fit();
+function initial(){const tomorrow=new Date(Date.now()+86400000);const date=denverInput(tomorrow).slice(0,10);return {vehicle:'',passengers:0,planningStatus:'planned',assignedHotelIds:[],assignedCongregationIds:[],name:'',timing:'arrive',time:date+'T09:00',boarding:15,allowance:10,arrivalBuffer:10,transfer:10,wait:15,reminder:30,notes:'',parking:'',tickets:'mobile',extraReminders:'',stops:[{...blank(),...locations.find(p=>p.id==='H1')},{...blank(),...locations.find(p=>p.id==='ccc')}]};}
 function drawStopPins(){
- journey.clearLayers();landmarkReferences.refresh(stops);
- for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
+ journey.clearLayers();landmarkReferences.refresh(stops);wireLandmarkPins();
+ for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address)).on('click',()=>chooseMapLocation(s));
 }
 function invalidate(){generation++;lookupGeneration++;picking=null;request?.abort();request=null;result=null;activePlan=null;$('results').hidden=true;$('calculate').disabled=false;drawStopPins();updateSave();status('Locations or timing changed. Calculate the journey to update the schedule.');}
-function apply(plan,id=null){invalidate();activeId=id;loadedShared=!!id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));for(const key of fields)$(key).value=plan[key]??'';$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();drawStopPins();updateSave();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}
-function readPlan(){const plan=Object.fromEntries(fields.map(k=>[k,$(k).value]));for(const k of ['boarding','allowance','arrivalBuffer','transfer','wait','reminder'])plan[k]=Number(plan[k]);plan.stops=clone(stops);return plan;}
+function apply(plan,id=null){invalidate();activeId=id;loadedShared=!!id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));rosterHotelIds=[...(plan.assignedHotelIds||[])];rosterCongregationIds=[...(plan.assignedCongregationIds||[])];renderRoster();for(const key of fields)$(key).value=plan[key]??({passengers:0,planningStatus:'planned'}[key]??'');$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();drawStopPins();updateSave();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}
+function readPlan(){const plan=Object.fromEntries(fields.map(k=>[k,$(k).value]));for(const k of ['boarding','allowance','arrivalBuffer','transfer','wait','reminder'])plan[k]=Number(plan[k]);plan.passengers=Number(plan.passengers||0);plan.assignedHotelIds=[...rosterHotelIds];plan.assignedCongregationIds=[...rosterCongregationIds];plan.stops=clone(stops);return plan;}
 function option(p,value){const label=(p.group==='Field service / meeting places'&&(p.number||p.markerLabel)?(p.markerLabel||p.number)+' · ':'')+p.name;return '<option value="'+esc(p.id)+'"'+(p.id===value?' selected':'')+'>'+esc(label)+'</option>';}
 function locationOptions(s){
  const list=filterLocations([...locations,...(s.showRail?[...(rail?.stations||[]),...customStations].map(p=>({...p,group:'Rail stations'})):[])],s.locationGroup||'all'),groups=new Map();
@@ -32,6 +52,7 @@ function locationOptions(s){
 }
 function stationOptions(id){return '<option value="">Nearest served station</option>'+(rail?.stations||[]).map(s=>'<option value="'+esc(s.id)+'"'+(s.id===id?' selected':'')+'>'+esc(s.name)+(s.lines.length?' · '+esc(s.lines.join('/')):' · no timetable service')+'</option>').join('');}
 function renderStops(){
+ const target=Number($('mapTarget').value||0);$('mapTarget').innerHTML=stops.map((s,i)=>'<option value="'+i+'">'+(i===0?'Starting point':'Destination '+i)+'</option>').join('');$('mapTarget').value=String(Math.min(target,stops.length-1));
  $('fourth').disabled=!$('third').checked;
  $('stops').innerHTML=stops.map((s,i)=>{
  const custom=s.pinRemoved||s.id==='custom'||s.id==='encouraging-gathering'||!locations.some(p=>p.id===s.id)&&!rail?.stations.some(p=>p.id===s.id);
@@ -110,7 +131,7 @@ async function refreshRail(refresh=false){try{
 $('reloadRail').onclick=()=>refreshRail(true);
 $('fit').onclick=()=>{if(journey.getLayers().length)map.fitBounds(journey.getBounds(),{padding:[45,45],maxZoom:15});else if(railMap)map.fitBounds(L.featureGroup(railMap.stations.getLayers()).getBounds(),{padding:[25,25]});};
 function draw(plan,data){
- landmarkReferences.refresh(plan.stops);
+ landmarkReferences.refresh(plan.stops);wireLandmarkPins();
  journey.clearLayers();
  for(const [i,s] of plan.stops.entries())L.marker([s.lat,s.lng],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
  for(const leg of data.legs)for(const s of leg.segments||[]){
@@ -169,6 +190,9 @@ $('csv').onclick=()=>{
  const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='Denver-2027-Travel-Route.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 function renderSaved(){
+ routeRegister.update({records,locations,congregations:CONGREGATIONS,access:canView('routes')});
+ const linkedId=new URLSearchParams(location.search).get('route'),linkedRecord=records.find(r=>r.id===linkedId);
+ if(linkedRecord&&!linkedRouteLoaded){linkedRouteLoaded=true;apply(legacyPlan(linkedRecord),linkedRecord.recordType==='bus-route'?linkedRecord.id:null);loadedShared=true;}
  $('saved').innerHTML=records.length?records.map(r=>'<div class="saved-row"><strong>'+esc(r.routeName||r.name||'Saved route')+(r.travelDraft?' <small>· Draft</small>':'')+'</strong><button class="secondary" data-load="'+esc(r.id)+'">Load</button>'+(canEdit('routes')?'<button class="secondary danger" data-delete="'+esc(r.id)+'">Delete</button>':'')+'</div>').join(''):'<p class="empty-state">No saved routes available for this account.</p>';
 }
 $('saved').onclick=async e=>{
@@ -177,7 +201,7 @@ $('saved').onclick=async e=>{
 };
 let accessRevision=0;
 observeSiteAccess(auth,()=>{
- const token=++accessRevision;unsubscribers.forEach(f=>f());unsubscribers=[];records=[];customStations=[];renderSaved();renderStops();updateSave();
+ const token=++accessRevision;unsubscribers.forEach(f=>f());unsubscribers=[];records=[];customStations=[];linkedRouteLoaded=false;if(activeId||loadedShared)apply(initial());renderSaved();renderStops();updateSave();
  if(!canView('routes')){
   if(activeId||loadedShared){activeId=null;apply(initial());}
   $('accessStatus').textContent='Sign in with Travel Routes access to view or save shared trips.';return;
@@ -189,10 +213,10 @@ observeSiteAccess(auth,()=>{
   if(token!==accessRevision)return;byType.set(type,list);records=[...byType.values()].flat().filter(r=>!r.travelLocationOnly);renderSaved();
  },e=>{if(token===accessRevision)$('accessStatus').textContent='Some shared routes could not load: '+e.message;}));
 });
-watchHalls(list=>{locations=catalog(list);renderStops();},()=>status('Saved meeting-location updates could not load. The existing location list is available.',true));
+watchHalls(list=>{publicHallRecords=list;locations=catalog(list);renderStops();renderRoster();visualMap.update(locations,list);renderSaved();},()=>status('Saved meeting-location updates could not load. The existing location list is available.',true));
 const firstPlan=initial(),linked=new URLSearchParams(location.search);
 for(const [parameter,index] of [['origin',0],['destination',1],['hall',1]]){
  const point=locations.find(p=>p.id===linked.get(parameter));
  if(point)firstPlan.stops[index]={...blank(),...point};
 }
-apply(firstPlan);refreshRail();
+apply(firstPlan);visualMap.update(locations,publicHallRecords);refreshRail();

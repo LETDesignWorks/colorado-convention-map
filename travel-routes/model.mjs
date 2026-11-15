@@ -11,6 +11,9 @@ export function filterLocations(locations,group='all'){return group==='all'?loca
 export function validatePlan(plan,{allowMissingPoints=false}={}){
  if(!Array.isArray(plan.stops)||plan.stops.length<2||plan.stops.length>4)throw Error('Choose two to four locations.');
  parseDenver(plan.time);
+ const passengers=Number(plan.passengers||0);if(!Number.isInteger(passengers)||passengers<0||passengers>10000)throw Error('Passengers must be a whole number from 0 to 10,000.');
+ if(plan.planningStatus&&!['planned','confirmed','canceled'].includes(plan.planningStatus))throw Error('Choose a valid route status.');
+ for(const key of ['assignedHotelIds','assignedCongregationIds'])if(plan[key]&&(!Array.isArray(plan[key])||plan[key].length>500||plan[key].some(id=>typeof id!=='string'||id.length>100)))throw Error('Choose valid route roster locations.');
  for(const [i,s] of plan.stops.entries()){
   const blank=v=>v==null||String(v).trim()==='',missing=blank(s.lat)&&blank(s.lng);
   if(!(allowMissingPoints&&missing)&&(blank(s.lat)||blank(s.lng)||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lng))||Math.abs(Number(s.lat))>90||Math.abs(Number(s.lng))>180))throw Error('Confirm the address pin for location '+(i+1)+'.');
@@ -59,9 +62,9 @@ export function legacyPlan(record){
  return {name:record.routeName||'Saved Field Service route',stops:[a,b],timing:record.meetingLocal?'arrive':'depart',time:record.meetingLocal||record.departureLocal||denverInput(new Date()),boarding:record.boardingBuffer??15,allowance:record.travelAllowance??15,arrivalBuffer:record.arrivalBuffer??15,transfer:10,wait:15,reminder:record.reminderLeadMinutes??30,notes:record.notes||'',parking:record.parkingNotes||'',tickets:record.ticketMethod||'mobile',extraReminders:record.extraReminders||''};
 }
 export function serializePlan(plan,result=null){
- const keys=['name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
+ const keys=['vehicle','passengers','planningStatus','assignedHotelIds','assignedCongregationIds','name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
  const cleanPlan=Object.fromEntries(keys.filter(k=>plan[k]!==undefined).map(k=>[k,plan[k]]));
- const stopKeys=['id','name','address','lat','lng','mode','dwell','dwellUnit','locationGroup','pinRemoved','startTime','showRail','railFrom','railTo'];
+ const stopKeys=['group','congregationIds','id','name','address','lat','lng','mode','dwell','dwellUnit','locationGroup','pinRemoved','startTime','showRail','railFrom','railTo'];
  cleanPlan.stops=plan.stops.map(s=>Object.fromEntries(stopKeys.filter(k=>s[k]!==undefined).map(k=>[k,s[k]])));
  const first=plan.stops[0],last=plan.stops.at(-1);
  // Explicit fields only: session credentials can never enter a shared document.

@@ -137,9 +137,9 @@ test('meeting focus removes unrelated meeting markers and DTC context, then rest
 });
 
 test('focused directory retains assigned congregations with missing addresses and excludes other meetings',()=>{
- const filterSource=source.slice(source.indexOf('function filteredCongregations()'),source.indexOf('function renderStats()'));
+ const filterSource=source.slice(source.indexOf('function filteredCongregations('),source.indexOf('function renderStats()'));
  const cs=[{id:'mapped',name:'Mapped',point:{lat:39.7,lng:-105}},{id:'missing',name:'Missing'},{id:'other',name:'Other',point:{lat:40,lng:-105}}];
- const context=vm.createContext({clean:value=>String(value||'').trim(),CONGREGATIONS:cs,els:{searchInput:{value:''},statusFilter:{value:'all'},meetingFilter:{value:'a'}},focusedMeetingPointId:'a',nearestMeetingPointId:'a',locations:[{id:'a'}],document:{getElementById:()=>({value:'all'})},assignmentFor:id=>({meetingPointId:id==='other'?'b':'a'}),meetingPointForAssignment:()=>null,resolveHome:c=>({address:'',point:c.point||null,status:c.point?'mapped':'missing'}),rankCongregations:items=>items});
+ const context=vm.createContext({revealedCongregations:new Set(),selectedCongregations:new Set(),clean:value=>String(value||'').trim(),CONGREGATIONS:cs,els:{searchInput:{value:''},statusFilter:{value:'all'},meetingFilter:{value:'a'}},focusedMeetingPointId:'a',nearestMeetingPointId:'a',locations:[{id:'a'}],document:{getElementById:()=>({value:'all'})},assignmentFor:id=>({meetingPointId:id==='other'?'b':'a'}),meetingPointForAssignment:()=>null,resolveHome:c=>({address:'',point:c.point||null,status:c.point?'mapped':'missing'}),rankCongregations:items=>items});
  vm.runInContext(filterSource,context);
  assert.deepEqual(Array.from(context.filteredCongregations(),c=>c.id),['mapped','missing']);
 });
@@ -147,7 +147,7 @@ test('focused map fits every assigned pin, including congregations beyond the us
  const selectionSource=source.slice(source.indexOf('function selectMeetingPoint('),source.indexOf('function focusMeetingPoint('));
  const homes=Array.from({length:12},(_,i)=>({point:{lat:39+i/100,lng:-105}}));
  let bounds;
- const context=vm.createContext({locations:[{id:'a',name:'Meeting A',lat:39,lng:-104}],selectedMeetingPointId:'',nearestMeetingPointId:'',focusedMeetingPointId:'a',loadDrives:async()=>{},els:{searchInput:{value:''},statusFilter:{value:'all'},meetingFilter:{value:'a'},assignmentDestination:{value:''}},isAdmin:()=>false,syncMarkers(){},renderMeetingPointList(){},renderSelectedMeetingPoint(){},locationUi:{meetingPointChosen(){}},renderCongregationList(){},renderMeetingFocus(){},map:{fitBounds:points=>bounds=points},assignedCongregationsAt:()=>homes,filteredCongregations:()=>homes,resolveHome:c=>c,markers:new Map()});
+ const context=vm.createContext({routeRegister:{meeting(){}},locations:[{id:'a',name:'Meeting A',lat:39,lng:-104}],selectedMeetingPointId:'',nearestMeetingPointId:'',focusedMeetingPointId:'a',loadDrives:async()=>{},els:{searchInput:{value:''},statusFilter:{value:'all'},meetingFilter:{value:'a'},assignmentDestination:{value:''}},isAdmin:()=>false,syncMarkers(){},renderMeetingPointList(){},renderSelectedMeetingPoint(){},locationUi:{meetingPointChosen(){}},renderCongregationList(){},renderMeetingFocus(){},map:{fitBounds:points=>bounds=points},assignedCongregationsAt:()=>homes,filteredCongregations:()=>homes,resolveHome:c=>c,markers:new Map()});
  vm.runInContext(selectionSource,context);context.selectMeetingPoint('a',true,true);
  assert.equal(bounds.length,13);
 });

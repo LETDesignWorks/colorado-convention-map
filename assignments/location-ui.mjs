@@ -53,21 +53,22 @@ export function initCongregationLocations(ctx){
       for(const c of group.congregations){
         const assignment=ctx.getAssignment(c.id),destination=ctx.getLocations().find(p=>p.id===assignment?.meetingPointId);
         const assignedLabel=assignment?.meetingPointId?(meeting===assignment.meetingPointId?'✓ Assigned here — ':'✓ Assigned to '+(destination?.name||assignment.meetingPointName||'saved meeting point')+' — '):'';
-        const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)||c.id===selectedId?'Selected — ':'')+assignedLabel+c.name;button.addEventListener('click',()=>{select(c.id,false);map.closePopup();});popup.append(button);
+        const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)||c.id===selectedId?'Selected — ':'')+assignedLabel+c.name;button.addEventListener('click',()=>{select(c.id,false,true);map.closePopup();});popup.append(button);
       }
       marker.bindPopup(popup,{maxHeight:300,maxWidth:310});
       const tooltipCongregations=!focus&&(active||checked)?group.congregations.filter(c=>c.id===selectedId||selectedIds.has(c.id)):group.congregations;
       marker.bindTooltip(esc(tooltipCongregations.map(c=>c.name).join(' · ')),{direction:'right',permanent:Boolean(focus||active||checked),className:active||checked?'selected-congregation-label':focus?'focused-congregation-label':''});
-      if(group.congregations.length===1)marker.on('click',()=>select(group.congregations[0].id,false));
+      if(group.congregations.length===1)marker.on('click',()=>select(group.congregations[0].id,false,true));
     }
   }
   function selected(){return congregationById(selectedId);}
-  function select(id,pan=false){
+  function select(id,pan=false,fromMap=false){
     if(!congregationById(id))return;
     selectedId=id;savedPoint=ctx.getAssignment(id)?.meetingPointId||'';draftPoint=savedPoint;
+    if(fromMap)ctx.mapSelect?.(id);
     render();if(draftPoint)void ctx.loadDrives(draftPoint);
     const home=resolveHome(selected());if(map&&home.point&&pan)map.setView([home.point.lat,home.point.lng],13);
-    $('congregationDetail').scrollIntoView({behavior:'smooth',block:'nearest'});
+    if(!fromMap)$('congregationDetail').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   function renderDetail(){
     const c=selected();if(!c)return;

@@ -4,3 +4,7 @@
 .map-card > .denver-2027-map-brand{top:76px;left:56px;width:46px;height:46px}@media(max-width:560px){.map-card > .denver-2027-map-brand{top:120px}}
 
 .ready-time{background:#e6f3f1;color:#09585d}#timeline th,#timeline td{min-width:100px}
+
+#travelCostPlanner{scroll-margin-top:15px}#travelCostPlanner h3{margin:18px 0 10px}#travelCostPlanner p{margin:9px 0}.travel-cost-leg{padding:14px;border:1px solid #d1dfeb;border-radius:10px;margin:12px 0;background:#f7fafc}.travel-cost-leg h4{margin:0 0 8px}.cost-inputs{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px}.cost-total{padding:18px;background:#edf7f5;border:1px solid #a2d1c8;border-radius:10px;display:flex;gap:18px;flex-wrap:wrap;margin-top:15px}.cost-total strong{font-size:22px}.cost-total span{align-self:center}[data-cost-saved] button{margin:5px 5px 0 0}[data-cost-message]{color:#174d83;font-weight:650}
+@media(max-width:650px){.cost-inputs{grid-template-columns:1fr 1fr}}
+@media print{#travelCostPlanner{display:none}}

@@ -6,27 +6,34 @@ import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
 import {MODES,calculateSchedule,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel} from '../travel-routes/model.mjs';
 import {createRoutingKeyStore} from '../travel-routes/key-store.mjs';
-import {validPoint} from '../assignments/location-model.mjs';
+import {CONGREGATIONS} from '../assignments/congregations-data.mjs';
+import {HOME_POINTS} from '../assignments/home-points.mjs';
+import {travelEntries,filterTravelEntries,locationKey} from '../assets/travel-register.mjs';
+import {homeFor,groupHomes,validPoint} from '../assignments/location-model.mjs';
 import {denverInput,formatDenver} from '../routes/travel-plan.mjs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const settle=()=>new Promise(r=>setTimeout(r,5));
-function setup({deviceKey=''}={}){
- const dom=new JSDOM(read('travel-routes/index.html'),{url:'https://letdesignworks.github.io/colorado-convention-map/travel-routes/',runScripts:'outside-only'});
+function setup({deviceKey='',search=''}={}){
+ const dom=new JSDOM(read('travel-routes/index.html'),{url:'https://letdesignworks.github.io/colorado-convention-map/travel-routes/'+search,runScripts:'outside-only'});
  const w=dom.window;
  if(deviceKey)w.localStorage.setItem('denver2027.travel.tomtom-key',deviceKey);
  const state={edit:true,view:true,access:null,pending:null,saves:[],saveIds:[],records:{}};
  w.HTMLElement.prototype.scrollIntoView=function(){};
- const group=()=>({items:[],addTo(target){target.addLayer?.(this);return this;},addLayer(layer){this.items.push(layer);return this;},clearLayers(){this.items=[];},getLayers(){return this.items;},getBounds(){return {isValid:()=>true};},bindPopup(){return this;},eachLayer(cb){this.items.forEach(cb);}});
- const map={layers:new Set(),addLayer(l){this.layers.add(l);},removeLayer(l){this.layers.delete(l);},on(){},setView(){},fitBounds(){}};
+ const group=(initial=[])=>({items:Array.isArray(initial)?[...initial]:[],events:{},options:{},on(name,cb){this.events[name]=cb;return this;},bindTooltip(){return this;},addTo(target){target.addLayer?.(this);return this;},addLayer(layer){this.items.push(layer);return this;},clearLayers(){this.items=[];},getLayers(){return this.items;},getBounds(){return {isValid:()=>true};},bindPopup(){return this;},eachLayer(cb){this.items.forEach(cb);}});
+ const map={layers:new Set(),hasLayer(l){return this.layers.has(l);},closePopup(){},invalidateSize(){},addLayer(l){this.layers.add(l);},removeLayer(l){this.layers.delete(l);},on(){},setView(){},fitBounds(){}};
  const catalog=()=>[{id:'hall-1',number:1,name:'Test Kingdom Hall',address:'100 Hall St',lat:39.8,lng:-104.8,group:'Field service / meeting places'},{id:'meeting-area',markerLabel:'M1',name:'Saved meeting area',address:'200 Meeting St',lat:39.9,lng:-104.7,group:'Field service / meeting places'},{id:'H1',name:'Hotel',address:'One Hotel St',lat:39.7,lng:-105,group:'Hotels'},{id:'ccc',name:'Colorado Convention Center',address:'700 14th St',lat:39.74,lng:-105,group:'Centers'},{id:'encouraging-gathering',name:'Encouraging Gathering',address:'',lat:null,lng:null,group:'Activities',customAddress:true}];
- Object.assign(w,{structuredClone:globalThis.structuredClone,AbortController:globalThis.AbortController,AbortSignal:globalThis.AbortSignal,MODES,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel,createRoutingKeyStore,denverInput,formatDenver,catalog,esc:x=>String(x??'').replaceAll('<','&lt;'),icon:()=>({}),landmarkIcon:(point,options)=>landmarkIcon(point,{...options,leaflet:w.L}),addLandmarkReferences:(map,options)=>addLandmarkReferences(map,{...options,leaflet:w.L}),mapBase:()=>map,railLayers:()=>({stations:group(),lines:group()}),loadRail:async()=>({stations:[{id:'station',name:'Station',lines:['E'],lat:39.7,lng:-105}],patterns:[],shapes:{},routes:[],coverage:{start:'20260927',end:'20270102'},generatedAt:'2026-11-14'}),findAddress:async()=>[],validPoint,nearestStation:()=>null,
+ Object.assign(w,{CONGREGATIONS,HOME_POINTS,homeFor,groupHomes,travelEntries,filterTravelEntries,locationKey,structuredClone:globalThis.structuredClone,AbortController:globalThis.AbortController,AbortSignal:globalThis.AbortSignal,MODES,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel,createRoutingKeyStore,denverInput,formatDenver,catalog,esc:x=>String(x??'').replaceAll('<','&lt;'),icon:()=>({}),landmarkIcon:(point,options)=>landmarkIcon(point,{...options,leaflet:w.L}),addLandmarkReferences:(map,options)=>addLandmarkReferences(map,{...options,leaflet:w.L}),mapBase:()=>map,railLayers:()=>({stations:group(),lines:group()}),loadRail:async()=>({stations:[{id:'station',name:'Station',lines:['E'],lat:39.7,lng:-105}],patterns:[],shapes:{},routes:[],coverage:{start:'20260927',end:'20270102'},generatedAt:'2026-11-14'}),findAddress:async()=>[],validPoint,nearestStation:()=>null,
  calculateSchedule:async(...args)=>state.pending?state.pending:calculateSchedule(...args),
  createRouter:()=>async(a,b,t,reverse)=>({mode:a.mode,depart:reverse?t-30*60000:t,arrive:reverse?t:t+30*60000,minutes:30,segments:[{mode:a.mode,points:[[a.lat,a.lng],[b.lat,b.lng]],minutes:30,label:'Test route',instructions:[]}],label:'Test route',allowanceMinutes:0}),
  auth:{},canEdit:()=>state.edit,canView:()=>state.view,observeSiteAccess:(_auth,cb)=>{state.access=cb;cb();},watchHalls:cb=>{cb([]);return()=>{};},watchRecords:(type,cb)=>{state.records[type]=cb;cb([]);return()=>{};},saveRoute:async(payload,id)=>{state.saves.push(payload);state.saveIds.push(id);return id||'new-trip';},removeRoute:async()=>{},
- L:{divIcon:options=>({options}),featureGroup:group,layerGroup:group,marker:group,polyline:group}});
+ L:{divIcon:options=>({options}),featureGroup:group,layerGroup:group,marker:(coords,options)=>Object.assign(group(),{coords,options}),polyline:group}});
  const context=dom.getInternalVMContext();
+ for(const [path,exports]of [['assets/travel-register-ui.mjs',['createTravelRegister']],['travel-routes/visual-map.mjs',['createVisualTravelMap']]]){
+   const code=read(path).replace(/^import .*;\r?\n/gm,'').replace(/^export \{.*?\};?\r?\n/gm,'').replace(/export function /g,'function ').replaceAll('import.meta.url',JSON.stringify('https://letdesignworks.github.io/colorado-convention-map/'+path));
+   Object.assign(w,vm.runInContext('(function(){'+code+';return {'+exports.join(',')+'};})()',context));
+ }
  vm.runInContext(read('travel-routes/app.mjs').replace(/^import .*;\r?\n/gm,''),context);
- return {dom,w,state,run:s=>vm.runInContext(s,context),$:id=>w.document.getElementById(id)};
+ return {dom,w,state,map,run:s=>vm.runInContext(s,context),$:id=>w.document.getElementById(id)};
 }
 test('Travel UI supports 2/3/4 stops, per-stop critical start and addressable gathering',async()=>{
  const app=setup();await settle();const {w,$,run}=app;
@@ -117,4 +124,21 @@ test('remembered TomTom key loads on a new visit and Clear key removes both stor
 test('Travel branding is in the header and map overlay branding is suppressed',()=>{
  const dom=new JSDOM(read('travel-routes/index.html'));assert(dom.window.document.querySelector('body.travel-routes header .travel-logo'));assert(!dom.window.document.querySelector('.map-card .travel-logo'));
  assert.match(read('assets/planning.css'),/body\.travel-routes \.denver-2027-map-brand\{display:none!important\}/);dom.window.close();
+});
+
+test('visual map toggles location layers and fills the chosen stop without changing its transport or duration',async()=>{
+ const app=setup();await settle();const {w,$,run,map}=app;
+ const hotelLayer=[...map.layers].find(l=>l.items?.some(m=>m.options?.title==='Hotel'));
+ const hotel=hotelLayer.items.find(m=>m.options.title==='Hotel');
+ const box=w.document.querySelector('[data-travel-layer="hotels"]');box.checked=false;box.dispatchEvent(new w.Event('change'));assert.equal(map.hasLayer(hotelLayer),false);box.checked=true;box.dispatchEvent(new w.Event('change'));assert.equal(map.hasLayer(hotelLayer),true);
+ run('stops[1].mode="car";stops[1].dwell=90;');$('mapTarget').value='1';hotel.events.click({});assert.equal(run('stops[1].id'),'H1');assert.equal(run('stops[1].mode'),'car');assert.equal(run('stops[1].dwell'),90);
+ $('mapTarget').value='0';const hall=[...map.layers].flatMap(l=>l.items||[]).find(m=>m.options?.title==='Saved meeting area');hall.events.click({});assert.equal(run('stops[0].id'),'meeting-area');assert.match($('status').textContent,/Starting point set/);
+ $('expandMap').click();assert(w.document.body.classList.contains('travel-map-expanded'));w.document.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape'}));assert(!w.document.body.classList.contains('travel-map-expanded'));app.dom.window.close();
+});
+
+test('saved roster can reopen through a register link and clears on access changes',async()=>{
+ const app=setup({search:'?route=trip'});await settle();const {state,run,$,w}=app;
+ const plan=run('initial()');plan.assignedHotelIds=['H1'];plan.assignedCongregationIds=['C001'];plan.vehicle='Bus Three';plan.passengers=42;
+ const payload=serializePlan(plan);state.records['bus-route']([{...payload,id:'trip'}]);assert.equal(run('activeId'),'trip');assert.equal($('vehicle').value,'Bus Three');assert.equal($('passengers').value,'42');assert.equal($('routeHotels').selectedOptions[0].value,'H1');assert.equal(run('readPlan().assignedCongregationIds[0]'),'C001');
+ state.view=false;state.edit=false;state.access();assert(!w.document.body.textContent.includes('Bus Three'));assert.equal($('vehicle').value,'');app.dom.window.close();
 });

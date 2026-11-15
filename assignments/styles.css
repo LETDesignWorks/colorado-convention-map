@@ -195,3 +195,8 @@ button.coverage-count{cursor:pointer}.coverage-count.missing,.address-chip.missi
 .congregation-row.assigned:not(.over-limit) .congregation-name{color:#912256}
 .legend-assigned{position:relative;background:#b12769}
 .legend-assigned::after{content:'✓';position:absolute;top:-6px;right:-5px;width:13px;height:13px;border:1px solid white;border-radius:50%;background:#17774b;color:white;font:800 10px/12px system-ui;text-align:center}
+
+.map-assignment-tools{position:absolute;z-index:850;top:12px;right:12px;width:min(340px,calc(100% - 105px));padding:12px;background:#fffffff5;border:1px solid #b5c6d5;border-radius:12px;box-shadow:0 2px 12px #0002;font-size:12px}
+.map-assignment-tools p{margin:6px 0}.map-assignment-tools .btn{font-size:11px;padding:7px 9px}.map-assignment-tools .button-row{gap:5px}.map-assignment-tools #mapSelectionNames{max-height:66px;overflow:auto;color:#135da1}.map-area .map-legend{top:auto;bottom:12px}.map-area .map-note{max-width:calc(100% - 235px)}.directory-visibility{display:block;padding:10px 0;font-weight:700}.directory-visibility input{width:auto;display:inline-block;margin-right:6px}
+@media(max-width:820px){.map-assignment-tools{position:relative;top:auto;right:auto;width:auto;margin:8px}.map-area .map-legend{bottom:auto}.map-area .map-note{max-width:none}.map-assignment-tools .button-row .btn{flex:1 1 auto}}
+@media print{.map-assignment-tools{display:none}}
