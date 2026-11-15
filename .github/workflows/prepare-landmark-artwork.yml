@@ -16,13 +16,13 @@ jobs:
           import urllib.request, pathlib, re, html
           root = pathlib.Path('assets/landmarks')
           root.mkdir(parents=True, exist_ok=True)
-          dtc = urllib.request.urlopen('https://cdn.freebiesupply.com/logos/large/2x/denver-tech-center-logo-svg-vector.svg').read()
-          assert b'<svg' in dtc and b'<script' not in dtc.lower()
-          (root/'denver-tech-center.svg').write_bytes(dtc)
+          dtc = urllib.request.urlopen('https://cdn.freebiesupply.com/logos/large/2x/denver-tech-center-logo-png-transparent.png').read()
+          assert dtc[:8] == bytes([137,80,78,71,13,10,26,10]), 'DTC logo download is not PNG'
+          (root/'denver-tech-center.png').write_bytes(dtc)
           bear = urllib.request.urlopen('https://drive.google.com/uc?export=download&id=1jQaab-x41gtq0_EhXSebVROE9IY0le55').read()
           assert bear[:3] == bytes([255,216,255]), 'Blue Bear download is not JPEG'
           (root/'blue-bear.jpg').write_bytes(bear)
-          print('Verified original Blue Bear JPEG and DTC SVG:', len(bear), len(dtc))
+          print('Verified original Blue Bear JPEG and DTC PNG:', len(bear), len(dtc))
       - name: Save artwork
         run: |
           git config user.name "github-actions[bot]"
