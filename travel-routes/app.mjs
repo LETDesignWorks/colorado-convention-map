@@ -1,4 +1,4 @@
-import {mountMeetingRanking} from './meeting-ranking-ui.mjs';
+import {mountMeetingRanking} from './meeting-ranking-ui.mjs?v=ranking-time-20261115-1';
 import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createVisualTravelMap,CONGREGATIONS} from './visual-map.mjs?v=visual-20261115-1';
