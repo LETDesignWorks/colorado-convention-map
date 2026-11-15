@@ -27,7 +27,7 @@ try {
       notice.textContent='Territory check-out / check-in sheet could not load. Save any unsaved work, then refresh the planner to retry.';
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
-  await import('../assets/branding.js?v=suitability-20261115-1');
+  await import('../assets/branding.js?v=navigation-20261115-2');
   await import('./app-main.js?v=zoom-escape-20261115-1');
   await import('./address-duplicates-ui.js?v=access-20261114-1');
   await import('./directions.js?v=zoom-escape-20261115-1');

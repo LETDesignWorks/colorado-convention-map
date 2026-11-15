@@ -1,2 +1,2 @@
-import '../assets/branding.js?v=travel-20261114-1';
+import '../assets/branding.js?v=navigation-20261115-2';
 export {HALLS,DTC_BOUNDARY,DTC} from './locations.mjs';

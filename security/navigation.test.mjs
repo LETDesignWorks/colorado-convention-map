@@ -11,17 +11,17 @@ for(const page of pages)test('all tabs are present once on '+page,()=>{
  const dom=new JSDOM(read(page),{url:'https://letdesignworks.github.io/colorado-convention-map/'+page,runScripts:'outside-only'});
  const context=dom.getInternalVMContext();vm.runInContext(moduleSource,context);vm.runInContext('mountSiteNavigation()',context);
  const tabs=[...dom.window.document.querySelectorAll('[data-site-tab]')];
- assert.equal(tabs.length,13);assert.equal(new Set(tabs.map(a=>a.href)).size,13);
+ assert.equal(tabs.length,12);assert.equal(new Set(tabs.map(a=>a.href)).size,12);
  assert(tabs.every(a=>!a.hidden));assert(!tabs.some(a=>/load-tests/.test(a.href)));
  assert.equal(dom.window.document.querySelectorAll('.convention-navigation').length,1);
- assert(tabs.some(a=>a.textContent==='Travel Routes'));assert(![...dom.window.document.querySelectorAll('.convention-navigation a')].some(a=>/Field Service Routes|Rush-hour Routes|Operating Plan/.test(a.textContent)));
+ assert(tabs.some(a=>a.textContent==='Travel Routes'));assert(![...dom.window.document.querySelectorAll('.convention-navigation a')].some(a=>/Field Service Routes|Rush-hour Routes|Operating Plan|Delegate Activities/.test(a.textContent)));
  dom.window.close();
 });
 test('territory template navigation is mounted after the asynchronous body replacement',()=>{
  const dom=new JSDOM('<body>Loading…</body>',{url:'https://letdesignworks.github.io/colorado-convention-map/territories/',runScripts:'outside-only'});
  const context=dom.getInternalVMContext();vm.runInContext(moduleSource,context);
  dom.window.document.body.innerHTML=read('territories/template.html');vm.runInContext('mountSiteNavigation()',context);
- assert.equal(dom.window.document.querySelectorAll('[data-site-tab]').length,13);
+ assert.equal(dom.window.document.querySelectorAll('[data-site-tab]').length,12);
  assert.match(read('assets/branding.js'),/mountSiteNavigation\(\)/);
  assert.match(read('territories/bootstrap.js'),/app-main\.js\?v=[a-z0-9-]+/);
  dom.window.close();

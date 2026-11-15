@@ -5,7 +5,7 @@ export const SITE_TABS = [
   ['', 'Full Planning Map'],
   ['assignments/', 'Congregation Assignments'], ['territories/', 'Territories'],
   ['bus-access/', 'Bus Access Review'],
-  ['travel-routes/', 'Travel Routes'], ['activities/', 'Delegate Activities'],
+  ['travel-routes/', 'Travel Routes'],
   ['activity-planning/', 'Activity Planning'], ['smpw/', 'SMPW'],
   ['south-dtc-rail/', 'South DTC Rail'], ['team/', 'Team Assignments'],
   ['pdf-tools/', 'PDFs & PowerPoint'], ['map-fullscreen.html', 'Full Screen Map'],
@@ -29,7 +29,7 @@ export function mountSiteNavigation() {
   }
   for (const anchor of [...nav.querySelectorAll('a[href]')]) {
     const url = new URL(anchor.href);
-    if (pathOf(url) === pathOf(new URL('operating-plan/', base))) { anchor.remove(); continue; }
+    if (['operating-plan/', 'activities/'].some(path => pathOf(url) === pathOf(new URL(path, base)))) { anchor.remove(); continue; }
     if (['routes/', 'rush-hour/'].some(path => pathOf(url) === pathOf(new URL(path, base)))) {
       const destination = new URL('travel-routes/', base);
       destination.search = url.search; destination.hash = url.hash;
@@ -76,7 +76,7 @@ function start() {
   new MutationObserver(() => {
     const nav = document.querySelector('.convention-navigation');
     if (nav && [...nav.querySelectorAll('a[href]')].some(a =>
-      ['routes/', 'rush-hour/', 'operating-plan/'].some(path => pathOf(a.href) === pathOf(new URL(path, base)))
+      ['routes/', 'rush-hour/', 'operating-plan/', 'activities/'].some(path => pathOf(a.href) === pathOf(new URL(path, base)))
     )) mountSiteNavigation();
   }).observe(document.documentElement, {childList: true, subtree: true});
 }

@@ -1,4 +1,4 @@
-import {mountSiteNavigation} from './site-navigation.mjs?v=travel-20261114-1';
+import {mountSiteNavigation} from './site-navigation.mjs?v=navigation-20261115-2';
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=access-20261114-1';
@@ -135,20 +135,6 @@ function linkClassForCurrentPage(extraClass) {
   return `btn light ${extraClass}`;
 }
 
-function addDelegateActivitiesLink() {
-  if (location.pathname.includes('/activities/')) return;
-  if (document.querySelector('a[href*="activities/"]')) return;
-  const nav = navHost();
-  if (!nav) return;
-
-  const link = document.createElement('a');
-  link.className = linkClassForCurrentPage('delegate-activities-link');
-  link.href = new URL('activities/', siteHomeUrl).href;
-  link.textContent = 'Delegate Activities';
-  link.setAttribute('aria-label', 'Open the delegate activity and bus availability planner');
-  insertBeforeRouteOrBus(nav, link);
-}
-
 function addSouthDtcRailLink() {
   if (location.pathname.includes('/south-dtc-rail/')) return;
   if (document.querySelector('a[href*="south-dtc-rail/"]')) return;
@@ -183,7 +169,6 @@ function applyDenver2027Branding() {
   addHeaderLogo();
   addSouthDtcRailLink();
   addSmpwLink();
-  addDelegateActivitiesLink();
   addActivityPlanningLink();
   addPdfToolsLink();
   addRushHourLink();
