@@ -3,6 +3,13 @@ import {resolveAddressPin} from './address-pin.mjs?v=address-help-20261114-1';
 
 import {formatCoordinates,parseCoordinatePair,googleSearchUrl,findCensusAddress} from './address-tools.mjs?v=coordinates-20261114-1';
 
+export function focusMapPoint(map,point,minimumZoom=15){
+  if(!map||!point||!validPoint(point.lat,point.lng))return false;
+  map.stop?.();
+  map.setView([Number(point.lat),Number(point.lng)],Math.max(minimumZoom,Number(map.getZoom?.())||0),{animate:true});
+  return true;
+}
+
 export function initCongregationLocations(ctx){
   const {map,congregations,source,resolveHome,isAdmin,escapeHtml:esc}=ctx,$=id=>document.getElementById(id);
   const labels={mapped:'Address mapped',missing:'Missing address','pin-needed':'Address needs map pin',review:'Address needs review'};
@@ -34,7 +41,7 @@ export function initCongregationLocations(ctx){
     render();
     if(!checked)return;
     const c=congregationById(id),home=c&&resolveHome(c);
-    if(home?.point)map?.panInside?.([home.point.lat,home.point.lng],{padding:[85,85]});
+    focusMapPoint(map,home?.point);
   }
   function renderHomes(){
     if(!homesLayer)return;
@@ -53,12 +60,15 @@ export function initCongregationLocations(ctx){
       for(const c of group.congregations){
         const assignment=ctx.getAssignment(c.id),destination=ctx.getLocations().find(p=>p.id===assignment?.meetingPointId);
         const assignedLabel=assignment?.meetingPointId?(meeting===assignment.meetingPointId?'✓ Assigned here — ':'✓ Assigned to '+(destination?.name||assignment.meetingPointName||'saved meeting point')+' — '):'';
-        const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)||c.id===selectedId?'Selected — ':'')+assignedLabel+c.name;button.addEventListener('click',()=>{select(c.id,false,true);map.closePopup();});popup.append(button);
+        const button=document.createElement('button');button.type='button';button.className='home-popup-choice';button.textContent=(selectedIds.has(c.id)||c.id===selectedId?'Selected — ':'')+assignedLabel+c.name;button.addEventListener('click',()=>{select(c.id,true,true);map.closePopup();});popup.append(button);
       }
       marker.bindPopup(popup,{maxHeight:300,maxWidth:310});
       const tooltipCongregations=!focus&&(active||checked)?group.congregations.filter(c=>c.id===selectedId||selectedIds.has(c.id)):group.congregations;
       marker.bindTooltip(esc(tooltipCongregations.map(c=>c.name).join(' · ')),{direction:'right',permanent:Boolean(focus||active||checked),className:active||checked?'selected-congregation-label':focus?'focused-congregation-label':''});
-      if(group.congregations.length===1)marker.on('click',()=>select(group.congregations[0].id,false,true));
+      marker.on('click',()=>{
+        if(group.congregations.length===1)select(group.congregations[0].id,true,true);
+        else focusMapPoint(map,group);
+      });
     }
   }
   function selected(){return congregationById(selectedId);}
@@ -67,11 +77,28 @@ export function initCongregationLocations(ctx){
     selectedId=id;ctx.onCongregationSelected?.(id);savedPoint=ctx.getAssignment(id)?.meetingPointId||'';draftPoint=savedPoint;
     if(fromMap)ctx.mapSelect?.(id);
     render();if(draftPoint)void ctx.loadDrives(draftPoint);
-    const home=resolveHome(selected());if(map&&home.point&&pan)map.setView([home.point.lat,home.point.lng],13);
+    const home=resolveHome(selected());if(pan)focusMapPoint(map,home.point);
     if(!fromMap)$('congregationDetail').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
+  function clearSelection(){
+    selectedId='';draftPoint='';savedPoint='';
+    ctx.onCongregationSelected?.('');
+    map?.closePopup?.();map?.closeTooltip?.();
+    render();
+  }
+  function chooseDestination(id){
+    if(!selected()||savingAssignment)return;
+    draftPoint=id;
+    void ctx.loadDrives(draftPoint);
+    $('congregationDestination').value=draftPoint;
+    drawLines();updateDraft();
+    focusMapPoint(map,ctx.getLocations().find(p=>p.id===draftPoint));
+  }
   function renderDetail(){
-    const c=selected();if(!c)return;
+    const c=selected();if(!c){
+      $('congregationDetail').innerHTML='<span class="eyebrow">CONGREGATION & SUGGESTED MEETING POINT</span><h2>Select a congregation</h2><p class="intro-copy">Choose a home icon or a congregation name to review its address, suggestions and assignment. Press Esc to leave a selection.</p>';
+      return;
+    }
     const home=resolveHome(c),locations=ctx.getLocations(),assignment=ctx.getAssignment(c.id),point=locations.find(p=>p.id===assignment?.meetingPointId);
     // Shared updates may change the saved assignment; keep an intentionally unsaved choice.
     const nextSaved=assignment?.meetingPointId||'';if(draftPoint===savedPoint)draftPoint=nextSaved;savedPoint=nextSaved;
@@ -85,12 +112,13 @@ export function initCongregationLocations(ctx){
       <div class="button-row"><button type="button" class="btn primary" id="saveCongregationAssignment">${savingAssignment?'Saving…':isAdmin()?'Save assignment':'Sign in to save assignment'}</button></div><p id="assignmentDraftStatus" class="intro-copy" role="status"></p>`;
     $('congregationDestination').value=draftPoint;
     $('congregationDestination').disabled=savingAssignment;
-    $('congregationDestination').addEventListener('change',()=>{draftPoint=$('congregationDestination').value;void ctx.loadDrives(draftPoint);drawLines();updateDraft();});
+    $('congregationDestination').addEventListener('change',()=>chooseDestination($('congregationDestination').value));
     $('editSelectedAddress').addEventListener('click',()=>edit(c.id));
-    $('congregationDetail').querySelectorAll('[data-suggestion]').forEach(b=>b.addEventListener('click',()=>{draftPoint=b.dataset.suggestion;void ctx.loadDrives(draftPoint);$('congregationDestination').value=draftPoint;drawLines();updateDraft();}));
+    $('congregationDetail').querySelectorAll('[data-suggestion]').forEach(b=>{b.disabled=savingAssignment;b.addEventListener('click',()=>chooseDestination(b.dataset.suggestion));});
     $('saveCongregationAssignment').addEventListener('click',async()=>{
+      if(savingAssignment)return;
       if(!isAdmin()){ctx.openLogin();return;}
-      const target=selected(),targetPoint=draftPoint;if(!targetPoint)return;
+      const target=selected(),targetPoint=draftPoint;if(!target||!targetPoint)return;
       savingAssignment=true;renderDetail();
       try{await ctx.saveAssignment(target,targetPoint);ctx.toast(`${target.name} assigned. You can change this meeting point at any time.`);}catch(error){ctx.toast(error.message,true);}finally{savingAssignment=false;renderDetail();}
     });
@@ -139,7 +167,7 @@ export function initCongregationLocations(ctx){
     const line=(p,color,dash,label)=>{if(p&&validPoint(p.lat,p.lng))L.polyline([[home.point.lat,home.point.lng],[p.lat,p.lng]],{color,weight:3,dashArray:dash}).addTo(linesLayer).bindTooltip(esc(label+' — '+p.name));};
     line(saved,'#148151',null,'Saved assignment');if(draft&&draft.id!==saved?.id)line(draft,'#176eb5','5 5','Unsaved choice');else if(suggested&&suggested.id!==saved?.id)line(suggested,'#7950aa','7 7','Suggested meeting point');
   }
-  function meetingPointChosen(point){if(!selected())return;draftPoint=point.id;renderDetail();}
+  function meetingPointChosen(point){if(!selected()||savingAssignment)return;draftPoint=point.id;renderDetail();}
   function fitSelected(){
     if(ctx.getFocusedMeetingPoint?.())ctx.clearMeetingFocus?.();
     const chosen=congregations.filter(c=>ctx.getSelected().has(c.id)),points=chosen.map(c=>resolveHome(c).point).filter(Boolean);renderHomes();
@@ -207,6 +235,11 @@ export function initCongregationLocations(ctx){
     previewPin();
   }
   function closeEditor(){if(editorSaving)return;cancelLookup();modal.classList.remove('open');editor=null;}
+  function dismissEditor(){
+    if(!modal.classList.contains('open'))return false;
+    closeEditor();
+    return true;
+  }
   function previewPin(){
     syncCoordinatePanel();
     if(!editorMap)return;if(editorMarker){editorMap.removeLayer(editorMarker);editorMarker=null;}
@@ -360,7 +393,7 @@ export function initCongregationLocations(ctx){
       await ctx.saveAddress(current.congregation,values,current.version);
       editorSaving=false;closeEditor();select(current.congregation.id,true);
       if(map&&validPoint(values.lat,values.lng)&&values.address.trim()){
-        map.setView([Number(values.lat),Number(values.lng)],15);
+        focusMapPoint(map,values);
         $('map').scrollIntoView({behavior:'smooth',block:'center'});
         ctx.toast('Address saved and pinned on the map. The meeting-point assignment was kept.');
       }else ctx.toast('Address saved. It is flagged until a map pin is added.');
@@ -370,8 +403,8 @@ export function initCongregationLocations(ctx){
   $('addressForm').addEventListener('submit',event=>{event.preventDefault();void saveEditor();});
   $('saveWithoutPin').addEventListener('click',()=>void saveEditor(true));
   $('cancelAddress').addEventListener('click',closeEditor);modal.addEventListener('click',e=>{if(e.target===modal)closeEditor();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select,a[href]')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!e.defaultPrevented&&dismissEditor())e.preventDefault();if(e.key==='Tab'&&modal.classList.contains('open')){const controls=[...modal.querySelectorAll('button,input,select,a[href]')].filter(el=>!el.disabled&&el.offsetParent!==null),first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}});
   // Initial fit includes homes outside the original DTC planning boundary.
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
-  return{render,select,edit,meetingPointChosen,fitSelected,unassign,selectionChanged};
+  return{render,select,edit,meetingPointChosen,fitSelected,unassign,selectionChanged,clearSelection,dismissEditor};
 }

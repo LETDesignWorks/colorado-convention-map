@@ -1,4 +1,4 @@
-const version = 'suitability-20261115-1';
+const version = 'zoom-escape-20261115-1';
 
 async function fetchText(path) {
   const response = await fetch(`${path}?v=${version}`, { cache: 'no-store' });
@@ -28,9 +28,9 @@ try {
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
   await import('../assets/branding.js?v=suitability-20261115-1');
-  await import('./app-main.js?v=suitability-20261115-1');
+  await import('./app-main.js?v=zoom-escape-20261115-1');
   await import('./address-duplicates-ui.js?v=access-20261114-1');
-  await import('./directions.js?v=ribbons-20261107-1');
+  await import('./directions.js?v=zoom-escape-20261115-1');
   await import('./bulk-addresses.js?v=access-20261114-1');
   await import('./avoid-address-upload.js?v=access-20261114-1');
   await import('./hall-address-sets.js?v=access-20261114-1');
@@ -43,7 +43,7 @@ try {
   await import('./modern-basemap.js?v=access-20261114-1');
   await import('./territory-extra-addresses.js?v=access-20261114-1');
   await import('./saved-work-ui.js?v=access-20261114-1');
-  await import('./meeting-place-ui.js?v=access-20261114-1');
+  await import('./meeting-place-ui.js?v=zoom-escape-20261115-1');
   await import('./backup-merge-ui.js?v=access-20261114-1');
   await import('./library-bulk-cleanup.js?v=access-20261114-1');
 } catch (error) {

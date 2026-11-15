@@ -297,6 +297,12 @@ function validMapCoordinates(item) {
   const lat = Number(item?.lat), lng = Number(item?.lng);
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && !(Math.abs(lat) < 1 && Math.abs(lng) < 1);
 }
+function focusMapPoint(point, minimumZoom = 15) {
+  if (!map || point?.lat == null || point?.lng == null || !validMapCoordinates(point)) return false;
+  map.stop?.();
+  map.setView([Number(point.lat), Number(point.lng)], Math.max(map.getZoom(), minimumZoom), { animate: true });
+  return true;
+}
 function pointFeature(item) { return turf.point([Number(item.lng), Number(item.lat)]); }
 function houseInsideTerritoryGeometry(house, geometry) {
   if (!validMapCoordinates(house) || !geometry) return false;
@@ -420,7 +426,7 @@ function selectHall(id, pan = true, preserveWork = false) {
   populateCongregations(selectedCongregation);
   const source = inferSourceForLocation(hall);
   updateSourceDetail(source);
-  if (pan && map) map.setView([hall.lat, hall.lng], Math.max(map.getZoom(), 12), { animate: true });
+  if (pan) focusMapPoint(hall);
   renderHallMarkers();
   updateSummary();
   emitPlannerDataChange();
@@ -770,7 +776,9 @@ function initMap() {
   territoryEditGroup = L.featureGroup().addTo(map);
   houseGroup = L.featureGroup().addTo(map);
   hallGroup = L.featureGroup().addTo(map);
-  addLandmarkReferences(map);
+  addLandmarkReferences(map).eachLayer(marker => {
+    marker.on('click', () => focusMapPoint(marker.getLatLng()));
+  });
 
   map.on(L.Draw.Event.CREATED, event => {
     if (drawMode === 'boundary') {
@@ -913,7 +921,7 @@ function renderHallMarkers() {
   for (const location of hallLocations) {
     const marker = L.marker([location.lat, location.lng], { icon: hallIcon(location, location.id === selectedHall?.id) }).addTo(hallGroup);
     marker.bindPopup(`<strong>${escapeHtml(markerLabel(location))} — ${escapeHtml(location.name)}</strong><br>${escapeHtml(location.address || 'Saved map location')}<br><small>${escapeHtml((location.congregations || []).join(' • '))}</small>`);
-    marker.on('click', () => { void selectHallWithFeedback(location.id, false); });
+    marker.on('click', () => { void selectHallWithFeedback(location.id, true); });
     hallMarkers.set(location.id, marker);
   }
 }
@@ -2129,6 +2137,7 @@ function renderAllPlanningData() {
   emitPlannerDataChange();
 }
 function toggleHouseSelection(id) {
+  focusMapPoint(houses.find(house => house.id === id), 17);
   if (selectedHouseIds.has(id)) selectedHouseIds.delete(id); else selectedHouseIds.add(id);
   renderHouseMarkers();
   renderHouseList();
@@ -2817,7 +2826,7 @@ function loadBoundaryRecord(id) {
   setBoundaryGeometry(savedBoundary, true, Boolean(item.addressSetBoundary));
   toast('Saved congregation boundary loaded.');
 }
-function loadPlanRecord(id) {
+function loadPlanRecord(id, { focus = true } = {}) {
   const plan = reviewRecords.get(id);
   if (!plan || plan.deletedAt) return false;
   const chunkIds = Array.isArray(plan.chunkIds) ? plan.chunkIds : [...reviewRecords.values()].filter(item => item.recordType === 'territory-plan-chunk' && item.planId === id).sort((a, b) => Number(a.chunkIndex) - Number(b.chunkIndex)).map(item => item.id);
@@ -2853,7 +2862,7 @@ function loadPlanRecord(id) {
   if (boundaryGeometry) {
     boundaryGroup.clearLayers();
     const layer = L.geoJSON(boundaryGeometry, { style: { color: '#0b5b9f', weight: 3, dashArray: '9 7', fillColor: '#4d9cdb', fillOpacity: .08 } }).addTo(boundaryGroup);
-    if (layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [28, 28], maxZoom: 15 });
+    if (focus && layer.getBounds?.().isValid()) map.fitBounds(layer.getBounds(), { padding: [28, 28], maxZoom: 15 });
   }
   houses = loadedHouses.map(item => {
     const avoid = Boolean(item.avoid);
@@ -2872,7 +2881,7 @@ function loadPlanRecord(id) {
   selectedHouseIds.clear();
   updateBoundaryUi();
   renderAllPlanningData();
-  if (!boundaryGeometry && houses.length) {
+  if (focus && !boundaryGeometry && houses.length) {
     const mappedPoints = houses
       .filter(house => validMapCoordinates(house))
       .map(house => [Number(house.lat), Number(house.lng)]);
@@ -3558,6 +3567,7 @@ function wireEvents() {
     clearPlanWorkspace(false);
     selectedCongregation = next;
     if (!clean(els.territoryPrefix.value)) els.territoryPrefix.value = initialPrefix(selectedCongregation);
+    focusMapPoint(selectedHall);
     updateSummary();
     emitPlannerDataChange();
   });
@@ -3953,13 +3963,14 @@ globalThis.__denverTerritoryPlannerAPI = Object.freeze({
   getSavedRecords: () => new Map(reviewRecords),
   getSavedRecordsStatus: () => savedRecordsStatus,
   getWorkspaceGeneration: () => workspaceGeneration,
-  setMeetingSearchBoundary: geometry => {
+  setMeetingSearchBoundary: (geometry, { focus = true } = {}) => {
     if (!requireAdmin()) return false;
-    setBoundaryGeometry(geometry, true, true);
+    setBoundaryGeometry(geometry, focus, true);
     return true;
   },
   saveMeetingPlaceBoundary,
   loadPlanRecord,
+  focusMapPoint,
   createBoundaryAroundAddresses,
   getHouseMarkers: () => houseMarkers,
   getTerritoryLayers: () => territoryLayers,

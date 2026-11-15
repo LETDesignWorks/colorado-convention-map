@@ -299,12 +299,7 @@ function renderMeetingPointMarkers() {
     if (!Number.isFinite(Number(record.lat)) || !Number.isFinite(Number(record.lng))) return;
     const marker = L.marker([Number(record.lat), Number(record.lng)], { icon: meetingPointIcon(record, record.id === selectedId), zIndexOffset: 620 }).addTo(meetingLayer);
     marker.bindPopup(`<strong>${esc(record.name)}</strong><br>${esc(record.address || 'Saved map point')}<br><small>Territory meeting point</small>`);
-    marker.on('click', () => {
-      el.origin.value = `meeting:${record.id}`;
-      renderMeetingPointMarkers();
-      populateDestinationOptions();
-      updateDirectionLinks();
-    });
+    marker.on('click', () => useMeetingPoint(record.id));
     meetingMarkers.set(record.id, marker);
   });
 }
@@ -337,7 +332,7 @@ function useMeetingPoint(id) {
   renderMeetingPointMarkers();
   populateDestinationOptions();
   updateDirectionLinks();
-  map?.setView([Number(record.lat), Number(record.lng)], Math.max(map.getZoom(), 15), { animate: true });
+  api.focusMapPoint(record);
 }
 function clearMeetingPointForm() {
   editingMeetingPointId = '';
@@ -856,12 +851,16 @@ function wireEvents() {
     renderMeetingPointMarkers();
     populateDestinationOptions();
     updateDirectionLinks();
+    api.focusMapPoint(currentOrigin());
   });
   el.territory.addEventListener('change', () => {
     populateDestinationOptions();
     updateDirectionLinks();
   });
-  el.destination.addEventListener('change', updateDirectionLinks);
+  el.destination.addEventListener('change', () => {
+    updateDirectionLinks();
+    api.focusMapPoint(currentDestination(), 17);
+  });
   el.mode.addEventListener('change', syncTransitDeparture);
   el.departure.addEventListener('change', updateDirectionLinks);
   el.showRoute.addEventListener('click', loadTerritoryRoute);

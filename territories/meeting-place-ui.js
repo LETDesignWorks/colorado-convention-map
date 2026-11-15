@@ -57,14 +57,16 @@ async function restore(explicit = false) {
     const selection = chooseMeetingPlan(records, scope.hallId, scope.congregation);
     const accepted = latestMeetingBoundary(records, scope.hallId, scope.congregation);
     if (selection) {
-      if (!api.loadPlanRecord(selection.plan.id)) {
+      // Background restoration must retain the meeting point or address the user
+      // just selected. Only an explicit load action fits the complete address set.
+      if (!api.loadPlanRecord(selection.plan.id, { focus: explicit })) {
         status('Saved addresses were not loaded. Your current work is kept; check the saved-record message and retry.'); return;
       }
-      if (accepted) api.setMeetingSearchBoundary(accepted.geometry);
-      reset(); showHomes();
+      if (accepted) api.setMeetingSearchBoundary(accepted.geometry, { focus: explicit });
+      reset(); if (explicit) showHomes();
       status(`Loaded ${api.getHouses().length.toLocaleString()} addresses and ${api.getTerritories().length} territories for ${scope.congregation}.${selection.legacy ? ' This is the latest earlier address set; select SAVE YOUR WORK to make it your main saved work.' : ''}${accepted ? ' The saved meeting-place boundary is restored.' : ''}`);
     } else {
-      if (accepted && !api.getBoundaryGeometry()) api.setMeetingSearchBoundary(accepted.geometry);
+      if (accepted && !api.getBoundaryGeometry()) api.setMeetingSearchBoundary(accepted.geometry, { focus: explicit });
       reset();
       status(accepted ? 'The saved boundary is loaded. No complete saved address set was found. Choose Review boundary & fill to retrieve assessor/GIS homes.'
         : 'No complete saved address set was found for this congregation. Upload addresses or choose Review boundary & fill to start an assessor/GIS search around the meeting place. Existing PDF copies remain in the saved-territory library.');
