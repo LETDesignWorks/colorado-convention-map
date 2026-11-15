@@ -1,4 +1,4 @@
-import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
+import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs';
 import {loadRail,refreshStationLocations} from '../assets/rail-network.mjs';
 import {findAddress,validPoint} from '../assignments/location-model.mjs';

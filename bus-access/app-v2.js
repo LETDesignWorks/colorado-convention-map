@@ -1,4 +1,4 @@
-import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
+import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPhotoCoverage} from './photo-coverage.mjs?v=photo-coverage-20261110-1';
 import {revealLocationEditor} from './location-navigation.mjs?v=photo-coverage-20261110-1';

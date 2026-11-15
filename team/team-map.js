@@ -1,4 +1,4 @@
-import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=pin-audit-20261108-1';

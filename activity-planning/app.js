@@ -1,4 +1,4 @@
-import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
+import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPrintRibbons,waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {LOCATIONS,SOURCES} from './locations.js?v=travel-20261114-1';

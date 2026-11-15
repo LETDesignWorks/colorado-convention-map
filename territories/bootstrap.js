@@ -28,7 +28,7 @@ try {
       document.getElementById('savedTerritoriesCard')?.before(notice);
     });
   await import('../assets/branding.js?v=travel-20261114-1');
-  await import('./app-main.js?v=landmarks-20261115-1');
+  await import('./app-main.js?v=landmark-size-20261115-1');
   await import('./address-duplicates-ui.js?v=access-20261114-1');
   await import('./directions.js?v=ribbons-20261107-1');
   await import('./bulk-addresses.js?v=access-20261114-1');

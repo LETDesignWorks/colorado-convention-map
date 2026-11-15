@@ -1,4 +1,4 @@
-import {landmarkIcon} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
+import {landmarkIcon,sizeLandmarksForZoom} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,CENTERS} from '../assets/planning-common.mjs';
 import {loadRail} from '../assets/rail-network.mjs';
 import {CONGREGATIONS} from '../assignments/congregations-data.mjs';
@@ -8,6 +8,7 @@ import {MODES} from '../travel-routes/model.mjs';
 import {PRIVATE_LAYERS,permittedTypes,savedRoute,territoryShapes} from './model.mjs';
 import {auth,canView,observeSiteAccess,watchHalls,watchRecords} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),map=mapBase('map'),layers=new Map(),records=new Map(),statusByLayer=new Map();
+sizeLandmarksForZoom(map);
 const definitions=[
  ['landmarks','Convention Center / DTC landmarks','#174c77',true],
  ['meetings','Meeting locations / bus status','#bd7825',true],
