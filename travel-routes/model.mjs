@@ -1,12 +1,19 @@
 import {parseDenver,denverInput} from '../routes/travel-plan.mjs';
 export const MODES={car:{name:'Car',icon:'🚗',color:'#2563eb'},bus:{name:'Bus / motorcoach',icon:'🚌',color:'#087f8c'},rail:{name:'Rail + walking',icon:'🚆',color:'#7c3aed'},walk:{name:'Walk',icon:'🚶',color:'#546274'}};
 export const minute=60000;
-export function number(value,label,max=1440){const n=Number(value);if(!Number.isFinite(n)||n<0||n>max)throw Error(label+' must be between 0 and '+max+'.');return n;}
-export function validatePlan(plan){
+export function number(value,label,max=1440){const n=Number(value);if(value==null||String(value).trim()===''||!Number.isFinite(n)||n<0||n>max)throw Error(label+' must be between 0 and '+max+'.');return n;}
+export function durationMinutes(value,unit='minutes'){return Math.round(number(value,'Activity / stop duration',unit==='hours'?24:1440)*(unit==='hours'?60:1)*1000)/1000;}
+export function durationDisplay(stop){return stop.dwell==null?'':stop.dwellUnit==='hours'?Number((stop.dwell/60).toFixed(6)):stop.dwell;}
+export function clearStopPin(stop){return {...stop,lat:null,lng:null,pinRemoved:true};}
+export const LOCATION_GROUPS=[['all','All locations'],['Field service / meeting places','Meetings for field service'],['Hotels','Hotels'],['Activities','Activities / Encouraging Gathering'],['Convention centers','Convention centers'],['Rail stations','Rail stations'],['custom','Independent address / map pin']];
+export function locationGroupLabel(group){return LOCATION_GROUPS.find(([id])=>id===group)?.[1]||group;}
+export function filterLocations(locations,group='all'){return group==='all'?locations:locations.filter(p=>p.group===group);}
+export function validatePlan(plan,{allowMissingPoints=false}={}){
  if(!Array.isArray(plan.stops)||plan.stops.length<2||plan.stops.length>4)throw Error('Choose two to four locations.');
  parseDenver(plan.time);
  for(const [i,s] of plan.stops.entries()){
-  if(s.lat==null||s.lng==null||String(s.lat).trim()===''||String(s.lng).trim()===''||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lng))||Math.abs(Number(s.lat))>90||Math.abs(Number(s.lng))>180)throw Error('Confirm the address pin for location '+(i+1)+'.');
+  const blank=v=>v==null||String(v).trim()==='',missing=blank(s.lat)&&blank(s.lng);
+  if(!(allowMissingPoints&&missing)&&(blank(s.lat)||blank(s.lng)||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lng))||Math.abs(Number(s.lat))>90||Math.abs(Number(s.lng))>180))throw Error('Confirm the address pin for location '+(i+1)+'.');
   if(s.startTime)parseDenver(s.startTime);
   number(s.dwell,'Activity / stop duration');
   if(i<plan.stops.length-1&&!MODES[s.mode])throw Error('Choose a transport mode for each leg.');
@@ -51,12 +58,12 @@ export function legacyPlan(record){
  const b=point(record.destination,{name:record.destinationName||record.destinationLabel,address:record.destinationAddress});
  return {name:record.routeName||'Saved Field Service route',stops:[a,b],timing:record.meetingLocal?'arrive':'depart',time:record.meetingLocal||record.departureLocal||denverInput(new Date()),boarding:record.boardingBuffer??15,allowance:record.travelAllowance??15,arrivalBuffer:record.arrivalBuffer??15,transfer:10,wait:15,reminder:record.reminderLeadMinutes??30,notes:record.notes||'',parking:record.parkingNotes||'',tickets:record.ticketMethod||'mobile',extraReminders:record.extraReminders||''};
 }
-export function serializePlan(plan,result){
+export function serializePlan(plan,result=null){
  const keys=['name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
  const cleanPlan=Object.fromEntries(keys.filter(k=>plan[k]!==undefined).map(k=>[k,plan[k]]));
- const stopKeys=['id','name','address','lat','lng','mode','dwell','startTime','showRail','railFrom','railTo'];
+ const stopKeys=['id','name','address','lat','lng','mode','dwell','dwellUnit','locationGroup','pinRemoved','startTime','showRail','railFrom','railTo'];
  cleanPlan.stops=plan.stops.map(s=>Object.fromEntries(stopKeys.filter(k=>s[k]!==undefined).map(k=>[k,s[k]])));
  const first=plan.stops[0],last=plan.stops.at(-1);
  // Explicit fields only: session credentials can never enter a shared document.
- return {recordType:'bus-route',travelSchemaVersion:1,routeName:plan.name||'Travel route',plan:cleanPlan,resultJson:JSON.stringify(result),origin:{lat:first.lat,lng:first.lng},hotelName:first.name,hotelAddress:first.address,destination:{lat:last.lat,lng:last.lng},destinationName:last.name,destinationAddress:last.address,destinationId:last.id||'custom',meetingLocal:plan.timing==='arrive'?plan.time:last.startTime||'',departureLocal:denverInput(new Date(result.depart)),arrivalLocal:denverInput(new Date(result.arrive)),reportLocal:denverInput(new Date(result.ready)),plannedTravelMinutes:result.minutes,boardingBuffer:plan.boarding,arrivalBuffer:plan.arrivalBuffer,travelAllowance:plan.allowance,timeZone:'America/Denver',notes:plan.notes||''};
+ return {recordType:'bus-route',travelSchemaVersion:1,travelDraft:!result,routeName:plan.name||'Travel route',plan:cleanPlan,resultJson:JSON.stringify(result),origin:{lat:first.lat??null,lng:first.lng??null},hotelName:first.name||'',hotelAddress:first.address||'',destination:{lat:last.lat??null,lng:last.lng??null},destinationName:last.name||'',destinationAddress:last.address||'',destinationId:last.id||'custom',meetingLocal:plan.timing==='arrive'?plan.time:last.startTime||'',departureLocal:result?denverInput(new Date(result.depart)):'',arrivalLocal:result?denverInput(new Date(result.arrive)):'',reportLocal:result?denverInput(new Date(result.ready)):'',plannedTravelMinutes:result?.minutes??null,distanceMiles:null,baseMinutes:null,totalLeadMinutes:null,boardingBuffer:plan.boarding,arrivalBuffer:plan.arrivalBuffer,travelAllowance:plan.allowance,timeZone:'America/Denver',notes:plan.notes||''};
 }

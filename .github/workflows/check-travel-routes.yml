@@ -1,7 +1,7 @@
 name: Check Travel Routes
 on:
   push:
-    paths: ['travel-routes/**', 'planning-map/**', 'assets/rail-network.mjs', 'assets/planning-*.mjs', 'data/rtd-rail.json', 'tests/travel-routes.test.mjs', 'security/travel-ui.test.mjs', '.github/workflows/check-travel-routes.yml']
+    paths: ['travel-routes/**', 'planning-map/**', 'assets/rail-network.mjs', 'assets/planning-*.mjs', 'data/rtd-rail.json', 'tests/travel-routes.test.mjs', 'tests/travel-controls.test.mjs', 'security/travel-ui.test.mjs', '.github/workflows/check-travel-routes.yml']
   workflow_dispatch:
 jobs:
   travel-tests:
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/travel-routes.test.mjs
+      - run: node --test tests/travel-routes.test.mjs tests/travel-controls.test.mjs
       - run: npm install --no-audit --no-fund
         working-directory: security
       - run: node --test security/navigation.test.mjs security/travel-ui.test.mjs
