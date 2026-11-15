@@ -23,7 +23,10 @@ import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, sugge
 import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=zoom-escape-20261115-1';
 
 import {createDriveTimes} from './drive-times.mjs?v=homes-20261113-1';
-import {downloadAssignmentWorkbook} from './excel-export.mjs?v=suitability-20261115-1';
+import {downloadAssignmentWorkbook} from './excel-export.mjs?v=reports-20261115-1';
+import {buildAssignmentReport} from './report-model.mjs?v=reports-20261115-1';
+import {createAssignmentReport} from './report-ui.mjs?v=reports-20261115-1';
+import {printAssignmentReport} from './report-pdf.mjs?v=reports-20261115-1';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCylmVdVwc6tnvF3Tq9M_GE_V8KKGkABog',
@@ -58,6 +61,7 @@ let selectedMeetingPointId = '';
 let nearestMeetingPointId = '';
 let assignmentsUnsubscribe = null;
 let publicReady=false, locationUi;
+let reportDataLoaded=false, reportDataError='', excelExportBusy=false, pdfExportBusy=false;
 const addressProfiles = new Map();
 
 const publicLocationData = new Map();
@@ -129,6 +133,26 @@ const els = {
   loginPassword: document.getElementById('loginPassword'),
   toast: document.getElementById('toast')
 };
+
+const reportUi=createAssignmentReport(document.getElementById('assignmentReport'),{
+  onChange:()=>renderAssignmentReport(), onValidityChange:()=>updateReportExportButtons()
+});
+function currentAssignmentReport(delegatesPerCongregation=reportUi.getValue()){
+  return buildAssignmentReport({congregations:CONGREGATIONS,locations,assignmentFor,serviceDaysFor,delegatesPerCongregation,sharedReady:publicReady});
+}
+function updateReportExportButtons(){
+  const unavailable=!reportDataLoaded||!reportUi.valid();
+  document.getElementById('exportAssignments').disabled=unavailable||excelExportBusy;
+  document.getElementById('exportAssignmentPdf').disabled=unavailable||pdfExportBusy;
+}
+function renderAssignmentReport(){
+  reportUi.update(currentAssignmentReport(),{available:reportDataLoaded,unavailableMessage:reportDataError});
+  updateReportExportButtons();
+}
+function reportExportFactor(){
+  if(!reportDataLoaded)throw Error('Wait for saved assignments and service days to load before exporting.');
+  return reportUi.validatedValue();
+}
 
 function clean(value = '') {
   return String(value ?? '').trim();
@@ -650,6 +674,7 @@ function renderAll() {
   syncMarkers();
   renderMeetingFocus();
   updateTravelRegister();
+  renderAssignmentReport();
 }
 
 async function assignSelected() {
@@ -784,6 +809,8 @@ function subscribeToPublicData() {
     assignments.clear();
     addressProfiles.clear();serviceDayProfiles.clear();
     publicReady=!snapshot.metadata.fromCache;
+    reportDataLoaded=reportDataLoaded||publicReady||!snapshot.empty;
+    reportDataError='';
 
     snapshot.forEach(item => {
       const data = item.data().recordType?item.data():withMeetingStatus(item.id,item.data());
@@ -803,6 +830,8 @@ function subscribeToPublicData() {
     if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);
   }, error => {
     publicReady=false;locationUi?.render();
+    reportDataError='Saved assignments and service days could not load. Refresh to retry before exporting a report.';
+    renderAssignmentReport();
     document.getElementById('sharedDataStatus').textContent='Shared data could not load. Saved assignments and address edits may be unavailable. Refresh to retry.';
     toast(`Assignment information could not be loaded: ${friendlyError(error)}`, true);
   });
@@ -893,6 +922,8 @@ try {
   });
   subscribeToPublicData();
 } catch (error) {
+  reportDataError='Shared data could not connect. Refresh to retry before exporting a report.';
+  renderAssignmentReport();
   toast(`Firebase could not initialize: ${friendlyError(error)}`, true);
 }
 
@@ -942,11 +973,25 @@ async function saveAssignment(congregation,pointId){
 document.getElementById('retryDriveTimes').addEventListener('click',()=>{void loadDrives(selectedMeetingPointId,true);});
 document.getElementById('showSelectedHomes').addEventListener('click',()=>locationUi?.fitSelected());
 document.getElementById('exportAssignments').addEventListener('click',async()=>{
-  const button=document.getElementById('exportAssignments');button.disabled=true;button.textContent='Preparing Excel…';
+  if(excelExportBusy)return;
+  const button=document.getElementById('exportAssignments');excelExportBusy=true;updateReportExportButtons();button.textContent='Preparing Excel…';
   try{
+    reportExportFactor();
     const point=locations.find(p=>p.id===selectedMeetingPointId);
     await loadDrives(selectedMeetingPointId);
-    downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,serviceDaysFor,sharedReady:publicReady});
-    toast('Excel export ready. It includes the current directory, all congregations, selections and meeting points.');
-  }catch(error){toast('Excel export failed: '+error.message,true);}finally{button.disabled=false;button.textContent='Export Excel';}
+    const delegatesPerCongregation=reportExportFactor();
+    downloadAssignmentWorkbook({congregations:CONGREGATIONS,visible:filteredCongregations(),selected:selectedCongregations,locations,resolveHome,assignmentFor,driveState,point,serviceDaysFor,sharedReady:publicReady,delegatesPerCongregation});
+    toast('Excel export ready. The Overview sheet has assignment and daily charts; edit cell C5 to adjust delegates.');
+  }catch(error){toast('Excel export failed: '+error.message,true);}finally{excelExportBusy=false;updateReportExportButtons();button.textContent='Export Excel';}
+});
+
+document.getElementById('exportAssignmentPdf').addEventListener('click',async()=>{
+  if(pdfExportBusy)return;
+  const button=document.getElementById('exportAssignmentPdf');
+  try{
+    const report=currentAssignmentReport(reportExportFactor());
+    pdfExportBusy=true;updateReportExportButtons();button.textContent='Preparing PDF…';
+    await printAssignmentReport(report);
+    toast('Report opened. Choose Save as PDF in the print dialog; the report also has a Print / Save PDF button.');
+  }catch(error){toast('PDF report could not open: '+error.message,true);}finally{pdfExportBusy=false;updateReportExportButtons();button.textContent='Print / Save PDF';}
 });

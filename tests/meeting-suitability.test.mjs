@@ -20,5 +20,6 @@ test('service days are ordered, allow several weekdays, and are independent of m
  const p=serviceDaysPayload({id:'C001',name:'First'},['Tuesday','Thursday']);assert.equal(p.recordType,'congregation-service-days');assert(!('meetingPointId'in p));assert.deepEqual(serviceDaysPayload({id:'C001',name:'First'},[]).serviceDays,[]);assert.deepEqual(readServiceDays({serviceDays:['Sunday','bad']}),['Sunday']);
 });
 test('Excel export includes saved service days for every congregation',()=>{
- const c={id:'C001',name:'First'},s=assignmentSheets({congregations:[c],visible:[c],selected:new Set(),locations:[],resolveHome:()=>({address:'',status:'missing',point:null}),assignmentFor:()=>null,driveState:()=>({}),serviceDaysFor:()=>['Monday','Thursday'],sharedReady:true});assert.equal(s[0].headers.at(-1),'Service participation days');assert.equal(s[0].rows[0].at(-1),'Monday, Thursday');assert.equal(s[1].rows[0].at(-1),'Monday, Thursday');
+ const c={id:'C001',name:'First'},s=assignmentSheets({congregations:[c],visible:[c],selected:new Set(),locations:[],resolveHome:()=>({address:'',status:'missing',point:null}),assignmentFor:()=>null,driveState:()=>({}),serviceDaysFor:()=>['Monday','Thursday'],sharedReady:true});
+ for(const name of ['Current directory','All congregations']){const sheet=s.find(sheet=>sheet.name===name);assert.equal(sheet.headers[14],'Service participation days');assert.equal(sheet.rows[0][14],'Monday, Thursday');}
 });

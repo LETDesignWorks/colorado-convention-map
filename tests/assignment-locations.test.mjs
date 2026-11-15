@@ -57,7 +57,7 @@ test('unreachable routes, distant snapped pins, and lookup errors remain blocked
 });
 test('Excel includes saved assignments separately from unsaved selection and preserves unknown times',()=>{
  const context={congregations:[c],visible:[c],selected:new Set([c.id]),locations:points,resolveHome:()=>homeFor(c,null,points),assignmentFor:()=>({meetingPointId:'b'}),driveState:()=>driveResult(null),point:points[0],sharedReady:true,now:new Date('2026-11-13T12:00:00Z')};
- const sheets=assignmentSheets(context);assert.equal(sheets.length,5);assert.equal(sheets[0].rows[0][5],'Yes');assert.equal(sheets[0].rows[0][6],'Meeting area');assert.equal(sheets[0].rows[0][10],'');
+ const sheets=assignmentSheets(context),directory=sheets.find(sheet=>sheet.name==='Current directory');assert.equal(sheets.length,6);assert.equal(directory.rows[0][5],'Yes');assert.equal(directory.rows[0][6],'Meeting area');assert.equal(directory.rows[0][10],'');
  const bytes=workbookBytes(sheets);assert.equal(bytes[0],80);fs.writeFileSync('/tmp/assignment-export-test.xlsx',bytes);
  fs.writeFileSync('/tmp/excel-string-test.xlsx',workbookBytes([{name:'Strings',headers:['Name'],rows:[['=HYPERLINK("x")'],['Á < > &']]}]));
 });
