@@ -6,7 +6,7 @@ const nonnegative=value=>typeof value==='number'&&Number.isFinite(value)&&value>
 export function driveResult(seconds,meters=null){
   if(!nonnegative(seconds))return {status:'unknown',seconds:null,meters:null,allowed:false,label:'Travel time unavailable — retry before assigning'};
   const minutes=Math.ceil(seconds/60),time=minutes>=60?`${Math.floor(minutes/60)} hr ${minutes%60} min`:`${minutes} min`,over=seconds>MAX_DRIVE_SECONDS;
-  return {status:over?'over':'within',seconds,meters:nonnegative(meters)?meters:null,allowed:!over,label:`${time} estimated drive${over?' — over 1 hr 20 min; cannot assign':''}`};
+  return {status:over?'over':'within',seconds,meters:nonnegative(meters)?meters:null,allowed:!over,label:`${time} estimated drive${over?' — over 1 hr 20 min':''}`};
 }
 // Results are keyed by origin/destination pins. Exports request road distance;
 // ordinary assignment checks can continue using duration-only tables.
@@ -138,3 +138,4 @@ export async function prepareAssignmentDrives({congregations,locations,assignmen
     onProgress(++done,groups.size);
   }
 }
+

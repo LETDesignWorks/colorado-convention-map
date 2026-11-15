@@ -109,8 +109,9 @@ export function initCongregationLocations(ctx){
       <h3>Suggested meeting points</h3><p class="intro-copy">Nearest approved or conditional meeting points by straight-line distance. Check driving time, capacity and bus access before assigning.</p>
       <div class="suggestion-list">${suggested.length?suggested.map((p,i)=>`<button type="button" class="suggestion" data-suggestion="${esc(p.id)}"><span><strong>${i===0?'Suggested: ':''}${esc(pointLabel(p))}</strong><small>${p.miles<.05?'Same address area':p.miles.toFixed(1)+' mi straight-line'} · ${p.busStatus==='approved'?'Approved':'Conditional — review bus access'}</small></span><span>Choose</span></button>`).join(''):`<p class="intro-copy">${!ctx.isReady()?'Waiting for shared meeting-point reviews.':home.status==='missing'?'Add an address and map pin to see suggestions.':home.status==='review'?'Confirm this address to see suggestions.':!home.point?'Add a map pin for this address to see suggestions.':'No approved or conditional meeting points are available. Choose a meeting point manually below.'}</p>`}</div>
       <div class="field"><label for="congregationDestination">Choose or move this congregation to a meeting point</label><select id="congregationDestination"><option value="">Choose a meeting point…</option>${locations.map(p=>`<option value="${esc(p.id)}">${esc(pointLabel(p))}</option>`).join('')}</select><small>Choose a suggestion, use this list, or click a meeting-point marker. Save to apply the assignment. The congregation's address stays in place.</small></div>
-      <div class="button-row"><button type="button" class="btn primary" id="saveCongregationAssignment">${savingAssignment?'Saving…':isAdmin()?'Save assignment':'Sign in to save assignment'}</button></div><p id="assignmentDraftStatus" class="intro-copy" role="status"></p>`;
+      <label class="travel-override" id="congregationTravelOverrideLabel" hidden><input type="checkbox" id="congregationTravelOverride"> Allow assignments over 1 hr 20 min to this meeting point</label><div class="button-row"><button type="button" class="btn primary" id="saveCongregationAssignment">${savingAssignment?'Saving…':isAdmin()?'Save assignment':'Sign in to save assignment'}</button></div><p id="assignmentDraftStatus" class="intro-copy" role="status"></p>`;
     $('congregationDestination').value=draftPoint;
+    $('congregationTravelOverride').addEventListener('change',()=>{ctx.setTravelOverride?.(draftPoint,$('congregationTravelOverride').checked);updateDraft();});
     $('congregationDestination').disabled=savingAssignment;
     $('congregationDestination').addEventListener('change',()=>chooseDestination($('congregationDestination').value));
     $('editSelectedAddress').addEventListener('click',()=>edit(c.id));
@@ -146,10 +147,13 @@ export function initCongregationLocations(ctx){
   }
   function updateDraft(){
     if(!$('assignmentDraftStatus'))return;
-    const travel=ctx.driveState(selected(),draftPoint);
+    const travel=ctx.driveState(selected(),draftPoint),allowed=ctx.canAssignTravel?.(travel,draftPoint)??travel.allowed;
+    $('congregationTravelOverrideLabel').hidden=!isAdmin()||travel.status!=='over';
+    $('congregationTravelOverride').checked=Boolean(ctx.travelOverrideEnabled?.(draftPoint));
+    $('congregationTravelOverride').disabled=savingAssignment||!ctx.isReady()||!draftPoint;
     $('assignmentDraftStatus').textContent=draftPoint&&draftPoint!==savedPoint?'Unsaved choice — click Save assignment to apply.':draftPoint?'This is the saved assignment. Choose another point to move this congregation.':'No meeting point selected.';
-    if(draftPoint)$('assignmentDraftStatus').textContent=(!travel.allowed?'Assignment unavailable. ':$('assignmentDraftStatus').textContent+' ')+travel.label+'.';
-    $('saveCongregationAssignment').disabled=savingAssignment||(isAdmin()&&(!ctx.isReady()||!draftPoint||draftPoint===savedPoint||!travel.allowed));
+    if(draftPoint)$('assignmentDraftStatus').textContent=(!allowed?'Assignment unavailable. ':$('assignmentDraftStatus').textContent+' ')+travel.label+'.'+(travel.status==='over'?(allowed?' Travel-limit override enabled for this meeting point.':' Check the override above to allow this longer trip.'):'');
+    $('saveCongregationAssignment').disabled=savingAssignment||(isAdmin()&&(!ctx.isReady()||!draftPoint||draftPoint===savedPoint||!allowed));
   }
   function drawLines(){
     if(!linesLayer)return;linesLayer.clearLayers();
@@ -408,3 +412,4 @@ export function initCongregationLocations(ctx){
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
   return{render,select,edit,meetingPointChosen,fitSelected,unassign,selectionChanged,clearSelection,dismissEditor};
 }
+

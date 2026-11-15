@@ -8,7 +8,19 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {travelCostDraft,encodeTravelCost} from '../activity-planning/travel-cost-model.mjs';
+import {initCongregationLocations} from '../assignments/location-ui.mjs';
 const settle=()=>new Promise(r=>setTimeout(r,5));
+test('travel override remains clickable after the congregation detail panel rerenders',()=>{
+ const dom=new JSDOM(fs.readFileSync(new URL('../assignments/index.html',import.meta.url),'utf8')),$=id=>dom.window.document.getElementById(id),prior=globalThis.document;globalThis.document=dom.window.document;dom.window.HTMLElement.prototype.scrollIntoView=function(){};
+ const congregation={id:'far',name:'Far Congregation'},meeting={id:'meeting',name:'Meeting',lat:39.7,lng:-105};let enabled=false,ui;
+ const ctx={map:null,congregations:[congregation],source:{spreadsheetCount:1,retainedCount:0,file:'Test'},resolveHome:()=>({status:'mapped',address:'123 Main St',point:{lat:40,lng:-105}}),isAdmin:()=>true,isReady:()=>true,escapeHtml:String,getLocations:()=>[meeting],getStatuses:()=>new Map(),getAssignment:()=>null,getMeetingPoint:()=>'',getSelected:()=>new Set(),getProfile:()=>null,driveState:()=>({status:'over',allowed:false,label:'1 hr 40 min estimated drive — over 1 hr 20 min'}),loadDrives:async()=>{},canAssignTravel:()=>enabled,travelOverrideEnabled:()=>enabled,setTravelOverride:(_id,value)=>{enabled=value;ui.render();}};
+ try{
+  ui=initCongregationLocations(ctx);ui.select('far');ui.meetingPointChosen(meeting);assert.equal($('saveCongregationAssignment').disabled,true);
+  $('congregationTravelOverride').click();assert.equal(enabled,true);assert.equal($('saveCongregationAssignment').disabled,false);assert.match($('assignmentDraftStatus').textContent,/override enabled/);
+  $('congregationTravelOverride').click();assert.equal(enabled,false);assert.equal($('saveCongregationAssignment').disabled,true);
+  $('congregationTravelOverride').click();assert.equal(enabled,true);
+ }finally{dom.window.close();globalThis.document=prior;}
+});
 test('congregation map applies the overall travel limit and keeps assignment check marks',()=>{
  const source=fs.readFileSync(new URL('../assignments/location-ui.mjs',import.meta.url),'utf8');
  const dom=new JSDOM('<body></body>'),icons=[],congregations=['far','near','unknown'].map(id=>({id,name:id}));
@@ -65,3 +77,4 @@ test('assignment station picker groups and searches stations, and rail pins togg
  ctx.syncMarkers();assert.equal(markers.size,3);assert.match(markers.get('rtd-66').options.icon.html,/rail-station/);assert.match(markers.get('rtd-66').options.icon.html,/assignment-count[^>]*>2</);
  $('showRailMeetingPoints').checked=false;ctx.syncMarkers();assert.deepEqual([...markers.keys()],['1']);ctx.focusedMeetingPointId='rtd-66';ctx.syncMarkers();assert.deepEqual([...markers.keys()],['rtd-66']);dom.window.close();
 });
+

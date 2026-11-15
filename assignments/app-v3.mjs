@@ -20,9 +20,9 @@ import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congr
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
 import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=assigned-travel-20261115-1';
+import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=travel-override-20261115-1';
 
-import {createDriveTimes,prepareAssignmentDrives} from './drive-times.mjs?v=assigned-travel-20261115-1';
+import {createDriveTimes,prepareAssignmentDrives} from './drive-times.mjs?v=travel-override-20261115-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=assigned-travel-20261115-1';
 import {buildAssignmentReport} from './report-model.mjs?v=reports-20261115-1';
 import {createAssignmentReport} from './report-ui.mjs?v=reports-20261115-1';
@@ -92,6 +92,14 @@ function selectFromMap(id){
 }
 const drives=createDriveTimes({onChange:()=>renderCongregationList()});
 const driveState=(c,id)=>drives.state(resolveHome(c),locations.find(p=>p.id===id));
+let travelOverridePointId='';
+function travelOverrideEnabled(pointId){return Boolean(pointId)&&isAdmin()&&publicReady&&travelOverridePointId===String(pointId);}
+function canAssignTravel(travel,pointId){return travel.allowed||(travel.status==='over'&&travelOverrideEnabled(pointId));}
+function setTravelOverride(pointId,enabled){
+ if(assignmentBusy||!isAdmin()||!publicReady)return;
+ if(enabled&&!locations.some(p=>p.id===String(pointId)))return;
+ travelOverridePointId=enabled?String(pointId):'';selectionRevision++;renderCongregationList();
+}
 const availableMeetingPoints=()=>locations.filter(p=>(publicLocationData.get(String(p.id))?.busStatus||p.busStatus)!=='not-suitable');
 function mapTravelState(c){
  if(selectedMeetingPointId)return driveState(c,selectedMeetingPointId);
@@ -102,8 +110,8 @@ function loadMeetingCoverage(retry=false){if(!reportDataLoaded||railLoading)retu
 const loadDrives=(id,retry=false)=>drives.ensure(CONGREGATIONS.map(resolveHome),locations.find(p=>p.id===id),{retry});
 async function requireEligible(congregations,destination){
   await drives.ensure(congregations.map(resolveHome),destination);
-  const blocked=congregations.filter(c=>!driveState(c,destination.id).allowed);
-  if(blocked.length)throw Error(`${blocked.length} congregation${blocked.length===1?' is':'s are'} over 1 hr 20 min or still need a verified address / travel time. Review the travel-time flags before assigning.`);
+  const blocked=congregations.filter(c=>!canAssignTravel(driveState(c,destination.id),destination.id));
+  if(blocked.length)throw Error(`${blocked.length} congregation${blocked.length===1?' is':'s are'} over 1 hr 20 min or still need a verified address / travel time. Enable the travel-limit override for this meeting point to allow longer trips. Missing addresses and unavailable travel times must still be resolved.`);
 }
 
 const els = {
@@ -412,6 +420,7 @@ function selectMeetingPoint(id, pan = false, keepFilters = false, overview = fal
   const location = locations.find(item => item.id === String(id));
   if (!location) return;
 
+  if(selectedMeetingPointId!==location.id)travelOverridePointId='';
   selectedMeetingPointId = location.id;
   selectionRevision++;
   nearestMeetingPointId = location.id;
@@ -581,9 +590,13 @@ function renderStats() {
 function renderSelectionControls() {
   renderServiceDays();
   const count = selectedCongregations.size;
-  const blocked=[...selectedCongregations].map(id=>CONGREGATIONS.find(c=>c.id===id)).filter(c=>!driveState(c,els.assignmentDestination.value).allowed);
-  document.getElementById('selectionTravelStatus').hidden=!blocked.length;
-  document.getElementById('selectionTravelStatus').textContent=blocked.length?`${blocked.length} selected need a travel-time check or exceed 1 hr 20 min. Change the meeting point or remove them from the selection.`:'';
+  const pointId=els.assignmentDestination.value,selected=[...selectedCongregations].map(id=>CONGREGATIONS.find(c=>c.id===id)).filter(Boolean);
+  const over=selected.filter(c=>driveState(c,pointId).status==='over'),blocked=selected.filter(c=>!canAssignTravel(driveState(c,pointId),pointId));
+  const unresolved=selected.filter(c=>!['within','over'].includes(driveState(c,pointId).status));
+  for(const id of ['overrideTravelLimit','mapOverrideTravelLimit']){const control=document.getElementById(id);control.checked=travelOverrideEnabled(pointId);control.disabled=!isAdmin()||!publicReady||assignmentBusy||!pointId;}
+  const travelMessage=[over.length?(over.length+' selected exceed 1 hr 20 min. '+(travelOverrideEnabled(pointId)?'Override enabled for this meeting point; you can assign these congregations.':'Check “Allow assignments over 1 hr 20 min” to assign them.')):'',unresolved.length?unresolved.length+' selected still need a verified address or available travel time.':''].filter(Boolean).join(' ');
+  document.getElementById('selectionTravelStatus').hidden=!travelMessage;
+  document.getElementById('selectionTravelStatus').textContent=travelMessage;
   els.selectionCount.textContent = `${count} selected`;
   els.assignSelectedButton.disabled = !isAdmin() || !publicReady || count === 0 || !els.assignmentDestination.value || blocked.length>0;
   els.unassignSelectedButton.disabled = !isAdmin() || !publicReady || count === 0;
@@ -594,7 +607,7 @@ function renderSelectionControls() {
   document.getElementById('mapAssignmentDestination').textContent=point?'Assign to: '+point.name:'Click a meeting-point marker to choose the destination.';
   document.getElementById('mapAssignSelected').disabled=assignmentBusy||els.assignSelectedButton.disabled;
   document.getElementById('mapUnassignSelected').disabled=assignmentBusy||els.unassignSelectedButton.disabled;
-  document.getElementById('mapAssignmentStatus').textContent=assignmentBusy?'Saving assignments…':!isAdmin()?'Sign in to select and assign congregations.':blocked.length?blocked.length+' selected need a travel-time check or exceed 1 hr 20 min.':'Select one or several congregation pins, then a meeting point.';
+  document.getElementById('mapAssignmentStatus').textContent=assignmentBusy?'Saving assignments…':!isAdmin()?'Sign in to select and assign congregations.':travelMessage?travelMessage:'Select one or several congregation pins, then a meeting point.';
   els.assignSelectedButton.disabled=assignmentBusy||els.assignSelectedButton.disabled;
   els.unassignSelectedButton.disabled=assignmentBusy||els.unassignSelectedButton.disabled;
   renderStats();
@@ -627,7 +640,7 @@ function renderCongregationList() {
     const assignmentAddress = point?.address || assignment?.meetingPointAddress || '';
 
     return `<div class="congregation-row${assigned ? ' assigned' : ''}${selected ? ' selected' : ''}${travel.status==='over'?' over-limit':''}" data-congregation="${escapeHtml(congregation.id)}">
-      <input type="checkbox" aria-label="Select ${escapeHtml(congregation.name)}" data-select="${escapeHtml(congregation.id)}" ${selected ? 'checked' : ''} ${isAdmin()&&(selected||!selectedMeetingPointId||travel.allowed) ? '' : 'disabled'}>
+      <input type="checkbox" aria-label="Select ${escapeHtml(congregation.name)}" data-select="${escapeHtml(congregation.id)}" ${selected ? 'checked' : ''} ${isAdmin()&&(selected||!selectedMeetingPointId||canAssignTravel(travel,selectedMeetingPointId)) ? '' : 'disabled'}>
       <div class="congregation-main">
         <button class="congregation-name" data-open-home="${escapeHtml(congregation.id)}" type="button">${escapeHtml(congregation.name)}</button><span class="selection-indicator" data-selection-indicator hidden>Selected congregation</span>
         <small>${escapeHtml([congregation.number?"No. "+congregation.number:"",congregation.language].filter(Boolean).join(" · "))}</small>
@@ -701,7 +714,7 @@ async function assignSelected() {
     for(const congregation of selected){const data={recordType:'congregation-assignment',meetingPointId:destination.id,meetingPointLabel:markerLabel(destination),meetingPointName:destination.name,meetingPointAddress:destination.address||'',meetingPointType:destination.locationType,assigned:true,updatedByEmail:currentUser.email,updatedAt:serverTimestamp(),congregationId:congregation.id,congregationName:congregation.name,sourceName:congregation.sourceName,homeAddress:resolveHome(congregation).address};batch.set(doc(db,'halls',assignmentDocumentId(congregation.id)),data,{merge:true});updates.push([congregation.id,data]);}
     await batch.commit();
     for(const [id,data]of updates){assignments.set(id,data);if(revision===selectionRevision){selectedCongregations.delete(id);revealedCongregations.delete(id);}}
-    if(revision===selectionRevision)selectedMeetingPointId=destination.id;
+    if(revision===selectionRevision){selectedMeetingPointId=destination.id;travelOverridePointId='';}
     toast(selected.length+' congregation'+(selected.length===1?'':'s')+' assigned to '+destination.name+'.');
   }catch(error){toast(friendlyError(error),true);}finally{assignmentBusy=false;renderAll();}
 }
@@ -747,19 +760,19 @@ function selectAllShown() {
     openLogin();
     return;
   }
-  for (const congregation of filteredCongregations()) if(!selectedMeetingPointId||driveState(congregation,selectedMeetingPointId).allowed) selectedCongregations.add(congregation.id);
+  for (const congregation of filteredCongregations()) if(!selectedMeetingPointId||canAssignTravel(driveState(congregation,selectedMeetingPointId),selectedMeetingPointId)) selectedCongregations.add(congregation.id);
   renderCongregationList();
 }
 
 function clearSelection() {
-  selectionRevision++;
+  travelOverridePointId='';selectionRevision++;
   revealedCongregations.clear();selectedCongregations.clear();
   locationUi?.clearSelection();
   renderCongregationList();
 }
 
 function exitSelection(){
-  selectionRevision++;
+  travelOverridePointId='';selectionRevision++;
   selectedMeetingPointId='';nearestMeetingPointId='';focusedMeetingPointId='';serviceDayFocus='';
   revealedCongregations.clear();selectedCongregations.clear();
   els.assignmentDestination.value='';els.meetingFilter.value='all';
@@ -859,6 +872,7 @@ mountMeetingListToggle(document.getElementById('toggleMeetingPointList'),documen
 document.getElementById('serviceDayFilter').innerHTML='<option value="all">All service days</option><option value="unset">Service days not set</option>'+SERVICE_DAYS.map(d=>'<option>'+d+'</option>').join('');
 document.getElementById('serviceDayFilter').addEventListener('change',renderCongregationList);
 document.getElementById('showAssignedDirectory').addEventListener('change',()=>{revealedCongregations.clear();renderCongregationList();});
+for(const id of ['overrideTravelLimit','mapOverrideTravelLimit'])document.getElementById(id).addEventListener('change',event=>setTravelOverride(els.assignmentDestination.value,event.target.checked));
 document.getElementById('mapAssignSelected').addEventListener('click',assignSelected);
 document.getElementById('mapUnassignSelected').addEventListener('click',clearSelectedAssignments);
 document.getElementById('mapClearSelection').addEventListener('click',clearSelection);
@@ -912,7 +926,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,canAssignTravel,travelOverrideEnabled,setTravelOverride,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 // Capture Escape before Leaflet consumes it while the map has keyboard focus.
 document.addEventListener('keydown',handleSelectionEscape,true);
 populateMeetingPointOptions();
@@ -925,7 +939,7 @@ try {
   db = getFirestore(app);
   await setPersistence(auth, browserLocalPersistence);
   observeSiteAccess(auth, user => {
-    currentUser = user;
+    travelOverridePointId='';currentUser = user;
     updateAuthUi();subscribeTravelRegister();void checkServiceDaysAccess();
   });
   subscribeToPublicData();
@@ -972,10 +986,11 @@ async function saveAssignment(congregation,pointId){
   const revision=selectionRevision;
   const destination=locations.find(p=>p.id===pointId);if(!destination)throw Error('Choose an available meeting point.');
   await requireEligible([congregation],destination);
+  if(!isAdmin()||!db||!publicReady)throw Error('Sign in and wait for shared data before saving.');
   const batch=writeBatch(db);
   batch.set(doc(db,'halls',assignmentDocumentId(congregation.id)),{recordType:'congregation-assignment',meetingPointId:destination.id,meetingPointLabel:markerLabel(destination),meetingPointName:destination.name,meetingPointAddress:destination.address||'',meetingPointType:destination.locationType,assigned:true,congregationId:congregation.id,congregationName:congregation.name,sourceName:congregation.sourceName,homeAddress:resolveHome(congregation).address,updatedByEmail:currentUser.email,updatedAt:serverTimestamp()},{merge:true});
   await batch.commit();
-  assignments.set(congregation.id,{meetingPointId:destination.id,meetingPointName:destination.name,meetingPointAddress:destination.address||''});if(revision===selectionRevision){selectedCongregations.delete(congregation.id);revealedCongregations.delete(congregation.id);}renderAll();
+  assignments.set(congregation.id,{meetingPointId:destination.id,meetingPointName:destination.name,meetingPointAddress:destination.address||''});if(revision===selectionRevision){selectedCongregations.delete(congregation.id);revealedCongregations.delete(congregation.id);travelOverridePointId='';}renderAll();
 }
 
 document.getElementById('retryDriveTimes').addEventListener('click',()=>{if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId,true);else void loadMeetingCoverage(true);});
@@ -1004,3 +1019,4 @@ document.getElementById('exportAssignmentPdf').addEventListener('click',async()=
     toast('Report opened. Choose Save as PDF in the print dialog; the report also has a Print / Save PDF button.');
   }catch(error){toast('PDF report could not open: '+error.message,true);}finally{pdfExportBusy=false;updateReportExportButtons();button.textContent='Print / Save PDF';}
 });
+

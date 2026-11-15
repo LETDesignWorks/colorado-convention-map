@@ -76,6 +76,18 @@ function uiFixture({focus='',admin=true,ready=true,fail=false,meeting='a',allowe
  ui=initCongregationLocations(ctx);
  return {ui,get,layers,congregations,assignments,toasts,selected,map,ctx,setMeeting:value=>meeting=value,setFocus:value=>focus=value,unassigned:()=>unassigned,logins:()=>loggedIn};
 }
+test('single-congregation override enables a longer trip while preserving its warning and unknown-time blocking',async()=>{
+ const f=uiFixture();let override='',saved;
+ f.ctx.travelOverrideEnabled=id=>override===id;
+ f.ctx.canAssignTravel=(travel,id)=>travel.allowed||(travel.status==='over'&&override===id);
+ f.ctx.setTravelOverride=(id,enabled)=>{override=enabled?id:'';f.ui.render();};
+ f.ctx.saveAssignment=async(c,id)=>{saved={c,id};};
+ f.ui.select('one');f.get('congregationDestination').value='b';f.get('congregationDestination').events.change();
+ assert.equal(f.get('saveCongregationAssignment').disabled,true);assert.equal(f.get('congregationTravelOverrideLabel').hidden,false);
+ f.get('congregationTravelOverride').checked=true;f.get('congregationTravelOverride').events.change();assert.equal(f.get('saveCongregationAssignment').disabled,false);assert.match(f.get('assignmentDraftStatus').textContent,/Over 1 hr 20 min/);assert.match(f.get('assignmentDraftStatus').textContent,/override enabled/);
+ await f.get('saveCongregationAssignment').events.click();assert.equal(saved.id,'b');assert.equal(saved.c.id,'one');
+ f.ctx.driveState=()=>({status:'unknown',allowed:false,label:'Travel time unavailable'});f.ui.render();assert.equal(f.get('saveCongregationAssignment').disabled,true);assert.equal(f.get('congregationTravelOverrideLabel').hidden,true);
+});
 test('focused map shows only assigned homes with visible names and one line per shared address',()=>{
  const f=uiFixture();f.ui.select('outside');f.setFocus('a');f.ui.render();
  assert.equal(f.layers[0].items.length,1);assert.equal(f.layers[0].items[0].tooltip.text,'One · Two');assert.equal(f.layers[0].items[0].tooltip.options.permanent,true);
@@ -254,3 +266,4 @@ test('a bulk assignment already saving can finish after Escape without reselecti
  assert.equal(context.assignmentBusy,false);assert.equal(context.selectedMeetingPointId,'');assert.equal(f.get('assignmentDestination').value,'');
  assert.match(f.get('congregationDetail').innerHTML,/Select a congregation/);assert.equal(f.assignments.get('one').meetingPointId,'a');
 });
+
