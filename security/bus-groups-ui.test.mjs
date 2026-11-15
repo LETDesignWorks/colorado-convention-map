@@ -39,6 +39,9 @@ test('shared plans honor read/edit access, use revisions and clear private conte
  const calls=[],a=setup({saveShared:async(plan,ref)=>{calls.push({plan,ref});return {id:'existing',revision:5};}});a.valid();const value=a.ui.getPlan();value.name='Private group plan';a.ui.setShared({items:[{id:'existing',revision:4,plan:value}],canRead:true,canWrite:false,current:true});assert.equal(a.$('[data-action="save-shared"]').disabled,true);a.click('[data-action="load-shared"]');assert.equal(a.ui.getPlan().name,'Private group plan');assert.equal(a.ui.getResult(),null);
  a.ui.setShared({items:[{id:'existing',revision:4,plan:value}],canRead:true,canWrite:true,current:true});a.click('[data-action="save-shared"]');await settle();assert.deepEqual(calls[0].ref,{id:'existing',revision:4});a.click('[data-action="save-copy"]');await settle();assert.equal(calls[1].ref,null);a.ui.setShared({reset:true});assert.equal(a.root.textContent.includes('Private group plan'),false);assert.equal(a.ui.getResult(),null);assert.equal(a.$('[data-action="save-shared"]').disabled,true);
 });
+test('saving a calculated plan keeps its schedule available for Excel export',async()=>{
+ const a=setup();a.valid();a.click('[data-action="calculate"]');await settle();a.ui.setShared({canRead:true,canWrite:true,current:true});a.click('[data-action="save-shared"]');await settle();assert.equal(a.ui.getResult().ready,1);assert.equal(a.$('[data-action="export"]').disabled,false);
+});
 test('failed shared saves preserve edits and allow save as a new plan after a conflict',async()=>{
  const a=setup({saveShared:async()=>{throw Error('This shared plan changed elsewhere.');}});a.valid();a.ui.setShared({canRead:true,canWrite:true,current:true});a.click('[data-action="save-shared"]');await settle();assert.equal(a.ui.getPlan().groups[0].buses[0].departure,'2027-07-16T08:00');assert.match(a.$('[data-bg-message]').textContent,/changed elsewhere/);assert.equal(a.$('[data-bg-editor]').disabled,false);
 });

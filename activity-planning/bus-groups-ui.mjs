@@ -83,7 +83,7 @@ export function mountBusGroups(root,{origins,route,findAddress=async()=>[],getKe
  }
  async function save(copy){
   if(saving||!edit||!fresh)return;const token=++saveGeneration;
-  try{const snapshot=cleanGroupPlan(plan);cancelLookup();invalidate('Saving shared bus-group plan…');saving=true;controls();const saved=await saveShared(snapshot,copy?null:active);if(token!==saveGeneration)return;active=saved;message('Shared plan saved. Recalculate arrivals when you reopen it.');}
+  try{const snapshot=cleanGroupPlan(plan);cancelLookup();if(running)invalidate('Saving shared bus-group plan…');else message('Saving shared bus-group plan…');saving=true;controls();const saved=await saveShared(snapshot,copy?null:active);if(token!==saveGeneration)return;active=saved;message('Shared plan saved. Recalculate arrivals when you reopen it.');}
   catch(error){if(token===saveGeneration)message(error.message||'Could not save. Your changes are still here.');}
   finally{if(token===saveGeneration){saving=false;controls();}}
  }
