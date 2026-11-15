@@ -57,7 +57,7 @@ function directory(){
 }
 test('assigned congregations hide only in directory; checkbox and map clicks reveal them',()=>{
  const f=directory();assert.deepEqual(f.ids(false),['c']);assert.deepEqual(f.ids(true),['a','b','c']);f.checked.checked=true;assert.deepEqual(f.ids(false),['a','b','c']);f.checked.checked=false;
- f.ctx.selectFromMap('a');f.ctx.selectFromMap('b');assert.deepEqual([...f.selected],['a','b']);assert.deepEqual(f.ids(false),['a','b','c']);
+ f.ctx.selectFromMap('b');assert.equal(f.ids(false)[0],'b');f.ctx.selectFromMap('a');assert.deepEqual([...f.selected],['b','a']);assert.deepEqual(f.ids(false),['a','b','c']);
  f.ctx.selectFromMap('a');assert.deepEqual([...f.selected],['b']);assert(f.ids(false).includes('a'));
  f.ctx.focusedMeetingPointId='m';assert.deepEqual(f.ids(false),['a','b']);
 });

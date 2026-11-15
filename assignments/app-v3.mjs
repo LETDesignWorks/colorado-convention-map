@@ -502,7 +502,9 @@ function filteredCongregations({forMap=false}={}) {
     ].filter(Boolean).join(' ').toLowerCase().includes(query);
   });
   const reference=locations.find(p=>p.id===nearestMeetingPointId);
-  return rankCongregations(visible,reference,resolveHome);
+  const ranked=rankCongregations(visible,reference,resolveHome);
+  if(!forMap){const revealed=c=>revealedCongregations.has(c.id)||selectedCongregations.has(c.id);ranked.sort((a,b)=>Number(revealed(b))-Number(revealed(a)));}
+  return ranked;
 }
 
 function renderStats() {
