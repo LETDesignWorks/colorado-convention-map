@@ -1,0 +1,32 @@
+name: Prepare landmark artwork
+on:
+  push:
+    branches: ['codex/landmark-pins-20261115']
+    paths: ['.github/workflows/prepare-landmark-artwork.yml']
+permissions:
+  contents: write
+jobs:
+  artwork:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve public artwork sources
+        shell: python
+        run: |
+          import urllib.request, pathlib, re, html
+          root = pathlib.Path('assets/landmarks')
+          root.mkdir(parents=True, exist_ok=True)
+          dtc = urllib.request.urlopen('https://cdn.freebiesupply.com/logos/large/2x/denver-tech-center-logo-svg-vector.svg').read()
+          assert b'<svg' in dtc and b'<script' not in dtc.lower()
+          (root/'denver-tech-center.svg').write_bytes(dtc)
+          page = urllib.request.urlopen('https://drive.google.com/drive/folders/15gZlG2sk2isjObrh8kAxEZ3ezzWd9nib').read().decode()
+          for match in re.finditer(r'.{0,180}(?:\.png|\.jpg|\.zip|\.eps|\.ai|\.pdf).{0,150}', page, re.I):
+              print(html.unescape(match.group())[:400])
+          print('DTC SVG bytes:', len(dtc))
+      - name: Save artwork
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/landmarks
+          git diff --cached --quiet || git commit -m "Add verified Denver Tech Center district logo"
+          git push
