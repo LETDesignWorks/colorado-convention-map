@@ -29,7 +29,7 @@ export function calculate(plan, legs) {
   if(runs>1 && (points[0].lat!==points.at(-1).lat || points[0].lng!==points.at(-1).lng)) throw new Error('Repeated runs must return to the starting point. Enable round trip or add the starting point as the last stop.');
   if(legs.length!==points.length-1) throw new Error('Recalculate the route after changing stops.');
   const buffer=numeric(plan.buffer,'traffic allowance per leg',0,240), turnaround=numeric(plan.turnaround,'time between runs',0,1440);
-  const buses=numeric(plan.buses,'bus count',1,100,true), seats=numeric(plan.seats,'seats per bus',1,100,true), delegates=numeric(plan.delegates,'delegates per run',1,10000,true);
+  const buses=numeric(plan.buses,'bus count',1,1000,true), seats=numeric(plan.seats,'seats per bus',1,100,true), delegates=numeric(plan.delegates,'delegates per run',1,10000,true);
   if(delegates>buses*seats) throw new Error(`The plan has ${delegates} delegates but only ${buses*seats} seats. Increase buses or reduce delegates.`);
   if(!['new','same'].includes(plan.passengers)) throw new Error('Choose whether each run carries the same or new delegates.');
   if(!['day','run','hour'].includes(plan.costBasis)) throw new Error('Choose a bus cost basis.');
@@ -92,3 +92,4 @@ export function encodeRecord(plan,legs) {
   // JSON strings avoid Firestore's nested-array restriction for route geometry.
   return {recordType:RECORD_TYPE,schemaVersion:1,planName:plan.name,coachId:plan.coachId,departureLocal:summary.startLocal,availableLocal:summary.endLocal,timeZone:'America/Denver',planJson:JSON.stringify(cleanPlan),legsJson:JSON.stringify(legs)};
 }
+

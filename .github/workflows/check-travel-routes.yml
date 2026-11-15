@@ -1,7 +1,7 @@
 name: Check Travel Routes
 on:
   push:
-    paths: ['tests/activity-service-reach.test.mjs', 'security/activity-service-reach-ui.test.mjs', 'tests/assignment-travel-override.test.mjs', 'tests/meeting-ranking.test.mjs', 'security/meeting-ranking-ui.test.mjs', 'delegate-counts/**', 'tests/delegate-counts.test.mjs', 'security/delegate-counts-ui.test.mjs', 'assets/meeting-suitability*', 'assets/bus-access-status-sync.js', 'tests/meeting-suitability.test.mjs', 'security/meeting-suitability-ui.test.mjs', 'assets/rail-meeting-points.mjs', 'assignments/**', 'activity-planning/**', 'assets/travel-register*', 'assets/planning.css', 'tests/visual-planning.test.mjs', 'tests/assignment-unassign-focus.test.mjs', 'tests/assignment-locations.test.mjs', 'tests/assignment-report-*', 'security/assignment-report-ui.test.mjs', 'security/visual-planning-ui.test.mjs', 'assets/landmark-markers.mjs', 'assets/landmarks/**', 'travel-routes/**', 'planning-map/**', 'assets/rail-network.mjs', 'assets/planning-*.mjs', 'data/rtd-rail.json', 'tests/travel-routes.test.mjs', 'tests/travel-controls.test.mjs', 'security/travel-ui.test.mjs', 'security/navigation.test.mjs', '.github/workflows/check-travel-routes.yml']
+    paths: ['tests/staggered-buses.test.mjs', 'security/staggered-buses-ui.test.mjs', 'tests/activity-planning.mjs', 'tests/activity-service-reach.test.mjs', 'security/activity-service-reach-ui.test.mjs', 'tests/assignment-travel-override.test.mjs', 'tests/meeting-ranking.test.mjs', 'security/meeting-ranking-ui.test.mjs', 'delegate-counts/**', 'tests/delegate-counts.test.mjs', 'security/delegate-counts-ui.test.mjs', 'assets/meeting-suitability*', 'assets/bus-access-status-sync.js', 'tests/meeting-suitability.test.mjs', 'security/meeting-suitability-ui.test.mjs', 'assets/rail-meeting-points.mjs', 'assignments/**', 'activity-planning/**', 'assets/travel-register*', 'assets/planning.css', 'tests/visual-planning.test.mjs', 'tests/assignment-unassign-focus.test.mjs', 'tests/assignment-locations.test.mjs', 'tests/assignment-report-*', 'security/assignment-report-ui.test.mjs', 'security/visual-planning-ui.test.mjs', 'assets/landmark-markers.mjs', 'assets/landmarks/**', 'travel-routes/**', 'planning-map/**', 'assets/rail-network.mjs', 'assets/planning-*.mjs', 'data/rtd-rail.json', 'tests/travel-routes.test.mjs', 'tests/travel-controls.test.mjs', 'security/travel-ui.test.mjs', 'security/navigation.test.mjs', '.github/workflows/check-travel-routes.yml']
   workflow_dispatch:
 jobs:
   travel-tests:
@@ -13,9 +13,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/activity-service-reach.test.mjs tests/assignment-travel-override.test.mjs tests/meeting-ranking.test.mjs tests/delegate-counts.test.mjs tests/meeting-suitability.test.mjs tests/travel-routes.test.mjs tests/travel-controls.test.mjs tests/visual-planning.test.mjs tests/assignment-unassign-focus.test.mjs tests/assignment-locations.test.mjs tests/assignment-report-*.test.mjs
+      - run: node --test tests/activity-planning.mjs tests/staggered-buses.test.mjs tests/activity-service-reach.test.mjs tests/assignment-travel-override.test.mjs tests/meeting-ranking.test.mjs tests/delegate-counts.test.mjs tests/meeting-suitability.test.mjs tests/travel-routes.test.mjs tests/travel-controls.test.mjs tests/visual-planning.test.mjs tests/assignment-unassign-focus.test.mjs tests/assignment-locations.test.mjs tests/assignment-report-*.test.mjs
       - run: npm install --no-audit --no-fund
         working-directory: security
-      - run: node --test security/activity-service-reach-ui.test.mjs security/meeting-ranking-ui.test.mjs security/delegate-counts-ui.test.mjs security/meeting-suitability-ui.test.mjs security/navigation.test.mjs security/travel-ui.test.mjs security/visual-planning-ui.test.mjs security/assignment-report-ui.test.mjs
+      - run: node --test security/staggered-buses-ui.test.mjs security/activity-service-reach-ui.test.mjs security/meeting-ranking-ui.test.mjs security/delegate-counts-ui.test.mjs security/meeting-suitability-ui.test.mjs security/navigation.test.mjs security/travel-ui.test.mjs security/visual-planning-ui.test.mjs security/assignment-report-ui.test.mjs
+
 
 

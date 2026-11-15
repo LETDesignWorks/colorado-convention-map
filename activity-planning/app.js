@@ -1,10 +1,11 @@
+import {mountStaggerPlanner} from './stagger-app.mjs?v=staggered-buses-20261115-1';
 import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {mountTravelCosts} from './travel-costs.mjs?v=visual-20261115-1';
 import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPrintRibbons,waitForPrintRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {LOCATIONS,SOURCES} from './locations.js?v=travel-20261114-1';
-import {calculate,routePoints,validPoint,conflicts,decodeRecord,encodeRecord,RECORD_TYPE,wallTime} from './model.mjs?v=visual-20261115-1';
+import {calculate,routePoints,validPoint,conflicts,decodeRecord,encodeRecord,RECORD_TYPE,wallTime} from './model.mjs?v=staggered-buses-20261115-1';
 
 const $=id=>document.getElementById(id), esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone=value=>JSON.parse(JSON.stringify(value));
@@ -14,7 +15,7 @@ const when=value=>{if(!value)return 'Not scheduled';const hour=Number(value.slic
 const fields=['name','coachId','startLocal','buffer','runs','turnaround','buses','seats','delegates','passengers','costBasis','rate','extras','notes'];
 const storageKey='denver2027.activityRoutes.v1', colors=['#087d82','#7b4cbd','#c46019','#1667bd','#b13c77','#51801e'];
 let locations=clone(LOCATIONS), shared=[],local=[],territories=[],unsub=null,user=null,cloud=null,current=null,editingId=null,editingShared=false,revision=0,pickIndex=null;
-let stops=[],map=null,mapLayers=null,territoryLayers=null,busy=false,dataRevision=0;
+let stops=[],map=null,mapLayers=null,territoryLayers=null,busy=false,dataRevision=0,staggerUi=null;
 const travelCosts=mountTravelCosts($('travelCostPlanner'),{save:async(payload,id)=>{
  if(!cloud||!user||!canEdit('activityPlanning'))throw Error('Activity Planning edit access is required.');
  if(JSON.stringify(payload).length>800000)throw Error('This estimate is too large to save.');
@@ -24,13 +25,14 @@ const travelCosts=mountTravelCosts($('travelCostPlanner'),{save:async(payload,id
 try {const data=JSON.parse(localStorage.getItem(storageKey)||'[]');local=Array.isArray(data)?data.map(decodeRecord).filter(Boolean).map(r=>({...r,shared:false})):[];}catch{message('Saved device routes could not be read. You can still calculate and export routes.',true);}
 
 function message(text,error=false){$('message').textContent=text;$('message').className=error?'error':'';}
-function invalidate(){revision++;current=null;$('results').hidden=true;drawMap();}
+function invalidate(){revision++;current=null;$('results').hidden=true;drawMap();staggerUi?.refresh();}
 function saveDeviceList(next){try{localStorage.setItem(storageKey,JSON.stringify(next.map(r=>({...encodeRecord(r,r.legs),id:r.id}))));local=next;}catch{throw new Error('This device could not store the routes. Use Export plans to keep a backup.');}}
 function basicStop(id,dwell=15,role='Stop'){return {...clone(locations.find(p=>p.id===id)||{}),dwell,boarding:Math.min(10,dwell),role};}
 function readPlan(){const p=Object.fromEntries(fields.map(id=>[id,$(id).value]));return {...p,name:p.name.trim(),coachId:p.coachId.trim(),stops:clone(stops),roundTrip:$('roundTrip').checked,overrides:current?.plan.overrides||{}};}
 function newPlan(){editingId=null;editingShared=false;current=null;pickIndex=null;if(map)map.getContainer().style.cursor='';revision++;$('routeForm').reset();$('startLocal').value='';stops=[basicStop('ccc',20,'Rally / boarding'),basicStop('four-mile-historic-park',120,'Activity')];$('results').hidden=true;renderStops();drawMap();message('Choose a planning date and time, then arrange the stops in bus order.');}
 function renderOptions(selected){const groups=[...new Set(locations.map(p=>p.group))];return groups.map(group=>`<optgroup label="${esc(group)}">${locations.filter(p=>p.group===group).map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.name)}</option>`).join('')}</optgroup>`).join('')+`<option value="custom" ${!locations.some(p=>p.id===selected)?'selected':''}>Custom stop / address / map point</option>`;}
 function renderStops(){
+  staggerUi?.refresh();
   $('stops').innerHTML=stops.map((p,i)=>`<article class="stop" data-index="${i}"><div class="stop-head"><strong>${i===0?'START':'STOP'} ${i+1}</strong><div class="stop-actions"><button type="button" data-action="up" aria-label="Move stop ${i+1} up" ${i===0?'disabled':''}>↑</button><button type="button" data-action="down" aria-label="Move stop ${i+1} down" ${i===stops.length-1?'disabled':''}>↓</button><button type="button" data-action="remove" aria-label="Remove stop ${i+1}" ${stops.length<=2?'disabled':''}>×</button></div></div><label>Location<select data-key="location">${renderOptions(p.id)}</select></label>${p.customAddress||!locations.some(l=>l.id===p.id)?`<label>Stop name<input data-key="name" value="${esc(p.name)}" maxlength="140" required></label><label>Address<input data-key="address" value="${esc(p.address)}" maxlength="220" placeholder="Street, city, Colorado"></label><div class="two"><label>Latitude<input data-key="lat" type="number" step="any" min="-90" max="90" value="${esc(p.lat??'')}"></label><label>Longitude<input data-key="lng" type="number" step="any" min="-180" max="180" value="${esc(p.lng??'')}"></label></div><button class="button small secondary" type="button" data-action="pick">Set this stop on map</button>`:`<p class="stop-address">${esc(p.address||'Saved meeting point')}${p.note?'<br>'+esc(p.note):''}</p>`}<div class="two"><label>Purpose<input data-key="role" value="${esc(p.role)}" maxlength="60" placeholder="Ministry, pickup, activity…"></label><label>Stop minutes<input data-key="dwell" type="number" min="0" max="2880" value="${esc(p.dwell)}" required></label></div><label>Loading minutes before departure<input data-key="boarding" type="number" min="0" max="240" value="${esc(p.boarding??0)}" required></label><p class="hint">Delegates must be waiting when loading starts. Loading is included in Stop minutes. Use 0 for drop-off only or no boarding planned.</p>${p.hallId?`<a href="../territories/?hall=${encodeURIComponent(p.hallId)}" target="_blank" rel="noopener">Open linked territories ↗</a>`:''}</article>`).join('');
 }
 function initMap(){
@@ -69,7 +71,7 @@ async function calculateRoute(event){event?.preventDefault();if(busy)return;if(!
   catch(error){if(token===revision)message(error.name==='AbortError'?'The map service timed out. Please try Calculate again.':error.message,true);}
   finally{busy=false;$('calculate').disabled=false;$('calculate').textContent='Calculate route, times & cost';}
 }
-function renderResults(){if(!current)return;const {plan,summary:s,legs}=current;$('results').hidden=false;
+function renderResults(){staggerUi?.refresh();if(!current)return;const {plan,summary:s,legs}=current;$('results').hidden=false;
   $('metrics').innerHTML=[[minutes(s.totalMinutes),'Total bus window'],[s.miles.toFixed(1)+' mi','All runs · per bus'],[money(s.totalCost),'Estimated plan cost'],[money(s.costPerDelegate),'Per unique delegate'],[s.uniqueDelegates,'Unique delegates'],[s.runs,'Runs / bus']].map(([v,l])=>`<div class="metric"><strong>${esc(v)}</strong><span>${l}</span></div>`).join('');
   $('window').textContent=`${plan.name} · Bus occupied ${when(s.startLocal)} → ${when(s.endLocal)} · Denver time`;
   $('costExplanation').textContent=`${plan.buses} bus(es) × ${money(Number(plan.rate))}${plan.costBasis==='run'?` × ${s.runs} runs`:plan.costBasis==='hour'?` × ${(s.totalMinutes/60).toFixed(2)} hours`:' for all runs'} + ${money(Number(plan.extras))} extras = ${money(s.totalCost)}. Divided by ${s.uniqueDelegates} unique delegates = ${money(s.costPerDelegate)} each. ${s.delegateRuns} delegate-runs at ${money(s.costPerDelegateRun)} each. ${plan.passengers==='same'?'The same people are counted once.':'Each run carries a different group.'}${Number(plan.rate)===0?' Enter a bus quote to estimate actual costs.':''}`;
@@ -146,3 +148,6 @@ $('loginForm').onsubmit=async event=>{event.preventDefault();if(!cloud){$('login
 $('signOut').onclick=async()=>{if(cloud)await cloud.signOut(cloud.auth);};
 $('sourceLinks').innerHTML='Location references: '+SOURCES.map(([label,url])=>`<a href="${url}" target="_blank" rel="noopener">${esc(label)} ↗</a>`).join('');
 initMap();newPlan();applyLinkedHall();renderReview();connect();
+
+staggerUi=mountStaggerPlanner($('staggeredBuses'),{getPlan:readPlan,onBusesChange:count=>{if(Number($('buses').value)!==count){$('buses').value=count;invalidate();}}});
+
