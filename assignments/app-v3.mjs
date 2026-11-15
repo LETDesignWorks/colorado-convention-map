@@ -1,3 +1,5 @@
+import {loadRail} from '../assets/rail-network.mjs';
+import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
 import {catalog as travelCatalog} from '../assets/planning-common.mjs';
 import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
@@ -46,6 +48,7 @@ let boundaryLayer;
 let centerMarker;
 let focusedMeetingPointId='';
 let currentUser = null;
+let railLocations=[],railLoading=false;
 let locations = [...BASE_LOCATIONS];
 let selectedMeetingPointId = '';
 let nearestMeetingPointId = '';
@@ -59,7 +62,7 @@ const markers = new Map();
 const selectedCongregations = new Set();
 const revealedCongregations=new Set();let assignmentBusy=false,travelRevision=0,travelUnsubscribers=[],travelRecords=[];
 const routeRegister=createTravelRegister(document.getElementById('assignmentTravelRegister'));
-function updateTravelRegister(){routeRegister.update({records:travelRecords,locations:travelCatalog([...publicLocationData].map(([id,data])=>({...data,id}))),congregations:CONGREGATIONS,access:canView('routes')});}
+function updateTravelRegister(){routeRegister.update({records:travelRecords,locations:[...travelCatalog([...publicLocationData].map(([id,data])=>({...data,id}))),...railLocations],congregations:CONGREGATIONS,access:canView('routes')});}
 function subscribeTravelRegister(){
  const token=++travelRevision;travelUnsubscribers.forEach(f=>f());travelUnsubscribers=[];travelRecords=[];updateTravelRegister();
  if(!db||!canView('routes'))return;const lists=new Map();
@@ -131,6 +134,7 @@ function markerLabel(location) {
 }
 
 function locationTypeLabel(location) {
+  if(location.locationType==='rail-station')return 'Light rail / RTD station';
   if (location.locationType === 'meeting-area') return 'Other meeting area';
   if (location.customLocation) return 'Added Kingdom Hall';
   return 'Current Kingdom Hall';
@@ -209,8 +213,8 @@ function rebuildLocations() {
     const location = normalizeCustomLocation(id, data);
     if (location) custom.push(location);
   }
-  custom.sort((a, b) => markerLabel(a).localeCompare(markerLabel(b), undefined, { numeric: true }));
-  locations = [...BASE_LOCATIONS, ...custom];
+  custom.sort((a, b) => Number(a.locationType==='rail-station')-Number(b.locationType==='rail-station')||markerLabel(a).localeCompare(markerLabel(b), undefined, { numeric: true })||a.name.localeCompare(b.name));
+  locations = [...BASE_LOCATIONS, ...custom, ...railLocations];
   populateMeetingPointOptions();
   syncMarkers();
   renderMeetingPointList();
@@ -241,7 +245,7 @@ function assignedCountAt(locationId) {
 function meetingPointIcon(location) {
   const count = assignedCountAt(location.id);
   const selected = location.id === selectedMeetingPointId;
-  const className = location.locationType === 'meeting-area'
+  const className = location.locationType==='rail-station'?'rail-station':location.locationType === 'meeting-area'
     ? 'meeting-area'
     : (location.customLocation ? 'added-hall' : '');
   return L.divIcon({
@@ -285,7 +289,7 @@ function initMap() {
 
 function syncMarkers() {
   if (!map) return;
-  const visibleLocations=focusedMeetingPointId?locations.filter(p=>p.id===focusedMeetingPointId):locations;
+  const visibleLocations=focusedMeetingPointId?locations.filter(p=>p.id===focusedMeetingPointId):locations.filter(p=>p.locationType!=='rail-station'||document.getElementById('showRailMeetingPoints').checked||p.id===selectedMeetingPointId);
   const active = new Set(visibleLocations.map(location => location.id));
   for(const layer of [boundaryLayer,centerMarker])if(layer){if(focusedMeetingPointId)map.removeLayer(layer);else if(!map.hasLayer(layer))layer.addTo(map);}
 
@@ -329,17 +333,17 @@ function populateMeetingPointOptions() {
   const previousDestination = els.assignmentDestination.value;
   const previousFilter = els.meetingFilter.value;
 
-  const base = sortedLocations().filter(location => !location.customLocation);
+  const base = sortedLocations().filter(location => !location.customLocation&&location.locationType!=='rail-station');
   const addedHalls = sortedLocations().filter(location => location.customLocation && location.locationType !== 'meeting-area');
   const meetingAreas = sortedLocations().filter(location => location.locationType === 'meeting-area');
 
   const groupedOptions =
     optionGroup('Current Kingdom Halls', base) +
     optionGroup('Added Kingdom Halls', addedHalls) +
-    optionGroup('Other meeting areas', meetingAreas);
+    optionGroup('Other meeting areas', meetingAreas) + optionGroup('Light rail / RTD stations',sortedLocations().filter(p=>p.locationType==='rail-station'));
 
   els.assignmentDestination.innerHTML =
-    '<option value="">Choose a Kingdom Hall or meeting area…</option>' + groupedOptions;
+    '<option value="">Choose a hall, meeting area or rail station…</option>' + groupedOptions;
 
   els.meetingFilter.innerHTML =
     '<option value="all">All meeting points</option>' +
@@ -439,7 +443,7 @@ function renderSelectedMeetingPoint() {
   const assigned = assignedCongregationsAt(location.id);
   els.selectedPointTitle.textContent = `${markerLabel(location)} — ${location.name}`;
   els.selectedPointCount.textContent = `${assigned.length} assigned`;
-  els.selectedPointDetail.innerHTML = `<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>`;
+  els.selectedPointDetail.innerHTML = `<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>${location.railNote?'<small>'+escapeHtml(location.railNote)+'</small>':''}`;
   els.selectedPointCongregations.innerHTML = assigned.length
     ? assigned.map(congregation => `<div class="assigned-name"><span>${escapeHtml(congregation.name)}</span>${unassignButton(congregation)}</div>`).join('')
     : '<div class="empty-list">No congregations have been assigned to this meeting point.</div>';
@@ -449,11 +453,12 @@ function renderSelectedMeetingPoint() {
 }
 
 function renderMeetingPointList() {
-  const points = sortedLocations();
+  const search=clean(document.getElementById('meetingPointSearch').value).toLowerCase();
+  const points = sortedLocations().filter(p=>!search||(p.name+' '+p.address+' '+(p.lines||[]).join(' ')).toLowerCase().includes(search));
   els.meetingPointCount.textContent = `${points.length} points`;
   els.meetingPointList.innerHTML = points.map(location => {
     const count = assignedCountAt(location.id);
-    const markerClass = location.locationType === 'meeting-area'
+    const markerClass = location.locationType==='rail-station'?'rail-station':location.locationType === 'meeting-area'
       ? 'meeting'
       : (location.customLocation ? 'added' : '');
     return `<button class="meeting-point-row${location.id === selectedMeetingPointId ? ' active' : ''}" type="button" data-point="${escapeHtml(location.id)}">
@@ -752,6 +757,16 @@ function subscribeToPublicData() {
   });
 }
 
+async function loadRailMeetingPoints(){
+ if(railLoading)return;railLoading=true;document.getElementById('retryRailMeetingPoints').disabled=true;
+ document.getElementById('railMeetingStatus').textContent='Loading rail station meeting points…';
+ try{railLocations=railMeetingPoints(await loadRail());rebuildLocations();renderAll();if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);document.getElementById('railMeetingStatus').textContent=railLocations.length+' RTD rail stations available as meeting points. Select a train pin to assign congregations.';document.getElementById('retryRailMeetingPoints').hidden=true;}
+ catch(error){document.getElementById('railMeetingStatus').textContent='Rail stations could not load. Your existing assignments are retained.';document.getElementById('retryRailMeetingPoints').hidden=false;}
+ finally{railLoading=false;document.getElementById('retryRailMeetingPoints').disabled=false;}
+}
+document.getElementById('showRailMeetingPoints').addEventListener('change',syncMarkers);
+document.getElementById('meetingPointSearch').addEventListener('input',renderMeetingPointList);
+document.getElementById('retryRailMeetingPoints').addEventListener('click',loadRailMeetingPoints);
 document.getElementById('showAssignedDirectory').addEventListener('change',()=>{revealedCongregations.clear();renderCongregationList();});
 document.getElementById('mapAssignSelected').addEventListener('click',assignSelected);
 document.getElementById('mapUnassignSelected').addEventListener('click',clearSelectedAssignments);
@@ -809,6 +824,7 @@ initMap();
 locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 populateMeetingPointOptions();
 renderAll();
+void loadRailMeetingPoints();
 
 try {
   app = initializeApp(firebaseConfig);

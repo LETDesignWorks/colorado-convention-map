@@ -1,7 +1,7 @@
 import {before, after, beforeEach, test} from 'node:test';
 import fs from 'node:fs';
 import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/rules-unit-testing';
-import {doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc} from 'firebase/firestore';
+import {doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, writeBatch} from 'firebase/firestore';
 let env;
 const ownerId = 'jPTl6zfkjaTbbCJMI7A7xXE2BN93';
 const user = (uid='helper',email='helper@example.com',verified=true) => env.authenticatedContext(uid,{email,email_verified:verified}).firestore();
@@ -11,6 +11,19 @@ const seed = async (path, value) => env.withSecurityRulesDisabled(ctx=>setDoc(do
 before(async()=>{env=await initializeTestEnvironment({projectId:'demo-convention-access',firestore:{rules:fs.readFileSync(new URL('./firestore.rules',import.meta.url),'utf8')}});});
 after(async()=>{await env?.cleanup();});
 beforeEach(async()=>{await env.clearFirestore();});
+test('assignment editors can assign multiple congregations to one rail station; viewers cannot',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));
+ const db=user(),batch=writeBatch(db);
+ for(const congregationId of ['C001','C002'])batch.set(doc(db,'halls/congregation-'+congregationId.toLowerCase()),{recordType:'congregation-assignment',congregationId,meetingPointId:'rtd-66',meetingPointType:'rail-station',meetingPointName:'10th / Osage Station',assigned:true});
+ await assertSucceeds(batch.commit());await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(),'halls/congregation-c001')));
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'view'}));await assertFails(deleteDoc(doc(db,'halls/congregation-c001')));
+});
+test('imported travel cost estimates remain private to Activity Planning permissions',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit'}));const db=user();
+ await assertSucceeds(setDoc(doc(db,'reviews/cost1'),{recordType:'activity-multistop-route',planningSubtype:'travel-cost-estimate',sourceTravelRouteId:'route1',estimateJson:'{}'}));
+ await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),'reviews/cost1')));
+ await seed('reviews/site-access-helper@example.com',grant({routes:'view'}));await assertFails(getDoc(doc(db,'reviews/cost1')));
+});
 test('public maps remain public; private records and writes are denied',async()=>{
  await seed('halls/1',{name:'Hall'});await seed('reviews/1',{internalNotes:'Private'});
  const db=env.unauthenticatedContext().firestore();
@@ -102,3 +115,4 @@ test('all typed private sections support scoped queries and immediate revocation
  await seed('reviews/site-access-helper@example.com',grant({},false));
  await assertFails(getDoc(doc(user(),'reviews/activityPlanning')));
 });
+

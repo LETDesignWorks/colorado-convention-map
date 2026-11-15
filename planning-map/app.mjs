@@ -1,3 +1,4 @@
+import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {landmarkIcon,sizeLandmarksForZoom} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,CENTERS} from '../assets/planning-common.mjs';
 import {loadRail} from '../assets/rail-network.mjs';
@@ -37,11 +38,11 @@ function pointMarker(p,layer,symbol,color,text=''){if(!validPoint(p.lat,p.lng))r
 function link(path,label){return '<br><a href="'+new URL('../'+path,import.meta.url).href+'">'+label+'</a>';}
 function renderPublic(){
  for(const id of ['landmarks','meetings','congregations','connections','hotels','activities','railPreferences','smpw','team','dtc'])layers.get(id).clearLayers();
- locations=catalog(halls);const meetings=locations.filter(p=>p.group==='Field service / meeting places');
+ locations=catalog(halls);const meetingPlaces=locations.filter(p=>p.group==='Field service / meeting places'),meetings=[...meetingPlaces,...railMeetingPoints(rail)];
  const filter=$('meeting').value;
  $('meeting').innerHTML='<option value="">All meeting locations</option>'+meetings.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===filter?' selected':'')+'>'+esc(p.name)+'</option>').join('');
  const statuses={'approved':'#0e9453','conditional':'#c39620','not-suitable':'#bc3530','inspection-scheduled':'#2866a0','not-reviewed':'#667085'};
- for(const p of meetings)pointMarker(p,'meetings',String(p.number||p.markerLabel||'M'),statuses[p.busStatus]||'#667085','<br>Bus: '+esc(p.busStatus||'not reviewed')+link('bus-access/#location-'+encodeURIComponent(p.id),'Review location')+link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
+ for(const p of meetingPlaces)pointMarker(p,'meetings',String(p.number||p.markerLabel||'M'),statuses[p.busStatus]||'#667085','<br>Bus: '+esc(p.busStatus||'not reviewed')+link('bus-access/#location-'+encodeURIComponent(p.id),'Review location')+link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
  for(const p of HOTELS)pointMarker(p,'hotels','▣','#245bab',link('travel-routes/?origin='+encodeURIComponent(p.id),'Plan from this hotel'));
  for(const p of ACTIVITY_POINTS)pointMarker(p,'activities','★','#bd4d3e',link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
  for(const p of CENTERS)pointMarker(p,'landmarks','','#174c77',link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
@@ -116,3 +117,4 @@ observeSiteAccess(auth,()=>{
  $('privateStatus').textContent=types.length?'Your permitted saved planning layers are available below.':'Sign in to show saved travel, activity and territory plans.';
  for(const {layer,type}of types)unsubs.push(watchRecords(type,list=>{if(token!==accessRevision)return;records.set(type,list);statusByLayer.delete(layer);renderPublic();},()=>{if(token!==accessRevision)return;records.delete(type);statusByLayer.set(layer,'Unavailable');renderPublic();}));
 });
+

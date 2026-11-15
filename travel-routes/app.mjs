@@ -1,3 +1,4 @@
+import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createVisualTravelMap,CONGREGATIONS} from './visual-map.mjs?v=visual-20261115-1';
 import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
 import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
@@ -124,7 +125,7 @@ async function refreshRail(refresh=false){try{
  let stationNote='';
  if(refresh){try{data=await refreshStationLocations(data);stationNote=' Station locations checked against RTD just now; timetable coverage is unchanged.';}catch{stationNote=' Current RTD station lookup failed; using the dated reference.';}}
  rail=data;
- if(railMap){map.removeLayer(railMap.stations);map.removeLayer(railMap.lines);}railMap=railLayers(data,map,{stations:false,lines:false});toggleRail();renderStops();
+ if(railMap){map.removeLayer(railMap.stations);map.removeLayer(railMap.lines);}railMap=railLayers(data,map,{stations:false,lines:false});toggleRail();renderStops();renderSaved();
  $('railStatus').textContent=data.stations.length+' RTD stations · timetable '+data.coverage.start.replace(/(....)(..)(..)/,'$1-$2-$3')+' through '+data.coverage.end.replace(/(....)(..)(..)/,'$1-$2-$3')+'. Outside these dates, rail times are planning estimates. Reference updated '+data.generatedAt.slice(0,10)+'.'+stationNote;
  if(refresh)invalidate();
  }catch(e){$('railStatus').textContent='Rail reference could not load. Road planning is still available. Use Reload rail reference to retry.';}}
@@ -190,7 +191,7 @@ $('csv').onclick=()=>{
  const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='Denver-2027-Travel-Route.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 function renderSaved(){
- routeRegister.update({records,locations,congregations:CONGREGATIONS,access:canView('routes')});
+ routeRegister.update({records,locations:[...locations,...railMeetingPoints(rail)],congregations:CONGREGATIONS,access:canView('routes')});
  const linkedId=new URLSearchParams(location.search).get('route'),linkedRecord=records.find(r=>r.id===linkedId);
  if(linkedRecord&&!linkedRouteLoaded){linkedRouteLoaded=true;apply(legacyPlan(linkedRecord),linkedRecord.recordType==='bus-route'?linkedRecord.id:null);loadedShared=true;}
  $('saved').innerHTML=records.length?records.map(r=>'<div class="saved-row"><strong>'+esc(r.routeName||r.name||'Saved route')+(r.travelDraft?' <small>· Draft</small>':'')+'</strong><button class="secondary" data-load="'+esc(r.id)+'">Load</button>'+(canEdit('routes')?'<button class="secondary danger" data-delete="'+esc(r.id)+'">Delete</button>':'')+'</div>').join(''):'<p class="empty-state">No saved routes available for this account.</p>';

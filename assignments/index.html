@@ -9,11 +9,11 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=visual-20261115-1"/>
+<link rel="stylesheet" href="styles.css?v=visual-20261115-2"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=travel-20261114-1"></script>
 <script type="module" src="../assets/site-navigation.mjs?v=travel-20261114-1"></script>
-<link rel="stylesheet" href="../assets/travel-register.css?v=visual-20261115-1"></head>
+<link rel="stylesheet" href="../assets/travel-register.css?v=visual-20261115-2"></head>
 <body>
 <div class="app">
 <header class="topbar">
@@ -66,7 +66,7 @@
       <div><span class="legend-marker hall"></span>Current Kingdom Hall</div>
       <div><span class="legend-marker added-hall"></span>Added Kingdom Hall</div>
       <div><span class="legend-marker meeting"></span>Other meeting area</div>
-      <div><span class="count-sample">4</span>Assigned congregation count</div>
+      <label class="rail-meeting-toggle"><input id="showRailMeetingPoints" type="checkbox" checked> 🚆 Rail station meeting points</label><div><span class="count-sample">4</span>Assigned congregation count</div>
     </div>
     <div class="map-note" id="assignmentMapNote" role="status">Magenta homes with green check marks are assigned. Blue highlights show selections; purple homes are unassigned. Assignment checks stay visible when you change meeting points. Green lines show saved assignments; dashed purple lines show suggestions.</div>
   </section>
@@ -141,7 +141,7 @@
         <div><span class="eyebrow">CURRENT MAP LOCATIONS</span><h2>Meeting Points</h2></div>
         <span class="count-chip" id="meetingPointCount">0</span>
       </div>
-      <div class="meeting-point-list" id="meetingPointList"></div>
+      <label class="sr-only" for="meetingPointSearch">Search meeting points</label><input id="meetingPointSearch" type="search" placeholder="Search halls, meeting areas or rail stations"><p id="railMeetingStatus" class="intro-copy" role="status">Loading rail station meeting points…</p><button id="retryRailMeetingPoints" type="button" class="text-button" hidden>Retry rail stations</button><div class="meeting-point-list" id="meetingPointList"></div>
     </section>
 
     <section class="card congregation-card">
@@ -215,6 +215,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=visual-20261115-1"></script>
+<script type="module" src="app-v3.mjs?v=visual-20261115-2"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ import {travelEntries,filterTravelEntries} from '../assets/travel-register.mjs';
 import {serializePlan,legacyPlan,validatePlan} from '../travel-routes/model.mjs';
 import {travelCostDraft,calculateTravelCost,encodeTravelCost,decodeTravelCost} from '../activity-planning/travel-cost-model.mjs';
 import {decodeRecord} from '../activity-planning/model.mjs';
+import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 const stops=[
  {id:'H1',name:'Hotel One',address:'1 Hotel Way',group:'Hotels',lat:39.7,lng:-105,mode:'bus',dwell:0},
  {id:'hall-1',name:'Meeting One',address:'2 Hall Way',group:'Field service / meeting places',lat:39.8,lng:-105,mode:'rail',dwell:60,startTime:'2027-07-16T09:00'},
@@ -46,6 +47,18 @@ test('uncalculated drafts require billable hours and walking defaults to no char
 test('activity route review retains all stops and modes from a Travel Route',()=>{
  const decoded=decodeRecord(route());assert.equal(decoded.travelRoute,true);assert.equal(decoded.stops.length,4);assert.deepEqual(decoded.stops.map(s=>s.mode),['bus','rail','car','bus']);assert.equal(decoded.coachId,'Bus 3');
 });
+test('every mapped RTD station is an assignable point with a stable id and service note',()=>{
+ const data=JSON.parse(fs.readFileSync(new URL('../data/rtd-rail.json',import.meta.url),'utf8')),points=railMeetingPoints(data);
+ assert.equal(points.length,data.stations.length);assert.equal(new Set(points.map(p=>p.id)).size,points.length);assert(points.every(p=>p.locationType==='rail-station'&&p.markerLabel==='🚆'));
+ assert(points.find(p=>!p.lines.length).railNote.includes('No scheduled service'));
+ assert.equal(railMeetingPoints({stations:[{id:'bad',lat:null,lng:null}]}).length,0);
+ const r=route();r.plan.stops[1]={...points[0],mode:'rail'};assert.equal(filterTravelEntries(travelEntries([r]),{meeting:points[0].id}).length,1);
+});
+test('reloading public halls preserves station meeting points and saved station assignments',()=>{
+ const station=railMeetingPoints({stations:[{id:'rtd-66',name:'Station',lat:39.7,lng:-105,lines:['E']}]}),saved=new Map([['C001',{meetingPointId:'rtd-66'}]]);
+ const ctx=vm.createContext({BASE_LOCATIONS:[{id:'1'}],railLocations:station,locations:[],publicLocationData:new Map(),assignments:saved,normalizeCustomLocation:()=>null,markerLabel:()=>'',populateMeetingPointOptions(){},syncMarkers(){},renderMeetingPointList(){},renderSelectedMeetingPoint(){}});
+ vm.runInContext(source.slice(source.indexOf('function rebuildLocations('),source.indexOf('function assignedCongregationsAt(')),ctx);ctx.rebuildLocations();assert.equal(ctx.meetingPointForAssignment(saved.get('C001')).id,'rtd-66');ctx.rebuildLocations();assert.equal(ctx.locations.length,2);
+});
 const source=fs.readFileSync(new URL('../assignments/app-v3.mjs',import.meta.url),'utf8');
 function directory(){
  const congregations=[{id:'a',name:'Alpha'},{id:'b',name:'Beta'},{id:'c',name:'Free'}],assignments=new Map([['a',{meetingPointId:'m'}],['b',{meetingPointId:'m'}]]);
@@ -62,9 +75,12 @@ test('assigned congregations hide only in directory; checkbox and map clicks rev
  f.ctx.focusedMeetingPointId='m';assert.deepEqual(f.ids(false),['a','b']);
 });
 test('bulk map assignment saves all selected records and hides them again; failed eligibility saves nothing',async()=>{
+ for(const locationType of ['kingdom-hall','rail-station']){
  const selected=new Set(['a','b']),revealed=new Set(['a','b']),assignments=new Map(),writes=[],messages=[];let eligible=true;
- const ctx=vm.createContext({assignmentBusy:false,isAdmin:()=>true,publicReady:true,locations:[{id:'m',name:'Meeting',address:'1 Main',locationType:'Kingdom Hall'}],els:{assignmentDestination:{value:'m'}},CONGREGATIONS:[{id:'a',name:'Alpha',sourceName:'Alpha'},{id:'b',name:'Beta',sourceName:'Beta'}],selectedCongregations:selected,revealedCongregations:revealed,assignments,renderSelectionControls(){},renderAll(){},requireEligible:async()=>{if(!eligible)throw Error('Too far');},db:{},currentUser:{email:'test@example.test'},markerLabel:()=>1,serverTimestamp:()=>123,resolveHome:()=>({address:'2 Main'}),assignmentDocumentId:id=>'congregation-'+id,doc:(_db,c,id)=>{assert.equal(c,'halls');return id;},writeBatch:()=>({set:(id,data)=>writes.push({id,data}),commit:async()=>{}}),toast:t=>messages.push(t),friendlyError:e=>e.message});
+ const ctx=vm.createContext({assignmentBusy:false,isAdmin:()=>true,publicReady:true,locations:[{id:'m',name:'Meeting',address:'1 Main',locationType}],els:{assignmentDestination:{value:'m'}},CONGREGATIONS:[{id:'a',name:'Alpha',sourceName:'Alpha'},{id:'b',name:'Beta',sourceName:'Beta'}],selectedCongregations:selected,revealedCongregations:revealed,assignments,renderSelectionControls(){},renderAll(){},requireEligible:async()=>{if(!eligible)throw Error('Too far');},db:{},currentUser:{email:'test@example.test'},markerLabel:()=>1,serverTimestamp:()=>123,resolveHome:()=>({address:'2 Main'}),assignmentDocumentId:id=>'congregation-'+id,doc:(_db,c,id)=>{assert.equal(c,'halls');return id;},writeBatch:()=>({set:(id,data)=>writes.push({id,data}),commit:async()=>{}}),toast:t=>messages.push(t),friendlyError:e=>e.message});
  vm.runInContext(source.slice(source.indexOf('async function assignSelected('),source.indexOf('async function clearSelectedAssignments(')),ctx);
  eligible=false;await ctx.assignSelected();assert.equal(writes.length,0);assert.equal(selected.size,2);
  eligible=true;await ctx.assignSelected();assert.equal(writes.length,2);assert.equal(assignments.size,2);assert.equal(selected.size,0);assert.equal(revealed.size,0);assert.equal(writes[1].data.meetingPointId,'m');assert.equal(ctx.assignmentBusy,false);
+ assert.equal(writes[1].data.meetingPointType,locationType);
+ }
 });

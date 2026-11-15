@@ -1,3 +1,4 @@
+import {isMeetingLocation} from './rail-meeting-points.mjs';
 import {legacyPlan,MODES} from '../travel-routes/model.mjs';
 import {denverInput} from '../routes/travel-plan.mjs';
 export const locationKey=value=>String(value??'').replace(/^hall-/,'');
@@ -13,7 +14,7 @@ export function travelEntries(records,locations=[]){
     const stops=plan.stops.map(s=>{const found=locations.find(p=>(s.id!=='custom'&&locationKey(p.id)===locationKey(s.id))||p.name===s.name);return {...found,...s,id:s.id==='custom'&&found?found.id:s.id};});
     const hotelIds=unique([...(plan.assignedHotelIds||[]),...stops.filter(s=>s.group==='Hotels').map(s=>s.id)]);
     const congregationIds=unique([...(plan.assignedCongregationIds||[]),...stops.flatMap(s=>s.congregationIds||[])]);
-    const meetingIds=unique(stops.filter(s=>s.group==='Field service / meeting places').map(s=>locationKey(s.id)));
+    const meetingIds=unique(stops.filter(isMeetingLocation).map(s=>locationKey(s.id)));
     const dates=unique([plan.time?.slice(0,10),...(result?.legs||[]).flatMap(l=>[l.depart,l.arrive]).filter(Number.isFinite).map(t=>denverInput(new Date(t)).slice(0,10))]);
     return [{...data,id:record.id,name:plan.name||record.routeName||'Travel route',stops,hotelIds,congregationIds,meetingIds,dates,vehicle:plan.vehicle||'',passengers:Number(plan.passengers)||0,status:plan.planningStatus||'planned',draft:record.travelDraft===true,modes:unique(stops.slice(0,-1).map(s=>s.mode)).map(m=>MODES[m]?.name||m)}];
   }).sort((a,b)=>(a.plan.time||'').localeCompare(b.plan.time||'')||a.name.localeCompare(b.name));
