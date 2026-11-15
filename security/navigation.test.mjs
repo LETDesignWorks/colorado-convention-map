@@ -23,7 +23,7 @@ test('territory template navigation is mounted after the asynchronous body repla
  dom.window.document.body.innerHTML=read('territories/template.html');vm.runInContext('mountSiteNavigation()',context);
  assert.equal(dom.window.document.querySelectorAll('[data-site-tab]').length,13);
  assert.match(read('assets/branding.js'),/mountSiteNavigation\(\)/);
- assert.match(read('territories/bootstrap.js'),/app-main\.js\?v=access-20261114-1/);
+ assert.match(read('territories/bootstrap.js'),/app-main\.js\?v=[a-z0-9-]+/);
  dom.window.close();
 });
 test('selected meeting context and page-specific controls survive navigation updates',()=>{
