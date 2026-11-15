@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
@@ -265,8 +266,7 @@ function initMap() {
   southBoundaryLayer = L.polygon(buildSouthBoundary(), {
     color: '#0b5b9f', weight: 3, dashArray: '10 8', fillColor: '#4d9cdb', fillOpacity: 0.055, interactive: false
   }).addTo(map);
-  L.marker(DTC, { icon: L.divIcon({ className: '', html: '<div class="dtc-star">★</div>', iconSize: [38, 38], iconAnchor: [19, 19] }) })
-    .addTo(map).bindPopup('<div class="popup-title">DTC Center Point</div><div class="popup-sub">I-25 &amp; E. Belleview Avenue</div>');
+  addLandmarkReferences(map);
 
   const southeast = RAIL_STATIONS.filter(s => s.corridor === 'southeast').sort((a, b) => a.order - b.order);
   L.polyline(southeast.map(s => [s.lat, s.lng]), { color: '#087b63', weight: 5, opacity: 0.72, interactive: false }).addTo(map);

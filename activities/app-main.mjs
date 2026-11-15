@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
@@ -205,6 +206,7 @@ function pointIcon(point, selected = false) {
 }
 function initMap() {
   map = L.map('map', { zoomControl: true, attributionControl: true });
+  addLandmarkReferences(map);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);

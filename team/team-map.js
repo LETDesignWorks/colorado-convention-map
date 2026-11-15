@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import { getFirestore, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=pin-audit-20261108-1';
@@ -64,7 +65,7 @@ function initMap(){
   map=L.map('map',{zoomControl:true,attributionControl:true});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   L.polygon(DTC_BOUNDARY,{color:'#0b4da2',weight:2.5,dashArray:'9 7',fillColor:'#4d9cdb',fillOpacity:.035,interactive:false}).addTo(map);
-  L.marker(DTC,{icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup('<div class="popup-title">DTC Center Point</div><div class="popup-sub">I-25 & E. Belleview Avenue</div>');
+  addLandmarkReferences(map);
   if(assignment.showEvergreen){
     L.marker(EVERGREEN,{icon:L.divIcon({className:'',html:'<div class="evergreen-pin"></div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map).bindPopup('<div class="popup-title">Evergreen Reference Area</div><div class="popup-sub">Used only to select Seth’s five nearest Hall locations.</div>');
   }

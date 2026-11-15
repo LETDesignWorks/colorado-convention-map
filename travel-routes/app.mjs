@@ -1,3 +1,4 @@
+import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers} from '../assets/planning-common.mjs';
 import {loadRail,refreshStationLocations} from '../assets/rail-network.mjs';
 import {findAddress,validPoint} from '../assignments/location-model.mjs';
@@ -7,14 +8,15 @@ import {createRoutingKeyStore} from './key-store.mjs';
 import {createRouter,nearestStation} from './providers.mjs';
 import {auth,canEdit,canView,observeSiteAccess,watchHalls,watchRecords,saveRoute,removeRoute} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),clone=x=>structuredClone(x),map=mapBase('map'),journey=L.featureGroup().addTo(map);
+const landmarkReferences=addLandmarkReferences(map);
 const fields=['name','timing','time','boarding','allowance','arrivalBuffer','transfer','wait','reminder','notes','parking','tickets','extraReminders'];
 let locations=catalog(),rail=null,railMap=null,stops=[],result=null,activePlan=null,activeId=null,generation=0,request=null,picking=null,records=[],unsubscribers=[],lookupGeneration=0,customStations=[],loadedShared=false,saving=false;
 const status=(text,error=false)=>{$('status').textContent=text;$('status').classList.toggle('error',error);};
 const blank=()=>({id:'custom',name:'',address:'',lat:null,lng:null,mode:'bus',dwell:0,dwellUnit:'minutes',locationGroup:'all',pinRemoved:false,startTime:'',showRail:false,railFrom:'',railTo:''});
 function initial(){const tomorrow=new Date(Date.now()+86400000);const date=denverInput(tomorrow).slice(0,10);return {name:'',timing:'arrive',time:date+'T09:00',boarding:15,allowance:10,arrivalBuffer:10,transfer:10,wait:15,reminder:30,notes:'',parking:'',tickets:'mobile',extraReminders:'',stops:[{...blank(),...locations.find(p=>p.id==='H1')},{...blank(),...locations.find(p=>p.id==='ccc')}]};}
 function drawStopPins(){
- journey.clearLayers();
- for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:icon(String(i+1)),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
+ journey.clearLayers();landmarkReferences.refresh(stops);
+ for(const [i,s]of stops.entries())if(validPoint(s.lat,s.lng))L.marker([Number(s.lat),Number(s.lng)],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
 }
 function invalidate(){generation++;lookupGeneration++;picking=null;request?.abort();request=null;result=null;activePlan=null;$('results').hidden=true;$('calculate').disabled=false;drawStopPins();updateSave();status('Locations or timing changed. Calculate the journey to update the schedule.');}
 function apply(plan,id=null){invalidate();activeId=id;loadedShared=!!id;stops=plan.stops.map(s=>({...blank(),...clone(s)}));for(const key of fields)$(key).value=plan[key]??'';$('third').checked=stops.length>=3;$('fourth').checked=stops.length>=4;$('preset').value='custom';renderStops();drawStopPins();updateSave();status(id?'Saved route loaded. Recalculate to use the current locations and timetable.':'Choose your locations, transport and critical start times.');}
@@ -108,8 +110,9 @@ async function refreshRail(refresh=false){try{
 $('reloadRail').onclick=()=>refreshRail(true);
 $('fit').onclick=()=>{if(journey.getLayers().length)map.fitBounds(journey.getBounds(),{padding:[45,45],maxZoom:15});else if(railMap)map.fitBounds(L.featureGroup(railMap.stations.getLayers()).getBounds(),{padding:[25,25]});};
 function draw(plan,data){
+ landmarkReferences.refresh(plan.stops);
  journey.clearLayers();
- for(const [i,s] of plan.stops.entries())L.marker([s.lat,s.lng],{icon:icon(String(i+1)),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
+ for(const [i,s] of plan.stops.entries())L.marker([s.lat,s.lng],{icon:landmarkIcon(s,{step:i+1,fallback:icon(String(i+1))}),zIndexOffset:600}).addTo(journey).bindPopup('<b>'+esc(s.name||'Location '+(i+1))+'</b><br>'+esc(s.address));
  for(const leg of data.legs)for(const s of leg.segments||[]){
   if(!s.points?.length)continue;const mode=MODES[s.mode]||MODES[leg.mode],color=s.color||mode.color;
   L.polyline(s.points,{color,weight:s.mode==='walk'?3:5,opacity:.9,dashArray:s.estimated?'5,8':s.mode==='walk'?'3,5':null}).addTo(journey).bindPopup(esc(s.label||('Rail line '+s.route)));

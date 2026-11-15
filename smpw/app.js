@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
@@ -147,6 +148,7 @@ function previewIcon() {
 
 function initMap() {
   map = L.map('map', { zoomControl:true, attributionControl:true }).setView([39.665, -104.95], 10);
+  addLandmarkReferences(map);
   window.__DENVER2027_SMPW_MAP__ = map;
   window.dispatchEvent(new CustomEvent('denver2027-smpw-map-ready', { detail: { map } }));
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

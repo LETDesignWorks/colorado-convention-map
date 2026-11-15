@@ -1,3 +1,4 @@
+import {landmarkIcon} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {catalog,escapeHtml as esc,icon,mapBase,railLayers,HOTELS,ACTIVITY_POINTS,DTC_BOUNDARY,CENTERS} from '../assets/planning-common.mjs';
 import {loadRail} from '../assets/rail-network.mjs';
 import {CONGREGATIONS} from '../assignments/congregations-data.mjs';
@@ -8,6 +9,7 @@ import {PRIVATE_LAYERS,permittedTypes,savedRoute,territoryShapes} from './model.
 import {auth,canView,observeSiteAccess,watchHalls,watchRecords} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),map=mapBase('map'),layers=new Map(),records=new Map(),statusByLayer=new Map();
 const definitions=[
+ ['landmarks','Convention Center / DTC landmarks','#174c77',true],
  ['meetings','Meeting locations / bus status','#bd7825',true],
  ['congregations','Congregations · assigned ✓','#b42391',true],
  ['connections','Congregation assignments','#19834a',false],
@@ -30,17 +32,18 @@ function controls(){
  $('layers').innerHTML=definitions.map(([id,label,color])=>'<label><input type="checkbox" data-layer="'+id+'" '+(map.hasLayer(layers.get(id))?'checked':'')+'><span><i class="layer-dot" style="background:'+color+'"></i>'+esc(label)+'</span><small>'+esc(statusByLayer.get(id)||layers.get(id).getLayers().length)+'</small></label>').join('');
 }
 $('layers').onchange=e=>{const id=e.target.dataset.layer;if(!id)return;const layer=layers.get(id);if(e.target.checked)layer.addTo(map);else map.removeLayer(layer);prefs[id]=e.target.checked;try{localStorage.setItem('denver2027.full-map.layers',JSON.stringify(prefs));}catch{}};
-function pointMarker(p,layer,symbol,color,text=''){if(!validPoint(p.lat,p.lng))return;return L.marker([Number(p.lat),Number(p.lng)],{icon:icon(symbol,color)}).addTo(layers.get(layer)).bindPopup('<b>'+esc(p.name||'Location')+'</b><br>'+esc(p.address||'')+text);}
+function pointMarker(p,layer,symbol,color,text=''){if(!validPoint(p.lat,p.lng))return;return L.marker([Number(p.lat),Number(p.lng)],{icon:landmarkIcon(p,{step:symbol,fallback:icon(symbol,color)})}).addTo(layers.get(layer)).bindPopup('<b>'+esc(p.name||'Location')+'</b><br>'+esc(p.address||'')+text);}
 function link(path,label){return '<br><a href="'+new URL('../'+path,import.meta.url).href+'">'+label+'</a>';}
 function renderPublic(){
- for(const id of ['meetings','congregations','connections','hotels','activities','railPreferences','smpw','team','dtc'])layers.get(id).clearLayers();
+ for(const id of ['landmarks','meetings','congregations','connections','hotels','activities','railPreferences','smpw','team','dtc'])layers.get(id).clearLayers();
  locations=catalog(halls);const meetings=locations.filter(p=>p.group==='Field service / meeting places');
  const filter=$('meeting').value;
  $('meeting').innerHTML='<option value="">All meeting locations</option>'+meetings.map(p=>'<option value="'+esc(p.id)+'"'+(p.id===filter?' selected':'')+'>'+esc(p.name)+'</option>').join('');
  const statuses={'approved':'#0e9453','conditional':'#c39620','not-suitable':'#bc3530','inspection-scheduled':'#2866a0','not-reviewed':'#667085'};
  for(const p of meetings)pointMarker(p,'meetings',String(p.number||p.markerLabel||'M'),statuses[p.busStatus]||'#667085','<br>Bus: '+esc(p.busStatus||'not reviewed')+link('bus-access/#location-'+encodeURIComponent(p.id),'Review location')+link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
  for(const p of HOTELS)pointMarker(p,'hotels','▣','#245bab',link('travel-routes/?origin='+encodeURIComponent(p.id),'Plan from this hotel'));
- for(const p of [...ACTIVITY_POINTS,...CENTERS])pointMarker(p,'activities','★','#bd4d3e',link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
+ for(const p of ACTIVITY_POINTS)pointMarker(p,'activities','★','#bd4d3e',link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
+ for(const p of CENTERS)pointMarker(p,'landmarks','','#174c77',link('travel-routes/?destination='+encodeURIComponent(p.id),'Plan travel here'));
  const assignments=new Map(halls.filter(p=>p.recordType==='congregation-assignment').map(p=>[String(p.congregationId),p]));
  const profiles=new Map(halls.filter(p=>p.recordType==='congregation-address').map(p=>[String(p.congregationId),p]));
  const selected=CONGREGATIONS.filter(c=>(!filter||String(assignments.get(c.id)?.meetingPointId)===filter));

@@ -1,3 +1,4 @@
+import {landmarkIcon,addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {mountPhotoCoverage} from './photo-coverage.mjs?v=photo-coverage-20261110-1';
 import {revealLocationEditor} from './location-navigation.mjs?v=photo-coverage-20261110-1';
@@ -105,7 +106,8 @@ function initMap(){
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   boundaryLayer=mountPlanningBoundary(L,map,DRIVE_TIME_AREA,CONVENTION_CENTER.point,{selector:document.getElementById('boundaryDisplay'),note:document.getElementById('boundaryDisplayNote')});
   map.attributionControl?.addAttribution('Drive-time estimate: Valhalla / FOSSGIS');
-  L.marker(CONVENTION_CENTER.point,{title:'Colorado Convention Center — 45-minute planning center',icon:L.divIcon({className:'',html:'<div class="center-star">★</div>',iconSize:[38,38],iconAnchor:[19,19]})}).addTo(map).bindPopup(`<div class="pop-title">${CONVENTION_CENTER.name}</div><div class="pop-address">${CONVENTION_CENTER.address}</div><div>45-minute reference point; rounded planning guide or detailed driving estimate available. No live traffic.</div>`);
+  L.marker(CONVENTION_CENTER.point,{title:'Colorado Convention Center — 45-minute planning center',icon:landmarkIcon('ccc')}).addTo(map).bindPopup(`<div class="pop-title">${CONVENTION_CENTER.name}</div><div class="pop-address">${CONVENTION_CENTER.address}</div><div>45-minute reference point; rounded planning guide or detailed driving estimate available. No live traffic.</div>`);
+  addLandmarkReferences(map,{exclude:['ccc']});
   syncMarkers();
   map.fitBounds(boundaryLayer.getBounds(),{padding:[18,18]});
 }

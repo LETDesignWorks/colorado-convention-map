@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import {createJsPdfRibbons} from '../assets/pdf-ribbons.mjs?v=ribbons-20261107-1';
 import {TERRITORY_PDF_LAYOUT as PDF_PAGE, territoryPdfMapBox} from './pdf-page-layout.js?v=ribbons-20261107-1';
@@ -769,9 +770,7 @@ function initMap() {
   territoryEditGroup = L.featureGroup().addTo(map);
   houseGroup = L.featureGroup().addTo(map);
   hallGroup = L.featureGroup().addTo(map);
-  L.marker(CCC, {
-    icon: L.divIcon({ className: '', html: '<div class="ccc-star">★</div>', iconSize: [38, 38], iconAnchor: [19, 19] })
-  }).addTo(map).bindPopup('<strong>Colorado Convention Center</strong><br>Convention planning center point');
+  addLandmarkReferences(map);
 
   map.on(L.Draw.Event.CREATED, event => {
     if (drawMode === 'boundary') {

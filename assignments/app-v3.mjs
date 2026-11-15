@@ -1,3 +1,4 @@
+import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmarks-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
@@ -261,14 +262,7 @@ function initMap() {
     interactive: false
   }).addTo(map);
 
-  centerMarker = L.marker(DTC, {
-    icon: L.divIcon({
-      className: '',
-      html: '<div class="center-star">★</div>',
-      iconSize: [36, 36],
-      iconAnchor: [18, 18]
-    })
-  }).addTo(map).bindPopup('<div class="popup-title">DTC Center Point</div><div class="popup-sub">I-25 & E. Belleview Avenue</div>');
+  centerMarker = addLandmarkReferences(map);
 
   map.fitBounds(boundaryLayer.getBounds(), { padding: [20, 20] });
   syncMarkers();
