@@ -1,0 +1,17 @@
+#delegateCounts{scroll-margin-top:20px;color:#17324e}
+.delegate-tracker h2{margin:0}.delegate-tracker p{line-height:1.5}.delegate-tracker [hidden]{display:none!important}
+.delegate-tracker .dc-heading{display:flex;justify-content:space-between;gap:20px;align-items:start;flex-wrap:wrap}
+.delegate-tracker button{cursor:pointer;border-radius:9px;border:1px solid #9eafc0;background:#fff;color:#164775;font-weight:700;padding:10px 14px}
+.delegate-tracker button:disabled{opacity:.5;cursor:default}.delegate-tracker .dc-primary{background:#0b447e;color:white;border-color:#0b447e}
+.delegate-tracker .dc-fields,.delegate-tracker .dc-filters{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.delegate-tracker label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;margin:8px 0}
+.delegate-tracker input,.delegate-tracker select,.delegate-tracker textarea{box-sizing:border-box;width:100%;border:1px solid #b2c2d2;background:white;color:#17324e;border-radius:8px;padding:10px;font:inherit}
+.delegate-tracker fieldset{border:0;padding:0;margin:0}.delegate-tracker .dc-wide{grid-column:1/-1}
+.delegate-tracker .dc-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:18px 0}
+.delegate-tracker .dc-total{border:1px solid #d4e0ec;border-top:4px solid #0b447e;border-radius:12px;padding:16px;background:#f5f9fd}
+.delegate-tracker .dc-total strong{display:block;font-size:28px;margin-top:5px}.delegate-tracker .dc-total small{display:block;color:#536779}
+.delegate-tracker .dc-editor{padding:18px;background:#f4f8fb;border:1px solid #d4e0ec;border-radius:12px;margin:20px 0}
+.delegate-tracker .dc-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.delegate-tracker .dc-table{overflow:auto}.delegate-tracker table{width:100%;border-collapse:collapse;font-size:13px}.delegate-tracker th{background:#eaf1f8;text-align:left;color:#164775}.delegate-tracker td,.delegate-tracker th{padding:12px;border-bottom:1px solid #dae4ed;vertical-align:top}.delegate-tracker td small{display:block;margin-top:4px;color:#526779}
+.delegate-tracker .dc-warning{background:#fff4d9;padding:12px;border-radius:8px;color:#73571f}.delegate-tracker [role=status]{min-height:22px}.delegate-tracker .dc-note{color:#526779;font-size:13px}.delegate-tracker .dc-danger{color:#9e2534}
+@media(max-width:740px){.delegate-tracker .dc-fields,.delegate-tracker .dc-filters{grid-template-columns:1fr}.delegate-tracker .dc-summary{grid-template-columns:1fr}.delegate-tracker .dc-total strong{font-size:24px}}

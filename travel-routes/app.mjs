@@ -1,3 +1,4 @@
+import {mountMeetingRanking} from './meeting-ranking-ui.mjs';
 import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createVisualTravelMap,CONGREGATIONS} from './visual-map.mjs?v=visual-20261115-1';
@@ -9,7 +10,7 @@ import {findAddress,validPoint} from '../assignments/location-model.mjs';
 import {denverInput,formatDenver} from '../routes/travel-plan.mjs';
 import {MODES,calculateSchedule,legacyPlan,serializePlan,validatePlan,durationMinutes,durationDisplay,clearStopPin,LOCATION_GROUPS,filterLocations,locationGroupLabel} from './model.mjs?v=visual-20261115-1';
 import {createRoutingKeyStore} from './key-store.mjs';
-import {createRouter,nearestStation} from './providers.mjs';
+import {createRouter,nearestStation,road} from './providers.mjs';
 import {auth,canEdit,canView,observeSiteAccess,watchHalls,watchRecords,saveRoute,removeRoute} from '../assets/planning-cloud.mjs';
 const $=id=>document.getElementById(id),clone=x=>structuredClone(x),map=mapBase('map'),journey=L.featureGroup().addTo(map);
 const landmarkReferences=addLandmarkReferences(map);
@@ -20,6 +21,10 @@ const blank=()=>({id:'custom',name:'',address:'',lat:null,lng:null,mode:'bus',dw
 let publicHallRecords=[],rosterHotelIds=[],rosterCongregationIds=[],linkedRouteLoaded=false;
 const routeRegister=createTravelRegister($('routeRegister'));
 const visualMap=createVisualTravelMap({map,icon,landmarkIcon,onChoose:chooseMapLocation});
+const meetingRanking=mountMeetingRanking($('meetingRanking'),{route:road,getKey:()=>$('tomtomKey').value,onUse:trip=>{
+ apply({...initial(),name:'Convention Center to '+trip.destination.name,timing:'depart',time:trip.time,stops:[{...blank(),...trip.origin,mode:trip.mode},{...blank(),...trip.destination,mode:trip.mode}]});
+ status('Trip selected from the Convention Center ranking. Calculate the journey to include your boarding and arrival allowances.');$('planner').scrollIntoView({behavior:'smooth'});
+}});
 function renderRoster(){
  const render=(id,list,selected)=>{$(id).innerHTML=list.map(p=>'<option value="'+esc(p.id)+'"'+(selected.includes(String(p.id))?' selected':'')+'>'+esc(p.name)+'</option>').join('');};
  render('routeHotels',locations.filter(p=>p.group==='Hotels'),rosterHotelIds);render('routeCongregations',CONGREGATIONS,rosterCongregationIds);
@@ -125,7 +130,7 @@ async function refreshRail(refresh=false){try{
  let data=await loadRail({refresh});
  let stationNote='';
  if(refresh){try{data=await refreshStationLocations(data);stationNote=' Station locations checked against RTD just now; timetable coverage is unchanged.';}catch{stationNote=' Current RTD station lookup failed; using the dated reference.';}}
- rail=data;
+ rail=data;meetingRanking.updateLocations([...locations,...railMeetingPoints(rail)]);
  if(railMap){map.removeLayer(railMap.stations);map.removeLayer(railMap.lines);}railMap=railLayers(data,map,{stations:false,lines:false});toggleRail();renderStops();renderSaved();
  $('railStatus').textContent=data.stations.length+' RTD stations · timetable '+data.coverage.start.replace(/(....)(..)(..)/,'$1-$2-$3')+' through '+data.coverage.end.replace(/(....)(..)(..)/,'$1-$2-$3')+'. Outside these dates, rail times are planning estimates. Reference updated '+data.generatedAt.slice(0,10)+'.'+stationNote;
  if(refresh)invalidate();
@@ -215,10 +220,15 @@ observeSiteAccess(auth,()=>{
   if(token!==accessRevision)return;byType.set(type,list);records=[...byType.values()].flat().filter(r=>!r.travelLocationOnly);renderSaved();
  },e=>{if(token===accessRevision)$('accessStatus').textContent='Some shared routes could not load: '+e.message;}));
 });
-watchHalls(list=>{publicHallRecords=list;locations=catalog(list);renderStops();renderRoster();visualMap.update(locations,list);renderSaved();},()=>status('Saved meeting-location updates could not load. The existing location list is available.',true));
+watchHalls(list=>{publicHallRecords=list;locations=catalog(list);meetingRanking.updateLocations([...locations,...railMeetingPoints(rail)]);renderStops();renderRoster();visualMap.update(locations,list);renderSaved();},()=>status('Saved meeting-location updates could not load. The existing location list is available.',true));
 const firstPlan=initial(),linked=new URLSearchParams(location.search);
 for(const [parameter,index] of [['origin',0],['destination',1],['hall',1]]){
  const point=locations.find(p=>p.id===linked.get(parameter));
  if(point)firstPlan.stops[index]={...blank(),...point};
 }
 apply(firstPlan);visualMap.update(locations,publicHallRecords);refreshRail();
+
+
+meetingRanking.updateLocations([...locations,...railMeetingPoints(rail)]);
+$('tomtomKey').addEventListener('input',()=>meetingRanking.invalidate('Traffic key changed. Rank again to update the estimates.'));
+$('clearKey').addEventListener('click',()=>meetingRanking.invalidate('Traffic key cleared. Rank again for road baselines.'));

@@ -27,7 +27,7 @@ service cloud.firestore {
       return kind in ['territory-boundary', 'territory-plan', 'territory-plan-chunk', 'territory-pdf', 'territory-pdf-part', 'territory-name-choice'] ? 'territories'
         : kind in ['bus-route', 'route-plan', 'rtd-station'] ? 'routes'
         : kind == 'activity-bus-plan' ? 'activities'
-        : kind == 'activity-multistop-route' ? 'activityPlanning'
+        : kind in ['activity-multistop-route', 'delegate-count'] ? 'activityPlanning'
         : kind == '' ? 'busAccess' : '';
     }
     function hallSection(data) {
@@ -39,6 +39,20 @@ service cloud.firestore {
     }
     function sameType() {
       return resource.data.get('recordType', '') == request.resource.data.get('recordType', '');
+    }
+    function validReviewRecord(id, data, creating) {
+      return data.get('recordType', '') != 'delegate-count' ? !id.matches('delegate-count-.*')
+        : data.keys().hasOnly(['recordType','schemaVersion','date','category','locationId','locationName','locationAddress','count','notes','revision','updatedAt','updatedByEmail'])
+          && data.schemaVersion == 1 && data.date is string && data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          && data.category in ['activity','meeting','hotel']
+          && data.locationId is string && data.locationId.matches('[-A-Za-z0-9_]{1,120}')
+          && id == 'delegate-count-' + data.date + '-' + data.category + '-' + data.locationId
+          && data.locationName is string && data.locationName.size() > 0 && data.locationName.size() <= 140
+          && data.locationAddress is string && data.locationAddress.size() <= 300
+          && data.count is int && data.count >= 0 && data.count <= 100000
+          && data.notes is string && data.notes.size() <= 1000
+          && data.revision is int && data.revision == (creating ? 1 : resource.data.get('revision', 0) + 1)
+          && data.updatedByEmail == request.auth.token.email && data.updatedAt is timestamp;
     }
     function validHallRecord(id, data) {
       let kind = data.get('recordType', '');
@@ -61,6 +75,7 @@ service cloud.firestore {
     // Successful server read proves these rules are installed. No data is stored here.
     match /siteAccessCapabilities/v1 { allow get: if true; }
     match /siteAccessCapabilities/serviceDaysV1 { allow get: if true; }
+    match /siteAccessCapabilities/delegateCountsV1 { allow get: if true; }
     match /halls/{hallId} {
       allow read: if true;
       allow create: if isOwner() || (validHallRecord(hallId, request.resource.data) && canEdit(hallSection(request.resource.data)));
@@ -70,12 +85,12 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow get: if isOwner()
         || (verified() && reviewId == policyKey())
-        || (!reserved(reviewId) && ((resource == null && canView('busAccess'))
+        || (!reserved(reviewId) && ((resource == null && (canView('busAccess') || (reviewId.matches('delegate-count-.*') && canView('activityPlanning'))))
           || (resource != null && canView(reviewSection(resource.data)))));
       // Clients must query only record types that their account can read.
       allow list: if isOwner() || canView(reviewSection(resource.data));
-      allow create: if isOwner() || (!reserved(reviewId) && canEdit(reviewSection(request.resource.data)));
-      allow update: if isOwner() || (!reserved(reviewId) && sameType() && canEdit(reviewSection(resource.data)));
+      allow create: if isOwner() || (!reserved(reviewId) && validReviewRecord(reviewId, request.resource.data, true) && canEdit(reviewSection(request.resource.data)));
+      allow update: if isOwner() || (!reserved(reviewId) && sameType() && validReviewRecord(reviewId, request.resource.data, false) && canEdit(reviewSection(resource.data)));
       allow delete: if isOwner() || (!reserved(reviewId) && canEdit(reviewSection(resource.data)));
     }
   }

@@ -4,6 +4,8 @@ import {initializeTestEnvironment, assertSucceeds, assertFails} from '@firebase/
 import {doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, writeBatch} from 'firebase/firestore';
 let env;
 const ownerId = 'jPTl6zfkjaTbbCJMI7A7xXE2BN93';
+const countPath='reviews/delegate-count-2027-07-16-hotel-H1';
+const countRecord=()=>({recordType:'delegate-count',schemaVersion:1,date:'2027-07-16',category:'hotel',locationId:'H1',locationName:'Hotel One',locationAddress:'1 Main Street',count:50,notes:'Group A',revision:1,updatedByEmail:'helper@example.com',updatedAt:new Date()});
 const user = (uid='helper',email='helper@example.com',verified=true) => env.authenticatedContext(uid,{email,email_verified:verified}).firestore();
 const owner = () => user(ownerId,'michaeltarin@hotmail.com');
 const grant = (permissions, enabled=true) => ({recordType:'site-user-access',schemaVersion:1,email:'helper@example.com',enabled,permissions});
@@ -11,6 +13,25 @@ const seed = async (path, value) => env.withSecurityRulesDisabled(ctx=>setDoc(do
 before(async()=>{env=await initializeTestEnvironment({projectId:'demo-convention-access',firestore:{rules:fs.readFileSync(new URL('./firestore.rules',import.meta.url),'utf8')}});});
 after(async()=>{await env?.cleanup();});
 beforeEach(async()=>{await env.clearFirestore();});
+test('delegate count editors can read missing entries, create, revise and remove only with Activity Planning permission',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit'}));const db=user();
+ await assertSucceeds(getDoc(doc(db,'siteAccessCapabilities/delegateCountsV1')));await assertSucceeds(getDoc(doc(db,countPath)));
+ await assertSucceeds(setDoc(doc(db,countPath),countRecord()));await assertSucceeds(getDocs(query(collection(db,'reviews'),where('recordType','==','delegate-count'))));
+ await assertFails(updateDoc(doc(db,countPath),{count:60}));await assertSucceeds(updateDoc(doc(db,countPath),{count:60,revision:2}));await assertSucceeds(deleteDoc(doc(db,countPath)));
+ await seed('reviews/site-access-helper@example.com',grant({routes:'edit',assignments:'edit',busAccess:'edit'}));await assertFails(setDoc(doc(db,countPath),countRecord()));
+});
+test('delegate counts stay private and viewers cannot write',async()=>{
+ await seed(countPath,countRecord());await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),countPath)));
+ await seed('reviews/site-access-helper@example.com',grant({routes:'view'}));await assertFails(getDoc(doc(user(),countPath)));
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'view'}));const db=user();await assertSucceeds(getDoc(doc(db,countPath)));await assertSucceeds(getDocs(query(collection(db,'reviews'),where('recordType','==','delegate-count'))));
+ await assertFails(updateDoc(doc(db,countPath),{count:60,revision:2}));await assertFails(deleteDoc(doc(db,countPath)));
+});
+test('delegate counts reject invalid amounts, duplicate identities, unexpected fields and forged attribution',async()=>{
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit',busAccess:'edit'}));const db=user();
+ for(const change of [{count:-1},{count:0.5},{count:100001},{count:'50'},{revision:2},{category:'unknown'},{locationId:'wrong'},{extra:'field'},{updatedByEmail:'other@example.com'}])await assertFails(setDoc(doc(db,countPath),{...countRecord(),...change}));
+ await assertFails(setDoc(doc(db,'reviews/count-duplicate'),countRecord()));await assertFails(setDoc(doc(db,countPath),{name:'Pretend review'}));
+ await assertSucceeds(setDoc(doc(db,countPath),{...countRecord(),count:0}));
+});
 test('assignment editors can save weekday records without changing addresses or meeting assignments',async()=>{
  await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));const db=user();
  const payload={recordType:'congregation-service-days',congregationId:'C001',congregationName:'First',serviceDays:['Monday','Thursday'],updatedBy:'Convention planning team'};
@@ -128,4 +149,3 @@ test('all typed private sections support scoped queries and immediate revocation
  await seed('reviews/site-access-helper@example.com',grant({},false));
  await assertFails(getDoc(doc(user(),'reviews/activityPlanning')));
 });
-
