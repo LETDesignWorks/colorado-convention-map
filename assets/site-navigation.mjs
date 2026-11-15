@@ -50,6 +50,8 @@ export function mountSiteNavigation() {
     link.dataset.siteTab = path || 'home';
     const active = pathOf(location.href) === pathOf(url) || (path === 'team/' && location.pathname.includes('/team/'));
     link.classList.toggle('is-current-page', active);
+    // The legacy circular navigation gives non-white buttons white text.
+    link.classList.toggle('white', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
     if (path === 'pdf-tools/' && !link.dataset.pdfNavBound) {
       link.href = PDF_BUILDER_URL;
