@@ -6,7 +6,7 @@ export function directions(a,b,mode='driving'){
 async function json(url,signal){const r=await fetch(url,{signal:signal||AbortSignal.timeout(25000)});if(!r.ok)throw Error('Route provider could not complete this request ('+r.status+'). Check the key or try again.');return r.json();}
 export async function road(a,b,at,arriveBy,mode,key,signal){
  const walking=mode==='walk';
- if(distanceMiles(a,b)<.015)return {depart:at,arrive:at,minutes:0,points:[[a.lat,a.lng],[b.lat,b.lng]],mode,label:'Same location',directions:directions(a,b,walking?'walking':'driving'),instructions:[]};
+ if(distanceMiles(a,b)<.015)return {depart:at,arrive:at,minutes:0,miles:0,points:[[a.lat,a.lng],[b.lat,b.lng]],mode,label:'Same location',directions:directions(a,b,walking?'walking':'driving'),instructions:[]};
  if(key){
   const u=new URL('https://api.tomtom.com/routing/1/calculateRoute/'+a.lat+','+a.lng+':'+b.lat+','+b.lng+'/json');
   const args={key,travelMode:walking?'pedestrian':mode,routeType:'fastest',traffic:'true',routeRepresentation:'polyline',instructionsType:'text',language:'en-US'};
@@ -52,3 +52,4 @@ export function createRouter({data,key='',signal}){
   return {mode:'rail',depart,arrive:arrival,minutes:Math.ceil((arrival-depart)/minute),label:train.label,scheduled:train.scheduled,originStation:origin,endStation:end,segments:[walk1,...train.segments,walk2],platformReady:(train.segments[0]?.depart||train.depart)-board,trainDeparture:train.segments[0]?.depart||train.depart,allowanceMinutes:plan.allowance};
  };
 }
+

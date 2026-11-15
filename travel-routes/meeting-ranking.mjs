@@ -14,7 +14,7 @@ export function meetingCandidates(locations,settings){
  });
 }
 export const rankedResults=rows=>[...rows].sort((a,b)=>(a.error?1:0)-(b.error?1:0)||(a.minutes??Infinity)-(b.minutes??Infinity)||String(a.point.name).localeCompare(String(b.point.name)));
-export async function rankMeetings(points,{settings,key='',route,signal,onProgress=()=>{},timeoutMs=30000}){
+export async function rankMeetings(points,{settings,origin=CONVENTION_CENTER,key='',route,signal,onProgress=()=>{},timeoutMs=30000}){
  const results=[];let index=0,completed=0;
  async function worker(){
   while(index<points.length){
@@ -24,7 +24,7 @@ export async function rankMeetings(points,{settings,key='',route,signal,onProgre
     const abort=new AbortController(),cancel=()=>abort.abort(signal?.reason);signal?.addEventListener('abort',cancel,{once:true});
     const timer=setTimeout(()=>abort.abort(),timeoutMs);
     try {
-     const result=await route(CONVENTION_CENTER,point,settings.at,false,settings.mode,key,abort.signal);
+     const result=await route(origin,point,settings.at,false,settings.mode,key,abort.signal);
      if(!Number.isFinite(result.minutes)||result.minutes<0||!Number.isFinite(result.miles)||result.miles<0)throw Error('Invalid route estimate.');
      row={point,minutes:Math.ceil(result.minutes),miles:result.miles,label:result.label};
     }catch{if(signal?.aborted)throw signal.reason;row.error=key?'Traffic estimate unavailable. Check the TomTom key, date, coverage and connection, then retry.':'Road estimate unavailable. Check your connection and try again.';}
@@ -35,3 +35,4 @@ export async function rankMeetings(points,{settings,key='',route,signal,onProgre
  }
  await Promise.all(Array.from({length:Math.min(2,points.length)},worker));return rankedResults(results);
 }
+
