@@ -1,15 +1,17 @@
-import {mountCenter} from './ui.mjs';
-import {TYPE,decode,encode,nextRevision,fromGroups,fromActivity} from './model.mjs';
+import {mountCenter} from './ui.mjs?v=pickup-map-20261116-1';
+import {TYPE,decode,encode,nextRevision,fromGroups,fromActivity} from './model.mjs?v=pickup-map-20261116-1';
 import {calculateBusGroups,cleanGroupPlan,readGroupPlan} from '../activity-planning/bus-groups-model.mjs';
 import {decodeRecord} from '../activity-planning/model.mjs';
 import {workbookBytes} from '../assignments/excel-export.mjs';
-import {reportSheets} from './export.mjs';
+import {reportSheets} from './export.mjs?v=pickup-map-20261116-1';
 const root=document.getElementById('center');
 const store=name=>{try{return globalThis[name];}catch{return null;}};
 const storage=store('localStorage');
 let cloudSources=[],sharedSaver=null,generation=0;
 function download(bytes,name,type){const url=URL.createObjectURL(new Blob([bytes],{type})),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+let pickup=null;
 const ui=mountCenter(root,{
+ onPlanChange:(plan,report,busy)=>pickup?.setPlan(plan,report,busy),
  storage,
  async importSource(source,signal){
   if(source.kind==='Activity route')return fromActivity(source.value,source.id);
@@ -20,6 +22,11 @@ const ui=mountCenter(root,{
  async saveShared(plan,ref){if(!sharedSaver)throw Error('Shared saving is not connected. Sign in or export a backup.');return sharedSaver(plan,ref);},
  download(kind,value){if(kind==='backup')download(JSON.stringify(value,null,2),'Denver-2027-Convention-Center.json','application/json');else download(workbookBytes(reportSheets(value)),'Denver-2027-Convention-Center.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');}
 });
+async function mountCandidates(){
+ try{const [module,response]=await Promise.all([import('./pickup-map.mjs?v=pickup-map-20261116-1'),fetch('./pickup-walks.json?v=pickup-map-20261116-1')]);if(!response.ok)throw Error();const data=await response.json();pickup=module.mountPickupMap(root.querySelector('[data-pickup-browser]'),{data,addAlternate:value=>ui.addAlternate(value)});pickup.setPlan(ui.getPlan(),ui.getReport());}
+ catch{root.querySelector('[data-pickup-browser]').textContent='Nearby pickup research could not load. Refresh to retry; manual alternate pickup entries remain available.';}
+}
+mountCandidates();
 function sources(){
  const items=[],warnings=[];
  try{const saved=storage?.getItem('denver2027.busGroups.v1');if(saved){const value=cleanGroupPlan(JSON.parse(saved));items.push({id:'device-bus-groups',name:value.name,kind:'Bus groups',value});}}catch{warnings.push('The device bus-group plan could not be read.');}

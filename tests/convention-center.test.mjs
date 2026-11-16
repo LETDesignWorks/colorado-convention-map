@@ -4,6 +4,8 @@ import {emptyPlan,gathering,analyze,fromGroups,fromActivity,mergeSource,encode,d
 import {parseDenver} from '../routes/travel-plan.mjs';
 import {reportSheets} from '../convention-center/export.mjs';
 import {workbookBytes} from '../assignments/excel-export.mjs';
+import {PICKUP_CANDIDATES,WALK_ORIGIN,candidateAlternate,walkMinutes} from '../convention-center/pickup-data.mjs';
+import {readFileSync} from 'node:fs';
 const at=t=>'2027-07-16T'+t;
 const plan=()=>({...emptyPlan(),date:'2027-07-16'});
 const visit=(id,arrival,departure,count=1,extra={})=>({id,name:id,arrival:at(arrival),departure:at(departure),count,diverted:0,alternateId:'',override:false,reason:'',...extra});
@@ -50,4 +52,19 @@ test('activity routes import each run and full dwell rather than just arrival mo
 test('shared revision guards, invalid backups and Excel export preserve the complete plan',()=>{
  const p=plan();p.gatherings=[gathering(at('09:00'),'g')];p.visits=[visit('bus','08:00','08:15')];const record={...encode(p),id:'saved',revision:3};assert.deepEqual(decode(record).plan,cleanPlan(p));assert.equal(nextRevision(record,3),4);assert.throws(()=>nextRevision(record,2),/changed elsewhere/);assert.equal(decode({...record,centerJson:'bad'}),null);
  const sheets=reportSheets(analyze(p));assert.equal(sheets.length,5);assert.equal(sheets[0].rows.length,1);const bytes=workbookBytes(sheets);assert.equal(String.fromCharCode(...bytes.slice(0,2)),'PK');assert.throws(()=>cleanPlan({...p,visits:[p.visits[0],p.visits[0]]}),/duplicate/);
+});
+
+test('researched candidates have routed pedestrian paths, sources and no assumed capacity or permission',()=>{
+ const data=JSON.parse(readFileSync(new URL('../convention-center/pickup-walks.json',import.meta.url),'utf8'));
+ assert.equal(data.routes.length,PICKUP_CANDIDATES.length);assert.match(data.provider,/pedestrian/);assert.deepEqual(data.origin,WALK_ORIGIN);
+ for(const c of PICKUP_CANDIDATES){const r=data.routes.find(r=>r.id===c.id);assert.ok(r.meters>100&&r.meters<1500);assert.ok(r.points.length>4);assert.ok(c.sources.every(s=>s.url.startsWith('https://')));for(const [lat,lng] of r.points){assert.ok(lat>39.73&&lat<39.76);assert.ok(lng>-105.01&&lng<-104.98);}assert.ok(Math.abs(r.points[0][0]-WALK_ORIGIN.lat)<.001);assert.ok(Math.abs(r.points.at(-1)[0]-c.lat)<.001);const a=candidateAlternate(c,r);assert.equal(a.capacity,null);assert.equal(a.approval,'candidate');assert.ok(walkMinutes(r.meters,3)>=walkMinutes(r.meters,4));}
+ assert.equal(walkMinutes(250,4),4);assert.equal(walkMinutes(250,3),5);assert.throws(()=>walkMinutes(250,0),/valid/);
+});
+
+test('unknown alternate capacity is not zero or confirmed, and reports retain permission and walk estimates',()=>{
+ const p=plan(),c=PICKUP_CANDIDATES[0];p.alternates=[{...candidateAlternate(c),walkingMeters:250,walkingChecked:'2026-11-16'}];p.visits=[visit('group','08:00','08:30',13,{diverted:1,alternateId:p.alternates[0].id})];
+ let r=analyze(p);assert.equal(r.peak,12);assert.equal(r.rows[0].alternateOver,false);assert.equal(r.rows[0].alternatePending,true);assert.equal(decode({...encode(p),id:"saved",revision:1}).plan.alternates[0].walkingMeters,250);
+ const sheets=reportSheets(r);assert.match(sheets[0].rows[0].join(' '),/permission.*unconfirmed/);const altSheet=sheets.find(s=>s.name==='Alternate pickup locations');assert.equal(altSheet.rows[0][2],'Unconfirmed');assert.deepEqual(altSheet.rows[0].slice(4,7),[250,4,5]);
+ p.alternates[0].approval='confirmed';assert.equal(analyze(p).rows[0].alternatePending,true);p.alternates[0].capacity=1;r=analyze(p);assert.equal(r.rows[0].alternatePending,false);assert.equal(r.rows[0].alternateOver,false);
+ p.visits.push(visit('second','08:10','08:20',1,{diverted:1,alternateId:p.alternates[0].id}));assert.ok(analyze(p).rows.every(v=>v.alternateOver));
 });

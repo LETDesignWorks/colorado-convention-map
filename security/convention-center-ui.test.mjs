@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {mountCenter} from '../convention-center/ui.mjs';
 import {emptyPlan,gathering,STORAGE_KEY} from '../convention-center/model.mjs';
+import {mountPickupMap} from '../convention-center/pickup-map.mjs';
+import {readFileSync} from 'node:fs';
+const walkData=JSON.parse(readFileSync(new URL('../convention-center/pickup-walks.json',import.meta.url),'utf8'));
 const tick=()=>new Promise(r=>setTimeout(r,0));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 function setup(extra={}){
@@ -36,4 +39,28 @@ test('shared saves pass revisions and keep the draft on conflict; late saves can
 });
 test('invalid edits clear stale results, escape user text, and never overwrite a valid device backup',()=>{
  const a=setup();a.click('[data-action="add-visit"]');a.input('[data-kind="visits"] [data-field="name"]','<img src=x onerror=alert(1)>');assert.equal(a.root.querySelector('img'),null);a.click('[data-action="save-device"]');const saved=a.data.get(STORAGE_KEY);a.input('[data-field="departure"]','2027-07-16T07:00');assert.equal(a.ui.getReport(),null);assert.equal(a.$('[data-action="export"]').disabled,true);assert.equal(a.$('[data-schedule]').textContent,'');a.click('[data-action="save-device"]');assert.equal(a.data.get(STORAGE_KEY),saved);
+});
+
+test('map fallback keeps walking distances, pace filters and directions usable without Leaflet',()=>{
+ const a=setup();const map=mountPickupMap(a.$('[data-pickup-browser]'),{data:walkData,leaflet:null});
+ assert.equal(map.getMap(),null);assert.equal(a.root.querySelectorAll('[data-candidate]').length,4);
+ assert.equal(a.$('[data-candidate]').dataset.candidate,'hyatt-regency');assert.match(a.$('[data-pickup-detail]').textContent,/About 4 min/);
+ const link=new URL(a.$('[data-pickup-detail] a').href);assert.equal(link.searchParams.get('travelmode'),'walking');
+ a.input('[data-pickup-limit]','5');assert.equal(a.root.querySelectorAll('[data-candidate]').length,1);
+ a.input('[data-pickup-pace]','3');assert.match(a.$('[data-pickup-detail]').textContent,/About 5 min/);
+ a.input('[data-pickup-limit]','10');assert.equal(a.root.querySelectorAll('[data-candidate]').length,2);
+ a.click('[data-pickup-select="weeks-arapahoe"]');assert.match(a.$('[data-pickup-detail]').textContent,/About 9 min/);
+});
+
+test('candidate flows into overflow, remains unconfirmed until capacity and permission are entered, and survives save',()=>{
+ let map;const a=setup({onPlanChange:(p,r,b)=>map?.setPlan(p,r,b)});
+ map=mountPickupMap(a.$('[data-pickup-browser]'),{data:walkData,leaflet:null,addAlternate:v=>a.ui.addAlternate(v)});map.setPlan(a.ui.getPlan(),a.ui.getReport());
+ a.click('[data-action="add-visit"]');a.input('[data-kind="visits"] [data-field="count"]','13');assert.match(a.$('[data-pickup-overflow]').textContent,/up to 1 bus/);
+ a.click('[data-pickup-add="hyatt-regency"]');const alt=a.ui.getPlan().alternates[0];assert.equal(alt.capacity,null);assert.equal(alt.approval,'candidate');assert.equal(alt.walkingMeters,250);assert.equal(a.$('[data-pickup-add="hyatt-regency"]').disabled,true);
+ a.input('[data-field="alternateId"]',alt.id);a.input('[data-field="diverted"]','1');assert.equal(a.ui.getReport().peak,12);assert.equal(a.ui.getReport().rows[0].alternatePending,true);assert.match(a.$('[data-schedule]').textContent,/250 m/);
+ a.input('[data-kind="alternates"] [data-field="capacity"]','2');assert.equal(a.ui.getReport().rows[0].alternatePending,true);a.input('[data-field="approval"]','confirmed');assert.equal(a.ui.getReport().rows[0].alternatePending,false);
+ a.click('[data-action="save-device"]');a.click('[data-action="new"]');a.click('[data-action="load-device"]');assert.equal(a.ui.getPlan().alternates[0].walkingMeters,250);assert.equal(a.$('[data-pickup-add="hyatt-regency"]').disabled,true);
+ a.input('[data-field="approval"]','unavailable');assert.match(a.$('[data-schedule]').textContent,/ALTERNATE UNAVAILABLE/);
+ a.input('[data-kind="alternates"] [data-field="address"]','A different address');assert.equal(a.ui.getPlan().alternates[0].walkingMeters,null);assert.equal(a.ui.getPlan().alternates[0].capacity,null);assert.equal(a.ui.getPlan().alternates[0].approval,'candidate');assert.doesNotMatch(a.$('[data-schedule]').textContent,/250 m/);
+ a.click('[data-pickup-add="hyatt-regency"]');assert.equal(a.ui.getPlan().alternates.length,2);assert.notEqual(a.ui.getPlan().alternates[0].id,a.ui.getPlan().alternates[1].id);
 });

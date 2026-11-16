@@ -17,7 +17,7 @@ export function cleanPlan(raw){
  if(raw?.version!==1)throw Error('Choose a Convention Center plan export.');
  const plan={version:1,name:str(raw.name,140)||'Convention Center bus plan',date:str(raw.date,10),capacity:num(raw.capacity,'Center bus limit',1,1000)};
  time(plan.date+'T00:00');
- plan.alternates=list(raw.alternates,'alternate location',100).map(a=>({id:a.id,name:str(a.name,140),address:str(a.address,400),capacity:num(a.capacity,'Alternate bus capacity',1,1000),notes:str(a.notes,1000)}));
+ plan.alternates=list(raw.alternates,'alternate location',100).map(a=>({id:a.id,name:str(a.name,140),address:str(a.address,400),capacity:a.capacity==null||a.capacity===''?null:num(a.capacity,'Alternate bus capacity',1,1000),notes:str(a.notes,1000),approval:['confirmed','unavailable'].includes(a.approval)?a.approval:'candidate',candidateId:str(a.candidateId,100),walkingMeters:a.walkingMeters==null?null:num(a.walkingMeters,'Walking meters',0,10000),walkingChecked:str(a.walkingChecked,10)}));
  plan.gatherings=list(raw.gatherings,'gathering',500).map(g=>{
   if(time(g.end)<=time(g.start))throw Error('A gathering must end after it starts.');
   if(time(g.end)-time(g.start)>7*86400000)throw Error('A gathering cannot exceed seven days.');
@@ -56,8 +56,9 @@ export function analyze(raw){
   const conflicts=v.center?['arrival','departure'].flatMap(event=>{const at=event==='arrival'?v.start:v.end;if(at<start||at>=end)return [];return blocks.filter(b=>at>=b.start&&at<b.end).map(b=>`${event==='arrival'?'Arrival':'Departure'} during ${b.name}`);}):[];
   const over=intervals.filter(s=>s.from<v.end&&s.to>v.start&&s.excess&&v.center);
   const alternate=plan.alternates.find(a=>a.id===v.alternateId);
-  const alternateOver=intervals.some(s=>s.from<v.end&&s.to>v.start&&s.alternates.some(a=>a.id===v.alternateId&&a.count>a.capacity)&&v.diverted);
-  return {...v,conflicts:[...new Set(conflicts)],over:over.length>0,alternate,alternateOver};
+  const alternateOver=intervals.some(s=>s.from<v.end&&s.to>v.start&&s.alternates.some(a=>a.id===v.alternateId&&Number.isFinite(a.capacity)&&a.count>a.capacity)&&v.diverted);
+  const alternatePending=!!v.diverted&&(alternate?.approval!=='confirmed'||!Number.isFinite(alternate?.capacity));
+  return {...v,conflicts:[...new Set(conflicts)],over:over.length>0,alternate,alternateOver,alternatePending};
  });
  return {plan,blocks,intervals,rows,peak:Math.max(0,...intervals.map(s=>s.count)),maxExcess:Math.max(0,...intervals.map(s=>s.excess)),restricted:rows.filter(v=>v.conflicts.length&&!v.override).length,exceptions:rows.filter(v=>v.conflicts.length&&v.override).length};
 }
