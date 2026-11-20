@@ -11,6 +11,9 @@ function setup(extra={}){const dom=new JSDOM('<section id="host"></section>',{ur
 test('daily demand counts DTC within the total and does not turn blank totals into zero',()=>{
  const a=setup();assert.equal(a.ui.getReport().days[0].total,null);a.demand();assert.deepEqual(a.ui.getReport().days[0].demand,{ccc:50,dtc:50});a.change('[data-date="2027-05-23"] [data-day-field="dtc"]','120');assert.match(a.$('[data-hp-days]').textContent,/cannot exceed/);a.click('[data-action="suggest"]');assert.match(a.$('[data-hp-status]').textContent,/cannot exceed/);
 });
+test('editing daily counts keeps the adjacent input in place while updating coverage',()=>{
+ const a=setup(),dtc=a.$('[data-date="2027-05-23"] [data-day-field="dtc"]');a.change('[data-date="2027-05-23"] [data-day-field="total"]','100');assert.equal(a.$('[data-date="2027-05-23"] [data-day-field="dtc"]'),dtc);a.change('[data-date="2027-05-23"] [data-day-field="dtc"]','50');assert.equal(a.ui.getReport().days[0].demand.dtc,50);assert.equal(a.ui.getReport().days[0].demand.ccc,50);
+});
 test('suggestions need review before applying, match both areas, and preserve all congregations',()=>{
  const a=setup();a.demand();a.click('[data-action="suggest"]');assert.equal(a.ui.getPlan().slots.length,0);assert.match(a.$('[data-hp-preview]').textContent,/review before adding/i);a.click('[data-action="accept"]');assert.equal(a.ui.getPlan().slots.length,2);assert.equal(a.ui.getReport().hostedCount,2);assert.match(a.$('[data-hp-congregations]').textContent,/Visiting Congregation/);assert.match(a.$('[data-hp-congregations]').textContent,/Address Needed/);
 });

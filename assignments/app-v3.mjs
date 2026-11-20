@@ -402,7 +402,7 @@ function populateMeetingPointOptions() {
     optionGroup('Other meeting areas', meetingAreas) + optionGroup('Light rail / RTD stations',sortedLocations().filter(p=>p.locationType==='rail-station'));
 
   els.assignmentDestination.innerHTML =
-    '<option value="">Choose an approved meeting point…</option>' + optionGroup('Approved meeting points',sortedLocations().filter(approvedDestination));
+    '<option value="">Choose an approved meeting point…</option>' + optionGroup('Current Kingdom Halls',base.filter(approvedDestination)) + optionGroup('Added Kingdom Halls',addedHalls.filter(approvedDestination)) + optionGroup('Other meeting areas',meetingAreas.filter(approvedDestination)) + optionGroup('Light rail / RTD stations',sortedLocations().filter(p=>p.locationType==='rail-station'&&approvedDestination(p)));
 
   els.meetingFilter.innerHTML =
     '<option value="all">All meeting points</option>' +

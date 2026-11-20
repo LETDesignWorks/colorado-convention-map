@@ -62,17 +62,28 @@ export function mountHostingPlanner(root,{storage,saveShared,deleteShared,export
   $('[data-manual="meetingPointId"]').innerHTML=locationOptions();$('[data-manual="meetingPointId"]').value=oldPoint;
   controls();
  }
- function change(editPlan){const next=structuredClone(plan);editPlan(next);plan=cleanHostingPlan(next);dirty=true;preview=null;render();say('Draft updated. Save when you are ready.');}
+ function refreshNumbers(){
+  report=hostingReport(plan,data);preview=null;
+  const metricValues=[report.totalCongregations,report.hostedCount,report.unplanned.length,report.approved.length];$('[data-hp-summary]').querySelectorAll('strong').forEach((node,i)=>node.textContent=metricValues[i]);
+  for(const day of report.days){const row=$('[data-hp-days] tr[data-date="'+day.date+'"]');if(!row)continue;for(const [hub,index]of [['ccc',4],['dtc',5]]){row.cells[index].innerHTML=day.planned[hub]+' / '+textCount(day.demand[hub])+'<small>'+(day.shortfall[hub]===null?'Enter demand':day.shortfall[hub]+' still needed')+(day.excess[hub]?' · '+day.excess[hub]+' extra planned':'')+'</small>';}row.cells[6].innerHTML=esc(day.issues.join(' '))+(day.rows.some(r=>!r.valid)?' Review flagged hosting slots.':'')+'<small>'+day.hosts+' host congregations</small>';}
+  renderDay();
+  // Update derived values without removing the next field while a blur/change fires.
+  for(const input of root.querySelectorAll('[data-meeting-limit]'))input.value=meetingCapacity(plan,input.dataset.meetingLimit);
+  const profile=report.profiles.get(profileId);if(profile){const capacity=$('[data-profile="capacity"]');if(capacity)capacity.value=profile.capacity;root.querySelectorAll('[data-profile-date]').forEach(input=>input.checked=profile.available.includes(input.dataset.profileDate));}
+  const body=$('[data-hp-congregations] tbody');if(body){for(const row of body.rows){const c=data.congregations.find(c=>c.id===row.querySelector('[data-action="profile"]')?.dataset.id);if(!c)continue;const p=report.profiles.get(c.id);row.cells[1].innerHTML=(p.kind==='unknown'?'Needs address or classification':p.kind==='local'?'Local':'Visiting / farther away')+'<small>'+(p.fromCenter===null?'Distance unknown':p.fromCenter.toFixed(1)+' straight-line miles')+'</small>';row.cells[2].innerHTML=(p.available.map(dateLabel).join(', ')||'Enter available dates')+'<small>'+(p.assumed?(p.kind==='local'?'Assumed — confirm':'Availability not entered'):'Dates entered')+'</small>';row.cells[3].textContent=report.rows.filter(r=>r.valid&&r.congregationId===c.id).map(r=>dateLabel(r.date)).join(', ')||'Not yet scheduled to host';}}
+  controls();
+ }
+ function change(editPlan,keepFields=false){const next=structuredClone(plan);editPlan(next);plan=cleanHostingPlan(next);dirty=true;preview=null;if(keepFields)refreshNumbers();else render();say('Draft updated. Save when you are ready.');}
  function editProfile(next){let p=next.profiles.find(p=>p.id===profileId);if(!p){p={id:profileId,kind:'auto',dates:null,capacity:null,notes:''};next.profiles.push(p);}return p;}
  root.addEventListener('change',event=>{const el=event.target;if(busy)return;try{
-  if(el.dataset.setting)change(p=>{p[el.dataset.setting]=el.value;});
-  else if(el.dataset.dayField)change(p=>{const day=p.days.find(d=>d.date===el.closest('[data-date]').dataset.date);day[el.dataset.dayField]=el.value;});
+  if(el.dataset.setting)change(p=>{p[el.dataset.setting]=el.value;},true);
+  else if(el.dataset.dayField)change(p=>{const day=p.days.find(d=>d.date===el.closest('[data-date]').dataset.date);day[el.dataset.dayField]=el.value;},el.tagName!=='SELECT');
   else if(el.matches('[data-hp-day]')){selectedDay=el.value;preview=null;resetManual();renderDays();renderDay();renderAvailability();}
   else if(el.matches('[data-hp-filter]'))renderAvailability();
-  else if(el.dataset.profile)change(p=>{editProfile(p)[el.dataset.profile]=el.value;});
+  else if(el.dataset.profile)change(p=>{editProfile(p)[el.dataset.profile]=el.value;},el.tagName!=='SELECT');
   else if(el.dataset.profileDate)change(p=>{const profile=editProfile(p);profile.dates=profile.dates??[...report.profiles.get(profileId).available];profile.dates=el.checked?[...new Set([...profile.dates,el.dataset.profileDate])]:profile.dates.filter(d=>d!==el.dataset.profileDate);});
-  else if(el.dataset.meetingLimit)change(p=>{p.meetingLimits=p.meetingLimits.filter(x=>x.id!==el.dataset.meetingLimit);p.meetingLimits.push({id:el.dataset.meetingLimit,capacity:el.value});});
- }catch(error){say(error.message);}});
+  else if(el.dataset.meetingLimit)change(p=>{p.meetingLimits=p.meetingLimits.filter(x=>x.id!==el.dataset.meetingLimit);p.meetingLimits.push({id:el.dataset.meetingLimit,capacity:el.value});},true);
+ }catch(error){render();say(error.message+' The previous value was kept.');}});
  $('[data-hp-search]').addEventListener('input',renderAvailability);
  function resetManual(){for(const field of ['id','congregationId','meetingPointId'])$('[data-manual="'+field+'"]').value='';$('[data-manual="delegates"]').value=plan.hostCapacity;$('[data-action="manual-save"]').textContent='Add hosting slot';$('[data-action="manual-cancel"]').hidden=true;$('[data-hp-manual-note]').textContent='';}
  function load(value,reference=null){plan=cleanHostingPlan(value);active=reference;profileId='';preview=null;dirty=false;resetManual();render();say('Hosting plan loaded. Approval, availability and capacity checks use current location data.');}
