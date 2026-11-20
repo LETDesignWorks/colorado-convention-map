@@ -33,7 +33,7 @@ function fixture() {
     document: {getElementById: element}, reportUi, buildAssignmentReport, CONGREGATIONS: congregations,
     locations: [{id: 'point', name: 'Meeting location'}], assignmentFor: id => assignments.get(id),
     serviceDaysFor: id => readServiceDays(profiles.get(id)), assignments, serviceDayProfiles: profiles,
-    publicLocationData: new Map(), addressProfiles: new Map(), SERVICE_DAYS_TYPE,
+    publicLocationData: new Map(), addressProfiles: new Map(), SERVICE_DAYS_TYPE, hostingPlanner: {update() {}},
     reportDataLoaded: false, reportDataError: '', publicReady: false, excelExportBusy: false, pdfExportBusy: false,
     assignmentsUnsubscribe: null, selectedMeetingPointId: '', selectedCongregations: new Set(['c']),
     db: {}, collection: (_db, name) => name,
