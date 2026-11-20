@@ -1,3 +1,5 @@
+import {initHostingPlanner} from './hosting-app.mjs?v=daily-hosting-20261120-1';
+import {isApprovedMeeting} from './hosting-model.mjs';
 import {mountMeetingListToggle} from './meeting-list-toggle.mjs';
 import {SERVICE_DAYS,SERVICE_DAYS_TYPE,readServiceDays,serviceDaysId,serviceDaysPayload,serviceDaysLabel} from './service-days-model.mjs';
 import {createServiceDaysEditor} from './service-days-ui.mjs';
@@ -5,7 +7,7 @@ import {withMeetingStatus,tagMeetingIcon} from '../assets/meeting-suitability-mo
 import {loadRail} from '../assets/rail-network.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
 import {createTravelRegister} from '../assets/travel-register-ui.mjs?v=visual-20261115-1';
-import {catalog as travelCatalog} from '../assets/planning-common.mjs?v=suitability-20261115-1';
+import {catalog as travelCatalog,CENTERS} from '../assets/planning-common.mjs?v=suitability-20261115-1';
 import {addLandmarkReferences} from '../assets/landmark-markers.mjs?v=landmark-size-20261115-1';
 import {canEdit, canView, isOwner, observeSiteAccess} from '../assets/site-access.mjs?v=access-20261114-1';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
@@ -19,8 +21,8 @@ import {
 import { HALLS, DTC_BOUNDARY, DTC } from '../bus-access/data.js?v=foxfield-congregations-20261111-1';
 import { CONGREGATIONS, CONGREGATION_SOURCE } from './congregations-data.mjs?v=homes-20261113-1';
 import { HOME_POINTS } from './home-points.mjs?v=homes-20261113-1';
-import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=address-help-20261114-1';
-import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=travel-override-20261115-1';
+import {homeFor, addressKey, validPoint, distanceMiles, rankCongregations, suggestionsFor, groupHomes, addressPayload, findAddress} from './location-model.mjs?v=daily-hosting-20261120-1';
+import {initCongregationLocations,focusMapPoint} from './location-ui.mjs?v=daily-hosting-20261120-1';
 
 import {createDriveTimes,prepareAssignmentDrives} from './drive-times.mjs?v=travel-override-20261115-1';
 import {downloadAssignmentWorkbook} from './excel-export.mjs?v=assigned-travel-20261115-1';
@@ -60,7 +62,9 @@ let locations = [...BASE_LOCATIONS];
 let selectedMeetingPointId = '';
 let nearestMeetingPointId = '';
 let assignmentsUnsubscribe = null;
-let publicReady=false, locationUi;
+let publicReady=false, locationUi, hostingPlanner;
+function approvedDestination(point){return Boolean(point)&&isApprovedMeeting(withMeetingStatus(point.id,{...point,...publicLocationData.get(String(point.id))}));}
+function hostingData(){return {ready:publicReady,congregations:CONGREGATIONS.map(c=>({...c,home:resolveHome(c)})),locations:locations.map(p=>withMeetingStatus(p.id,{...p,...publicLocationData.get(String(p.id)),id:String(p.id)})),centers:CENTERS,assignments:[...assignments].map(([id,a])=>({...a,congregationId:id}))};}
 let reportDataLoaded=false, reportDataError='', excelExportBusy=false, pdfExportBusy=false;
 const addressProfiles = new Map();
 
@@ -100,7 +104,7 @@ function setTravelOverride(pointId,enabled){
  if(enabled&&!locations.some(p=>p.id===String(pointId)))return;
  travelOverridePointId=enabled?String(pointId):'';selectionRevision++;renderCongregationList();
 }
-const availableMeetingPoints=()=>locations.filter(p=>(publicLocationData.get(String(p.id))?.busStatus||p.busStatus)!=='not-suitable');
+const availableMeetingPoints=()=>locations.filter(approvedDestination);
 function mapTravelState(c){
  if(selectedMeetingPointId)return driveState(c,selectedMeetingPointId);
  if(!reportDataLoaded||railLoading)return {status:'pending',allowed:false,label:'Loading meeting locations before checking travel time'};
@@ -109,7 +113,9 @@ function mapTravelState(c){
 function loadMeetingCoverage(retry=false){if(!reportDataLoaded||railLoading)return;return drives.ensureAny(CONGREGATIONS.map(resolveHome),availableMeetingPoints(),{retry});}
 const loadDrives=(id,retry=false)=>drives.ensure(CONGREGATIONS.map(resolveHome),locations.find(p=>p.id===id),{retry});
 async function requireEligible(congregations,destination){
+  if(!approvedDestination(destination))throw Error('Choose a currently approved meeting point. Conditional, unsuitable and unreviewed locations cannot receive new assignments.');
   await drives.ensure(congregations.map(resolveHome),destination);
+  if(!approvedDestination(destination))throw Error('This meeting point is no longer approved. Choose an approved location.');
   const blocked=congregations.filter(c=>!canAssignTravel(driveState(c,destination.id),destination.id));
   if(blocked.length)throw Error(`${blocked.length} congregation${blocked.length===1?' is':'s are'} over 1 hr 20 min or still need a verified address / travel time. Enable the travel-limit override for this meeting point to allow longer trips. Missing addresses and unavailable travel times must still be resolved.`);
 }
@@ -396,7 +402,7 @@ function populateMeetingPointOptions() {
     optionGroup('Other meeting areas', meetingAreas) + optionGroup('Light rail / RTD stations',sortedLocations().filter(p=>p.locationType==='rail-station'));
 
   els.assignmentDestination.innerHTML =
-    '<option value="">Choose a hall, meeting area or rail station…</option>' + groupedOptions;
+    '<option value="">Choose an approved meeting point…</option>' + optionGroup('Approved meeting points',sortedLocations().filter(approvedDestination));
 
   els.meetingFilter.innerHTML =
     '<option value="all">All meeting points</option>' +
@@ -429,7 +435,7 @@ function selectMeetingPoint(id, pan = false, keepFilters = false, overview = fal
   void loadDrives(location.id);
   if(!keepFilters){els.searchInput.value='';els.statusFilter.value='all';els.meetingFilter.value='all';document.getElementById('addressFilter').value='all';}
   if(focusedMeetingPointId)els.meetingFilter.value=location.id;
-  if (isAdmin()) els.assignmentDestination.value = location.id;
+  if (isAdmin()) els.assignmentDestination.value = approvedDestination(location)?location.id:'';
   syncMarkers();
   renderMeetingPointList();
   renderSelectedMeetingPoint();
@@ -499,7 +505,7 @@ function renderSelectedMeetingPoint() {
   const assigned = assignedCongregationsAt(location.id);
   els.selectedPointTitle.textContent = `${markerLabel(location)} — ${location.name}`;
   els.selectedPointCount.textContent = `${assigned.length} assigned`;
-  els.selectedPointDetail.innerHTML = `<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>${location.railNote?'<small>'+escapeHtml(location.railNote)+'</small>':''}`;
+  els.selectedPointDetail.innerHTML = (approvedDestination(location)?'<p>Approved for field service hosting.</p>':'<p class="hp-approval-warning">Not approved for new assignments. Review any existing congregation assignments at this location.</p>')+`<strong>${escapeHtml(locationTypeLabel(location))}</strong><span class="address">${escapeHtml(location.address || 'Saved map coordinates')}</span>${location.railNote?'<small>'+escapeHtml(location.railNote)+'</small>':''}`;
   els.selectedPointCongregations.innerHTML = assigned.length
     ? assigned.map(congregation => `<div class="assigned-name"><span>${escapeHtml(congregation.name)}</span>${unassignButton(congregation)}</div>`).join('')
     : '<div class="empty-list">No congregations have been assigned to this meeting point.</div>';
@@ -519,7 +525,7 @@ function renderMeetingPointList() {
       : (location.customLocation ? 'added' : '');
     return `<button class="meeting-point-row${location.id === selectedMeetingPointId ? ' active' : ''}" type="button" data-point="${escapeHtml(location.id)}">
       <span class="point-marker ${markerClass}">${escapeHtml(markerLabel(location))}</span>
-      <span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address || locationTypeLabel(location))}</small></span>
+      <span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address || locationTypeLabel(location))}${approvedDestination(location)?' · Approved':' · Not approved for new assignments'}</small></span>
       <span class="point-count${count ? ' has-assignments' : ''}">${count}</span>
     </button>`;
   }).join('');
@@ -598,7 +604,7 @@ function renderSelectionControls() {
   document.getElementById('selectionTravelStatus').hidden=!travelMessage;
   document.getElementById('selectionTravelStatus').textContent=travelMessage;
   els.selectionCount.textContent = `${count} selected`;
-  els.assignSelectedButton.disabled = !isAdmin() || !publicReady || count === 0 || !els.assignmentDestination.value || blocked.length>0;
+  els.assignSelectedButton.disabled = !isAdmin() || !publicReady || count === 0 || !els.assignmentDestination.value || blocked.length>0 || !approvedDestination(locations.find(p=>p.id===pointId));
   els.unassignSelectedButton.disabled = !isAdmin() || !publicReady || count === 0;
   els.clearSelectionButton.disabled = count === 0;
   const point=locations.find(p=>p.id===els.assignmentDestination.value);
@@ -696,6 +702,7 @@ function renderAll() {
   renderMeetingFocus();
   updateTravelRegister();
   renderAssignmentReport();
+  hostingPlanner?.update();
 }
 
 async function assignSelected() {
@@ -829,7 +836,7 @@ function subscribeToPublicData() {
     publicLocationData.clear();
     assignments.clear();
     addressProfiles.clear();serviceDayProfiles.clear();
-    publicReady=!snapshot.metadata.fromCache;
+    publicReady=!snapshot.metadata.fromCache&&!snapshot.metadata.hasPendingWrites;
     reportDataLoaded=reportDataLoaded||publicReady||!snapshot.empty;
     reportDataError='';
 
@@ -850,7 +857,7 @@ function subscribeToPublicData() {
     renderAll();
     if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);
   }, error => {
-    publicReady=false;locationUi?.render();
+    publicReady=false;locationUi?.render();hostingPlanner?.update();
     reportDataError='Saved assignments and service days could not load. Refresh to retry before exporting a report.';
     renderAssignmentReport();
     document.getElementById('sharedDataStatus').textContent='Shared data could not load. Saved assignments and address edits may be unavailable. Refresh to retry.';
@@ -861,7 +868,7 @@ function subscribeToPublicData() {
 async function loadRailMeetingPoints(){
  if(railLoading)return;railLoading=true;document.getElementById('retryRailMeetingPoints').disabled=true;
  document.getElementById('railMeetingStatus').textContent='Loading rail station meeting points…';
- try{railLocations=railMeetingPoints(await loadRail());rebuildLocations();renderAll();if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);document.getElementById('railMeetingStatus').textContent=railLocations.length+' RTD rail stations available as meeting points. Select a train pin to assign congregations.';document.getElementById('retryRailMeetingPoints').hidden=true;}
+ try{railLocations=railMeetingPoints(await loadRail());rebuildLocations();renderAll();if(selectedMeetingPointId)void loadDrives(selectedMeetingPointId);document.getElementById('railMeetingStatus').textContent=railLocations.length+' RTD rail stations shown. A station must be marked approved before receiving new assignments.';document.getElementById('retryRailMeetingPoints').hidden=true;}
  catch(error){document.getElementById('railMeetingStatus').textContent='Rail stations could not load. Your existing assignments are retained.';document.getElementById('retryRailMeetingPoints').hidden=false;}
  finally{railLoading=false;document.getElementById('retryRailMeetingPoints').disabled=false;renderAll();}
 }
@@ -926,7 +933,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
-locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,canAssignTravel,travelOverrideEnabled,setTravelOverride,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
+locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isApproved:approvedDestination,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,canAssignTravel,travelOverrideEnabled,setTravelOverride,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 // Capture Escape before Leaflet consumes it while the map has keyboard focus.
 document.addEventListener('keydown',handleSelectionEscape,true);
 populateMeetingPointOptions();
@@ -938,6 +945,7 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   await setPersistence(auth, browserLocalPersistence);
+  hostingPlanner=initHostingPlanner({root:document.getElementById('dailyHosting'),auth,db,getData:hostingData,showMeeting:id=>{selectMeetingPoint(id,true);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});},showCongregation:id=>{locationUi?.select(id,true);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});}});
   observeSiteAccess(auth, user => {
     travelOverridePointId='';currentUser = user;
     updateAuthUi();subscribeTravelRegister();void checkServiceDaysAccess();
@@ -1019,4 +1027,3 @@ document.getElementById('exportAssignmentPdf').addEventListener('click',async()=
     toast('Report opened. Choose Save as PDF in the print dialog; the report also has a Print / Save PDF button.');
   }catch(error){toast('PDF report could not open: '+error.message,true);}finally{pdfExportBusy=false;updateReportExportButtons();button.textContent='Print / Save PDF';}
 });
-

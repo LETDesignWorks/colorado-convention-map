@@ -18,9 +18,9 @@ test('missing and unresolved addresses are distinct; edits never inherit stale c
  assert.equal(homeFor(c,{homeAddress:c.homeAddress,lat:39.7,lng:-104.9},points).status,'mapped');assert.equal(homeFor(c,null,[{...points[0],address:'123 Main St, Boulder CO 80301'}]).status,'pin-needed');
  assert.equal(validPoint('',null),false);assert.equal(validPoint(91,-105),false);
 });
-test('suggestions use distance only among approved or conditional points, without changing assignments',()=>{
+test('suggestions use distance only among approved points only, without changing assignments',()=>{
  const status=new Map([['a',{busStatus:'not-suitable'}],['b',{busStatus:'approved'}]]),home=homeFor(c,null,points);const before=JSON.stringify(points);assert.equal(suggestionsFor(home,points,status)[0].id,'b');
- status.set('a',{busStatus:'conditional'});assert.equal(suggestionsFor(home,points,status)[0].id,'a');assert.equal(suggestionsFor({...home,status:'review'},points,status).length,0);assert.equal(suggestionsFor({point:null},points,status).length,0);assert.equal(JSON.stringify(points),before);
+ status.set('a',{busStatus:'conditional'});assert.equal(suggestionsFor(home,points,status)[0].id,'b');assert.equal(suggestionsFor({...home,status:'review'},points,status).length,0);assert.equal(suggestionsFor({point:null},points,status).length,0);assert.equal(JSON.stringify(points),before);
 });
 test('co-located congregations remain individually reachable in map groups',()=>{
  const cs=[c,{...c,id:'C002'},{id:'x',homeAddress:''}];const groups=groupHomes(cs,c=>homeFor(c,null,points));assert.equal(groups.length,1);assert.deepEqual(groups[0].congregations.map(c=>c.id),['C001','C002']);

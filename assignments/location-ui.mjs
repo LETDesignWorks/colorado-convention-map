@@ -1,4 +1,4 @@
-import {validPoint,suggestionsFor,groupHomes,nearbyAddresses} from './location-model.mjs?v=address-help-20261114-1';
+import {validPoint,suggestionsFor,groupHomes,nearbyAddresses} from './location-model.mjs?v=daily-hosting-20261120-1';
 import {resolveAddressPin} from './address-pin.mjs?v=address-help-20261114-1';
 
 import {formatCoordinates,parseCoordinatePair,googleSearchUrl,findCensusAddress} from './address-tools.mjs?v=coordinates-20261114-1';
@@ -108,7 +108,7 @@ export function initCongregationLocations(ctx){
     $('congregationDetail').innerHTML=`<span class="eyebrow">SELECTED CONGREGATION</span><h2>${esc(c.name)}</h2><p class="home-address">${esc(home.address||'No address on file')}</p><div class="home-actions"><span class="address-chip ${home.status}">${labels[home.status]}</span><button type="button" class="btn outline" id="editSelectedAddress">${home.address?'Edit address / pin':'Add address'}</button></div>${home.status==='review'?'<p class="address-warning">This older directory address needs confirmation. Confirm or update it before using a suggested meeting point.</p>':''}<p class="saved-assignment"><strong>Saved meeting point:</strong> ${esc(savedName)}</p>${assignment?`<button type="button" class="btn danger" id="unassignCongregation">${savingAssignment?'Please wait…':'Unassign from meeting point'}</button><p class="intro-copy">Removes this assignment and keeps the congregation, address and map pin.</p>`:''}
       <h3>Suggested meeting points</h3><p class="intro-copy">Nearest approved or conditional meeting points by straight-line distance. Check driving time, capacity and bus access before assigning.</p>
       <div class="suggestion-list">${suggested.length?suggested.map((p,i)=>`<button type="button" class="suggestion" data-suggestion="${esc(p.id)}"><span><strong>${i===0?'Suggested: ':''}${esc(pointLabel(p))}</strong><small>${p.miles<.05?'Same address area':p.miles.toFixed(1)+' mi straight-line'} · ${p.busStatus==='approved'?'Approved':'Conditional — review bus access'}</small></span><span>Choose</span></button>`).join(''):`<p class="intro-copy">${!ctx.isReady()?'Waiting for shared meeting-point reviews.':home.status==='missing'?'Add an address and map pin to see suggestions.':home.status==='review'?'Confirm this address to see suggestions.':!home.point?'Add a map pin for this address to see suggestions.':'No approved or conditional meeting points are available. Choose a meeting point manually below.'}</p>`}</div>
-      <div class="field"><label for="congregationDestination">Choose or move this congregation to a meeting point</label><select id="congregationDestination"><option value="">Choose a meeting point…</option>${locations.map(p=>`<option value="${esc(p.id)}">${esc(pointLabel(p))}</option>`).join('')}</select><small>Choose a suggestion, use this list, or click a meeting-point marker. Save to apply the assignment. The congregation's address stays in place.</small></div>
+      <div class="field"><label for="congregationDestination">Choose or move this congregation to a meeting point</label><select id="congregationDestination"><option value="">Choose a meeting point…</option>${locations.filter(p=>!ctx.isApproved||ctx.isApproved(p)).map(p=>`<option value="${esc(p.id)}">${esc(pointLabel(p))}</option>`).join('')}</select><small>Choose a suggestion, use this list, or click a meeting-point marker. Save to apply the assignment. The congregation's address stays in place.</small></div>
       <label class="travel-override" id="congregationTravelOverrideLabel" hidden><input type="checkbox" id="congregationTravelOverride"> Allow assignments over 1 hr 20 min to this meeting point</label><div class="button-row"><button type="button" class="btn primary" id="saveCongregationAssignment">${savingAssignment?'Saving…':isAdmin()?'Save assignment':'Sign in to save assignment'}</button></div><p id="assignmentDraftStatus" class="intro-copy" role="status"></p>`;
     $('congregationDestination').value=draftPoint;
     $('congregationTravelOverride').addEventListener('change',()=>{ctx.setTravelOverride?.(draftPoint,$('congregationTravelOverride').checked);updateDraft();});
@@ -147,12 +147,13 @@ export function initCongregationLocations(ctx){
   }
   function updateDraft(){
     if(!$('assignmentDraftStatus'))return;
-    const travel=ctx.driveState(selected(),draftPoint),allowed=ctx.canAssignTravel?.(travel,draftPoint)??travel.allowed;
+    const travel=ctx.driveState(selected(),draftPoint),approved=!ctx.isApproved||ctx.isApproved(ctx.getLocations().find(p=>p.id===draftPoint)),allowed=approved&&(ctx.canAssignTravel?.(travel,draftPoint)??travel.allowed);
     $('congregationTravelOverrideLabel').hidden=!isAdmin()||travel.status!=='over';
     $('congregationTravelOverride').checked=Boolean(ctx.travelOverrideEnabled?.(draftPoint));
     $('congregationTravelOverride').disabled=savingAssignment||!ctx.isReady()||!draftPoint;
     $('assignmentDraftStatus').textContent=draftPoint&&draftPoint!==savedPoint?'Unsaved choice — click Save assignment to apply.':draftPoint?'This is the saved assignment. Choose another point to move this congregation.':'No meeting point selected.';
     if(draftPoint)$('assignmentDraftStatus').textContent=(!allowed?'Assignment unavailable. ':$('assignmentDraftStatus').textContent+' ')+travel.label+'.'+(travel.status==='over'?(allowed?' Travel-limit override enabled for this meeting point.':' Check the override above to allow this longer trip.'):'');
+    if(draftPoint&&!approved)$('assignmentDraftStatus').textContent='This meeting point is not approved for new assignments. Choose an approved location.';
     $('saveCongregationAssignment').disabled=savingAssignment||(isAdmin()&&(!ctx.isReady()||!draftPoint||draftPoint===savedPoint||!allowed));
   }
   function drawLines(){
@@ -412,4 +413,3 @@ export function initCongregationLocations(ctx){
   if(map){const points=congregations.map(c=>resolveHome(c).point).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[50,50],maxZoom:12});}
   return{render,select,edit,meetingPointChosen,fitSelected,unassign,selectionChanged,clearSelection,dismissEditor};
 }
-

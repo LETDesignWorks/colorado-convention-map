@@ -13,7 +13,7 @@ export function homeFor(congregation,profile,knownPoints=[]){
 export function distanceMiles(a,b){const rad=x=>x*Math.PI/180,dlat=rad(b.lat-a.lat),dlng=rad(b.lng-a.lng);const h=Math.sin(dlat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dlng/2)**2;return 3958.7613*2*Math.asin(Math.sqrt(Math.min(1,h)));}
 export function suggestionsFor(home,locations,statuses,limit=3){
   if(!home.point||home.status==='review')return [];
-  return locations.filter(p=>validPoint(p.lat,p.lng)&&['approved','conditional'].includes(statuses.get(String(p.id))?.busStatus)).map(p=>({...p,miles:distanceMiles(home.point,p),busStatus:statuses.get(String(p.id)).busStatus})).sort((a,b)=>a.miles-b.miles||String(a.id).localeCompare(String(b.id))).slice(0,limit);
+  return locations.filter(p=>validPoint(p.lat,p.lng)&&(statuses.get(String(p.id))?.busStatus||p.busStatus)==='approved').map(p=>({...p,miles:distanceMiles(home.point,p),busStatus:statuses.get(String(p.id))?.busStatus||p.busStatus})).sort((a,b)=>a.miles-b.miles||String(a.id).localeCompare(String(b.id))).slice(0,limit);
 }
 export function groupHomes(congregations,resolve){
   const groups=new Map();for(const congregation of congregations){const home=resolve(congregation);if(!home.point)continue;const key=[home.point.lat.toFixed(6),home.point.lng.toFixed(6)].join(',');if(!groups.has(key))groups.set(key,{...home.point,address:home.address,congregations:[]});groups.get(key).congregations.push(congregation);}return [...groups.values()];

@@ -158,3 +158,15 @@ test('bus-group plans use existing Activity Planning permissions for create, rea
  await seed('reviews/site-access-helper@example.com',grant({routes:'edit'}));await assertFails(getDoc(doc(db,path)));await assertFails(setDoc(doc(db,'reviews/another-bus-group'),payload));
  await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit'}));await assertSucceeds(deleteDoc(doc(db,path)));
 });
+
+test('daily hosting plans are private and editable only with Congregation Assignments permission',async()=>{
+ const path='reviews/hosting-example',payload={recordType:'congregation-hosting-plan',schemaVersion:1,planName:'May hosting',planJson:'{}',revision:1,updatedByEmail:'helper@example.com',updatedAt:new Date()};
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));const db=user();await assertSucceeds(getDoc(doc(db,'siteAccessCapabilities/hostingPlansV1')));
+ await assertSucceeds(setDoc(doc(db,path),payload));await assertSucceeds(getDoc(doc(db,path)));await assertSucceeds(getDocs(query(collection(db,'reviews'),where('recordType','==','congregation-hosting-plan'))));
+ await assertFails(updateDoc(doc(db,path),{planName:'Without revision'}));await assertSucceeds(updateDoc(doc(db,path),{planName:'Updated',revision:2}));
+ await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),path)));
+ for(const changes of [{revision:2},{schemaVersion:2},{unexpected:'bad'},{updatedByEmail:'someone@example.com'}])await assertFails(setDoc(doc(db,'reviews/bad-hosting'),{...payload,...changes}));
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'view'}));await assertSucceeds(getDoc(doc(db,path)));await assertFails(updateDoc(doc(db,path),{revision:3}));await assertFails(deleteDoc(doc(db,path)));
+ await seed('reviews/site-access-helper@example.com',grant({activityPlanning:'edit',routes:'edit'}));await assertFails(getDoc(doc(db,path)));await assertFails(setDoc(doc(db,'reviews/no-hosting-access'),payload));
+ await seed('reviews/site-access-helper@example.com',grant({assignments:'edit'}));await assertSucceeds(deleteDoc(doc(db,path)));
+});

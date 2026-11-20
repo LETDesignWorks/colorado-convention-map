@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="styles.css?v=travel-override-20261115-1"/>
 <link rel="stylesheet" href="report.css?v=reports-20261115-1"/>
+<link rel="stylesheet" href="hosting.css?v=daily-hosting-20261120-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=navigation-20261115-2"></script>
 <script type="module" src="../assets/site-navigation.mjs?v=navigation-20261115-2"></script>
@@ -53,10 +54,12 @@
     <option value="all">All address statuses</option><option value="missing">Missing address</option><option value="pin-needed">Address needs map pin</option><option value="review">Address needs review</option><option value="mapped">Mapped addresses</option>
   </select>
   <button class="btn outline" id="showAllHomes" type="button">Show all congregations</button>
-  <button class="btn outline" id="showSelectedHomes" type="button">Show selected on map</button><a class="btn outline" href="../activity-planning/#delegateCounts">Delegate counts</a><a class="btn outline" href="../travel-routes/#meetingRanking">Rank travel from Convention Center</a><button class="btn outline" id="exportAssignments" type="button" disabled>Export Excel</button>
+  <button class="btn outline" id="showSelectedHomes" type="button">Show selected on map</button><a class="btn outline" href="#dailyHosting">Daily hosting plan</a><a class="btn outline" href="../activity-planning/#delegateCounts">Delegate counts</a><a class="btn outline" href="../travel-routes/#meetingRanking">Rank travel from Convention Center</a><button class="btn outline" id="exportAssignments" type="button" disabled>Export Excel</button>
   <button class="btn outline" id="exportAssignmentPdf" type="button" disabled>Print / Save PDF</button>
   <div class="stats" id="stats" aria-live="polite"></div>
 </section>
+
+<section id="dailyHosting" aria-label="Daily field service hosting planner"></section>
 
 <section id="assignmentReport" aria-label="Congregation assignment reports"></section>
 
@@ -113,7 +116,7 @@
           <select id="assignmentDestination">
             <option value="">Choose a Kingdom Hall or meeting area…</option>
           </select>
-          <small>Clicking a marker on the map also places that location in this field.</small>
+          <small>Only approved locations can receive new assignments. Clicking an approved marker also selects it here.</small>
         </div>
         <label class="travel-override"><input id="overrideTravelLimit" type="checkbox" disabled> Allow assignments over 1 hr 20 min to this meeting point</label><p class="intro-copy">The override applies to this meeting point for the current assignment. Travel warnings stay visible. Missing addresses or unavailable travel times still need to be resolved.</p>
         <div class="button-row">
@@ -222,7 +225,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=travel-override-20261115-1"></script>
+<script type="module" src="app-v3.mjs?v=daily-hosting-20261120-1"></script>
 </body>
 </html>
-
