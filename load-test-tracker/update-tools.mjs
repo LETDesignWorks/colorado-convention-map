@@ -5,7 +5,13 @@ const norm=x=>String(x).trim().toLowerCase().replace(/\s+/g,' ');
 const append=(a,b)=>!b||a?.includes(b)?a||'':[a,b].filter(Boolean).join('\n\n');
 export function mergePlanUpdates(target,source){
  if(target.id!==source.id)throw Error('These updates belong to another tracker.');
- const result={...mergeContactUpdates(target,source),participants:0,arrangements:0,meeting:0};
+ const result={...mergeContactUpdates(target,source),participants:0,arrangements:0,meeting:0,territoryContacts:0};
+ for(const [id,incoming] of Object.entries(source.territories)){
+  const t=target.territories[id];if(!t||time(incoming.contactUpdatedAt)<=time(t.contactUpdatedAt))continue;
+  for(const k of ['contact','phone','email','contactUpdatedAt','contactSource'])if(incoming[k]!==undefined)t[k]=incoming[k];
+  if(incoming.contactNotes)t.notes=append(t.notes,incoming.contactNotes);
+  result.territoryContacts++;
+ }
  for(const incoming of source.people){
   if(!time(incoming.updatedAt)||!target.congregations.some(c=>c.id===incoming.congregationId))continue;
   const sameId=target.people.find(p=>p.id===incoming.id);
@@ -40,4 +46,3 @@ export function mergePlanUpdates(target,source){
  for(const d of source.documents)if(!target.documents.some(x=>x.url===d.url))target.documents.push(copy(d));
  return result;
 }
-
