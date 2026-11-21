@@ -35,8 +35,9 @@ export function mergePlanUpdates(target,source){
   target.reviewMeeting=copy(source.reviewMeeting);result.meeting++;
   const incoming=source.tasks.find(t=>t.id===source.reviewMeeting.taskId),t=target.tasks.find(t=>t.id===source.reviewMeeting.taskId);
   if(t&&incoming){t.title=incoming.title;t.notes=append(t.notes,incoming.notes);t.sourceUpdatedAt=incoming.sourceUpdatedAt;}
-  target.notices=target.notices.filter(n=>!/feedback meeting on December 7 has no confirmed time/.test(n));
+  target.notices=target.notices.map(n=>n.replace('The feedback meeting on December 7 has no confirmed time.','The December 7 post-test meeting details are confirmed in Deadlines and Messages.'));
  }
  for(const d of source.documents)if(!target.documents.some(x=>x.url===d.url))target.documents.push(copy(d));
  return result;
 }
+
