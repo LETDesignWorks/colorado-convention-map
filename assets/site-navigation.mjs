@@ -4,6 +4,7 @@ import {PDF_BUILDER_URL, openPdfBuilderWindow} from './pdf-tools-link.mjs?v=pack
 export const SITE_TABS = [
   ['', 'Full Planning Map'],
   ['assignments/', 'Congregation Assignments'], ['territories/', 'Territories'],
+  ['load-test-tracker/', 'December Load Test'],
   ['bus-access/', 'Bus Access Review'],
   ['travel-routes/', 'Travel Routes'],
   ['activity-planning/', 'Activity Planning'], ['convention-center/', 'Convention Center'], ['smpw/', 'SMPW'],
@@ -83,3 +84,4 @@ function start() {
   }).observe(document.documentElement, {childList: true, subtree: true});
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true}); else start();
+

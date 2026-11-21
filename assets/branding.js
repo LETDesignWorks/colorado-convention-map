@@ -1,4 +1,4 @@
-import {mountSiteNavigation} from './site-navigation.mjs?v=center-20261115-2';
+import {mountSiteNavigation} from './site-navigation.mjs?v=loadtest-20261121-1';
 import {PDF_BUILDER_URL,openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 import { mountPrintRibbons } from './pdf-ribbons.mjs?v=ribbons-20261107-1';
 import './denver-2027-circular-nav.js?v=access-20261114-1';
@@ -256,3 +256,4 @@ if (document.readyState === 'loading') {
 } else {
   applyDenver2027Branding();
 }
+
