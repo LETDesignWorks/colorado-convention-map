@@ -32,7 +32,9 @@ export function parkingFee(tags={}){
 }
 function accessInfo(tags){
  const values=['access','vehicle','motor_vehicle','motorcar'].map(k=>text(tags[k]).toLowerCase()).filter(Boolean);
- const blocked=values.some(v=>!['yes','public','permissive','designated','unknown'].includes(v));
+ // Some limited listings expose a restriction only in their name, without access tags.
+ const restrictedName=/\b(private parking|parking only|permit holders?|reserved parking)\b|\b(visitors?|customers?|residents?|employees?|staff)\b.*\bonly\b|^(handicapped|disabled parking|accessible parking)$/i.test(text(tags.name));
+ const blocked=restrictedName||values.some(v=>!['yes','public','permissive','designated','unknown'].includes(v));
  const conditions=['access:conditional','vehicle:conditional','motor_vehicle:conditional','motorcar:conditional'].map(k=>text(tags[k])).filter(Boolean);
  const publicAccess=values.some(v=>['yes','public','permissive','designated'].includes(v));
  return {blocked,label:conditions.length?'Access conditions: '+conditions.join(' · '):publicAccess?'Mapped for public access · confirm posted rules':'Access not recorded · confirm permission',confirmed:publicAccess&&!conditions.length};
@@ -55,7 +57,7 @@ export function parkingRecords(data,station,radius=805){
   places.set(id,{id,lat:Number(point.lat),lng:Number(point.lng),distanceMeters,name:text(tags.name)||[type,text(tags.ref)||street].filter(Boolean).join(' · '),address,type,
    operator:text(tags.operator),fee:parkingFee(tags),access:access.label,publicAccess:access.confirmed,
    capacity:capacity>0?capacity:null,hours:text(tags.opening_hours),maxstay:text(tags.maxstay),
-   parkRide:Boolean(tags.park_ride&&tags.park_ride!=='no'),
+   parkRide:Boolean(tags.park_ride&&tags.park_ride!=='no')||/\bpark[\s-]*(?:&|and|n)[\s-]*ride\b/i.test(text(tags.name)),
    website:safeParkingUrl(tags.website||tags['contact:website']),source:'https://www.openstreetmap.org/'+id});
  }
  return {places:[...places.values()].sort((a,b)=>a.distanceMeters-b.distanceMeters||a.name.localeCompare(b.name)),restricted};

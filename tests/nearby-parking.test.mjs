@@ -27,6 +27,10 @@ test('unknown fees are never treated as free and conditional rules remain visibl
  assert.equal(parkingFee({fee:'no',charge:'2 USD/hour'}).kind,'paid');
  assert.match(parkingFee({'charge:conditional':'4 USD @ event'}).detail,/4 USD/);
 });
+test('explicit restrictions in lot names remain excluded when a limited source omits access tags',()=>{
+ const out=parkingRecords({elements:['Promontory Visitors Only','Office Parking Only','Private Parking','Handicapped','Belleview Park & Ride'].map((name,i)=>item(i,{name}))},station);
+ assert.equal(out.restricted,4);assert.equal(out.places.length,1);assert.equal(out.places[0].parkRide,true);assert.equal(out.places[0].fee.kind,'unknown');
+});
 test('invalid coordinates, non-parking, out-of-range and duplicate features are handled',()=>{
  const out=parkingRecords({elements:[item(1),item(1),item(2,{}, {lat:40,lon:-104}),item(3,{}, {lat:null,lon:null}),item(4,{amenity:'bicycle_parking'}),{...item(5),id:'<script>'}]},station);
  assert.equal(out.places.length,1);assert.throws(()=>parkingRecords({remark:'runtime error',elements:[]},station),/complete/);
