@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="styles.css?v=travel-override-20261115-1"/>
 <link rel="stylesheet" href="report.css?v=reports-20261115-1"/>
 <link rel="stylesheet" href="hosting.css?v=daily-hosting-20261120-1"/>
+<link rel="stylesheet" href="parking.css?v=rtd-parking-20261122-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=navigation-20261115-2"></script>
 <script type="module" src="../assets/site-navigation.mjs?v=navigation-20261115-2"></script>
@@ -74,7 +75,7 @@
       <div><span class="legend-marker hall"></span>Current Kingdom Hall</div>
       <div><span class="legend-marker added-hall"></span>Added Kingdom Hall</div>
       <div><span class="legend-marker meeting"></span>Other meeting area</div>
-      <label class="rail-meeting-toggle"><input id="showRailMeetingPoints" type="checkbox" checked> 🚆 Rail station meeting points</label><div><span class="count-sample">4</span>Assigned congregation count</div>
+      <label class="rail-meeting-toggle"><input id="showRailMeetingPoints" type="checkbox" checked> 🚆 Rail station meeting points</label><label class="parking-toggle"><input id="showNearbyParking" type="checkbox" disabled> P Nearby car parking</label><div><span class="count-sample">4</span>Assigned congregation count</div>
     </div>
     <div class="map-note" id="assignmentMapNote" role="status">Select a point to zoom to its area. Press Esc to clear the current selection and choose something else. Saved assignments stay in place.</div>
   </section>
@@ -145,6 +146,8 @@
         <a class="btn outline" id="openPointMapLink" target="_blank" rel="noopener">Open in Google Maps</a>
       </div>
     </section>
+
+    <section class="card parking-card" id="nearbyParking" aria-label="Nearby car parking for selected RTD station" hidden></section>
 
     <section class="card meeting-points-card">
       <div class="card-heading compact">
@@ -225,6 +228,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=daily-hosting-20261120-1"></script>
+<script type="module" src="app-v3.mjs?v=rtd-parking-20261122-1"></script>
 </body>
 </html>

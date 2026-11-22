@@ -1,3 +1,4 @@
+import {mountNearbyParking} from './parking-ui.mjs?v=rtd-parking-20261122-1';
 import {initHostingPlanner} from './hosting-app.mjs?v=daily-hosting-20261120-1';
 import {isApprovedMeeting} from './hosting-model.mjs';
 import {mountMeetingListToggle} from './meeting-list-toggle.mjs';
@@ -62,7 +63,7 @@ let locations = [...BASE_LOCATIONS];
 let selectedMeetingPointId = '';
 let nearestMeetingPointId = '';
 let assignmentsUnsubscribe = null;
-let publicReady=false, locationUi, hostingPlanner;
+let publicReady=false, locationUi, hostingPlanner, parkingUi;
 function approvedDestination(point){return Boolean(point)&&isApprovedMeeting(withMeetingStatus(point.id,{...point,...publicLocationData.get(String(point.id))}));}
 function hostingData(){return {ready:publicReady,congregations:CONGREGATIONS.map(c=>({...c,home:resolveHome(c)})),locations:locations.map(p=>withMeetingStatus(p.id,{...p,...publicLocationData.get(String(p.id)),id:String(p.id)})),centers:CENTERS,assignments:[...assignments].map(([id,a])=>({...a,congregationId:id}))};}
 let reportDataLoaded=false, reportDataError='', excelExportBusy=false, pdfExportBusy=false;
@@ -493,6 +494,7 @@ function bindUnassignButtons(container) {
 
 function renderSelectedMeetingPoint() {
   const location = locations.find(item => item.id === selectedMeetingPointId);
+  parkingUi?.selectStation(location);
   if (!location) {
     els.selectedPointTitle.textContent = 'Select a meeting point';
     els.selectedPointCount.textContent = '0 assigned';
@@ -933,6 +935,7 @@ els.signOutButton.addEventListener('click', async () => {
 });
 
 initMap();
+parkingUi=mountNearbyParking({root:document.getElementById('nearbyParking'),map,toggle:document.getElementById('showNearbyParking')});
 locationUi=initCongregationLocations({map,congregations:CONGREGATIONS,source:CONGREGATION_SOURCE,getLocations:()=>locations,getAddressPoints:()=>[...locations,...HOME_POINTS],resolveHome,getProfile:id=>addressProfiles.get(id),getAssignment:assignmentFor,getStatuses:()=>publicLocationData,isReady:()=>publicReady,isApproved:approvedDestination,isAdmin,openLogin,refresh:renderAll,getVisible:()=>filteredCongregations({forMap:true}),mapSelect:selectFromMap,getSelected:()=>selectedCongregations,onCongregationSelected:id=>{selectionRevision++;serviceDayFocus=id;renderServiceDays();},getMeetingPoint:()=>selectedMeetingPointId,getFocusedMeetingPoint:()=>focusedMeetingPointId,clearMeetingFocus,driveState,canAssignTravel,travelOverrideEnabled,setTravelOverride,mapTravelState,loadDrives,saveAddress,saveAssignment,unassignCongregation,escapeHtml,toast,selectMeetingPoint});
 // Capture Escape before Leaflet consumes it while the map has keyboard focus.
 document.addEventListener('keydown',handleSelectionEscape,true);

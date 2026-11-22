@@ -1,0 +1,20 @@
+.parking-card[hidden],.parking-card [hidden]{display:none!important}
+.parking-card{border-top:4px solid #155e75;font-size:16px;line-height:1.5;overflow-wrap:anywhere}
+.parking-card h2{font-size:20px;margin:0}.parking-card p{margin:9px 0}.parking-station{font-weight:700;color:#174563}
+.parking-symbol,.parking-number{display:inline-flex;align-items:center;justify-content:center;background:#155e75;color:#fff;border-radius:7px;font-weight:800;flex-shrink:0}
+.parking-symbol{width:36px;height:36px;font-size:23px}.parking-number{padding:3px 8px;font-size:15px;min-width:36px}
+.parking-card .parking-check,.map-legend .parking-toggle{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;cursor:pointer}
+.parking-check input,.parking-toggle input{width:18px;height:18px;margin:0;accent-color:#155e75;flex-shrink:0}
+.parking-card .parking-tools{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:14px 0}
+.parking-tools label{display:grid;gap:4px;font-size:14px;flex:1 1 120px}
+.parking-card .btn{font-size:14px;min-height:40px;white-space:normal;padding:8px 10px}
+.parking-card select{font:inherit;min-height:40px;padding:8px 32px 8px 10px;border:1px solid #a6bdcc;border-radius:7px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='10'%3E%3Cpath d='M2 2l5 5 5-5' fill='none' stroke='%23174b65' stroke-width='2'/%3E%3C/svg%3E") right 10px center/14px 10px no-repeat;appearance:none}
+.parking-card .parking-help,.parking-status{font-size:14px;color:#506175}.parking-status{background:#edf6fa;border-radius:7px;padding:10px}
+.parking-rtd{font-size:14px;border:1px solid #bfcfd8;border-radius:8px;padding:10px}.parking-rtd summary{font-weight:700;cursor:pointer}
+.parking-list{display:grid;gap:10px;max-height:560px;overflow:auto;scrollbar-gutter:stable;padding:2px}
+.parking-result{border:1px solid #c6d7df;border-radius:10px;padding:12px;font-size:14px;background:#fff}.parking-result-heading{display:flex;align-items:start;gap:8px}.parking-result h3{font-size:16px;margin:0;color:#113b58}.parking-muted{color:#586979}
+.parking-fee{padding:8px;border-radius:7px;background:#f0f3f6}.parking-fee-free{background:#e8f3ec}.parking-fee-conditional{background:#fff5dc}.parking-access{font-weight:600;color:#655321}
+.parking-links{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.parking-card a,.parking-popup a{color:#075e8c;text-decoration:underline;text-underline-offset:2px}.parking-selected{outline:3px solid #187bb5;outline-offset:-2px;background:#f1faff}
+.parking-map-icon{background:none;border:none}.parking-pin{display:flex;gap:3px;align-items:center;justify-content:center;width:40px;height:34px;background:#155e75;border:2px solid #fff;box-shadow:0 2px 6px #0007;color:#fff;border-radius:8px;font-size:22px;font-weight:800}.parking-pin small{font-size:12px}.parking-unconfirmed{border:3px dashed #f1ca69}
+.parking-popup{font-size:14px;line-height:1.5;overflow-wrap:anywhere}.parking-popup p{margin:8px 0}.parking-card :focus-visible{outline:3px solid #298ab8;outline-offset:2px}
+@media(max-width:820px){.parking-list{max-height:480px}.parking-card .parking-tools{align-items:stretch}.parking-card .parking-tools button{flex:1 1 130px}}
