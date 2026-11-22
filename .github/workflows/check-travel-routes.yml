@@ -17,3 +17,11 @@ jobs:
       - run: npm install --no-audit --no-fund
         working-directory: security
       - run: node --test security/nearby-parking-ui.test.mjs security/daily-hosting-ui.test.mjs security/convention-center-ui.test.mjs security/bus-groups-ui.test.mjs security/staggered-buses-ui.test.mjs security/activity-service-reach-ui.test.mjs security/meeting-ranking-ui.test.mjs security/delegate-counts-ui.test.mjs security/meeting-suitability-ui.test.mjs security/navigation.test.mjs security/travel-ui.test.mjs security/visual-planning-ui.test.mjs security/assignment-report-ui.test.mjs
+
+      - name: Verify live parking lookup for this feature branch
+        if: github.ref == 'refs/heads/codex/rtd-parking-20261122'
+        run: |
+          node --input-type=module <<'NODE'
+          import {createParkingSearch} from './assignments/parking-model.mjs';
+          try { const r=await createParkingSearch().search({lat:39.6281,lng:-104.9048}); console.log(JSON.stringify({places:r.places.length,restricted:r.restricted,sample:r.places.slice(0,2)})); if(!r.places.length)process.exitCode=1; } catch(e) { console.error(e); process.exitCode=1; }
+          NODE
