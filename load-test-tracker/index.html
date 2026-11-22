@@ -6,19 +6,20 @@
   <title>December Load Test | Denver 2027</title>
   <meta name="description" content="Private December 5–6 field-service pairings, territories, contacts, rosters and preparation tracker.">
   <link rel="icon" href="../assets/denver-2027-logo.png">
-  <link rel="stylesheet" href="styles.css?v=territory-prep-20261121-1">
+  <link rel="stylesheet" href="styles.css?v=safe-upload-20261122-1">
   <script type="module" src="../assets/site-navigation.mjs?v=loadtest-20261121-1"></script>
-  <script type="module" src="app.mjs?v=territory-prep-20261121-1"></script>
+  <script type="module" src="app.mjs?v=safe-upload-20261122-1"></script>
 </head>
 <body>
   <header class="masthead"><a href="../"><img src="../assets/denver-2027-logo.png" alt="Denver 2027"></a><div><p class="eyebrow">DENVER 2027 · FIELD SERVICE</p><h1>December load test</h1><p>Saturday, December 5 & Sunday, December 6, 2026</p></div></header>
   <main>
     <section class="toolbar" aria-label="Save and import">
-      <label class="button primary">Import tracker<input id="import" type="file" accept=".json,application/json" hidden></label>
-      <label class="button">Apply updates<input id="contact-import" type="file" accept=".json,application/json" hidden></label>
-      <button id="backup" disabled>Download backup</button><button id="csv" disabled>Export current table</button><button id="print" disabled>Print / PDF</button>
+      <label class="button">Open tracker<input id="import" type="file" accept=".json,application/json" hidden></label>
+      <label class="button primary">Upload changes - keep my entries<input id="contact-import" type="file" accept=".json,application/json" hidden></label>
+      <button id="backup" disabled>Download backup</button><button id="undo-upload" disabled>Undo last upload</button><button id="recovery-download" disabled>Before-upload backup</button><button id="csv" disabled>Export current table</button><button id="print" disabled>Print / PDF</button>
       <button id="nell" disabled>Copy update for Nell</button><button id="login">Sign in</button><button id="cloud-save" disabled>Save to website</button><button id="cloud-load" disabled>Load website copy</button>
     </section>
+    <p class="upload-help">Uploads add selected new information and keep your current entries by default. If you worked on another device, load your latest website copy first.</p>
     <p id="save-state" class="save-state" role="status">Import your prepared tracker to begin. Contact details are not included in the public website.</p>
     <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     <section id="filters" class="filters" hidden>
@@ -29,6 +30,7 @@
     <nav id="tabs" class="tabs" aria-label="Tracker views" hidden></nav>
     <section id="view"><div class="empty"><h2>Your test, in one place</h2><p>Import <strong>Load_Test_December_5_6_Tracker.json</strong> to open the prepared pairings, contacts, territory totals and checklists.</p><p>Edits save on this browser. Sign in with the planning administrator account and choose <strong>Save to website</strong> to keep a private website copy. Download a backup before changing computers.</p><p>The original load-test checklists remain available under <a href="../load-tests/">Previous load tests</a>.</p></div></section>
   </main>
+  <dialog id="upload-dialog" aria-labelledby="upload-title"><h2 id="upload-title">Review uploaded changes</h2><p id="upload-summary"></p><p class="callout">Your current values are kept by default, including blank fields. Car groups, checkboxes, territory-ready counts and task completion statuses stay as they are. A recovery copy is saved before updates are applied.</p><div id="upload-changes"></div><p id="upload-error" role="alert"></p><div class="actions"><button id="cancel-upload">Cancel</button><button id="apply-upload" class="primary">Apply selected updates</button></div></dialog>
   <dialog id="edit-dialog"><form id="edit-form"><h2 id="edit-title"></h2><div id="edit-fields" class="form-grid"></div><div class="actions"><button type="button" id="cancel-edit">Cancel</button><button class="primary" type="submit">Apply changes</button></div></form></dialog>
   <dialog id="login-dialog"><form id="login-form"><h2>Save to your website</h2><p>Use the existing convention planning administrator account.</p><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><p id="login-error" role="alert"></p><div class="actions"><button type="button" id="cancel-login">Cancel</button><button class="primary" type="submit">Sign in</button></div></form></dialog>
   <dialog id="text-dialog"><h2 id="text-title">Copy text</h2><textarea id="copy-text" rows="18"></textarea><div class="actions"><button id="copy-text-button" class="primary">Copy</button><button id="close-text">Close</button></div></dialog>

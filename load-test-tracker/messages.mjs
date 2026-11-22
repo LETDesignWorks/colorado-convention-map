@@ -1,4 +1,4 @@
-import {congregation,rollups,packets,directions} from './model.mjs?v=territory-prep-20261121-1';
+import {congregation,rollups,packets,directions} from './model.mjs?v=safe-upload-20261122-1';
 export const MESSAGE_TYPES=[['counts','Counts and names — Nov 25'],['travel','Travel reminder — Nov 30'],['final','Final details — Dec 2 / day before'],['territory','Territory preparation request'],['feedback','After-test feedback — Dec 7']];
 const day=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
 const time=t=>t?new Date('2000-01-01T'+t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'[time to confirm]';
