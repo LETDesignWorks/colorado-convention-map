@@ -1,7 +1,7 @@
 import {mountNearbyParking} from './parking-ui.mjs?v=rtd-parking-20261122-1';
-import {initHostingPlanner} from './hosting-app.mjs?v=daily-hosting-20261120-1';
+import {initHostingPlanner} from './hosting-app.mjs?v=display-controls-20261122-1';
 import {isApprovedMeeting} from './hosting-model.mjs';
-import {mountMeetingListToggle} from './meeting-list-toggle.mjs';
+import {mountMeetingListToggle,mountMeetingRailFilter} from './meeting-list-toggle.mjs?v=display-controls-20261122-1';
 import {SERVICE_DAYS,SERVICE_DAYS_TYPE,readServiceDays,serviceDaysId,serviceDaysPayload,serviceDaysLabel} from './service-days-model.mjs';
 import {createServiceDaysEditor} from './service-days-ui.mjs';
 import {withMeetingStatus,tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
@@ -518,7 +518,8 @@ function renderSelectedMeetingPoint() {
 
 function renderMeetingPointList() {
   const search=clean(document.getElementById('meetingPointSearch').value).toLowerCase();
-  const points = sortedLocations().filter(p=>!search||(p.name+' '+p.address+' '+(p.lines||[]).join(' ')).toLowerCase().includes(search));
+  const includeRail=document.getElementById('showRailMeetingList')?.checked!==false;
+  const points = sortedLocations().filter(p=>(includeRail||p.locationType!=='rail-station')&&(!search||(p.name+' '+p.address+' '+(p.lines||[]).join(' ')).toLowerCase().includes(search)));
   els.meetingPointCount.textContent = `${points.length} points`;
   els.meetingPointList.innerHTML = points.map(location => {
     const count = assignedCountAt(location.id);
@@ -530,7 +531,7 @@ function renderMeetingPointList() {
       <span><strong>${escapeHtml(location.name)}</strong><small>${escapeHtml(location.address || locationTypeLabel(location))}${approvedDestination(location)?' · Approved':' · Not approved for new assignments'}</small></span>
       <span class="point-count${count ? ' has-assignments' : ''}">${count}</span>
     </button>`;
-  }).join('');
+  }).join('')||'<div class="empty-list">No meeting points match these filters.</div>';
 
   els.meetingPointList.querySelectorAll('[data-point]').forEach(button => {
     button.addEventListener('click', () => selectMeetingPoint(button.dataset.point, true));
@@ -878,6 +879,7 @@ document.getElementById('showRailMeetingPoints').addEventListener('change',syncM
 document.getElementById('meetingPointSearch').addEventListener('input',renderMeetingPointList);
 document.getElementById('retryRailMeetingPoints').addEventListener('click',loadRailMeetingPoints);
 mountMeetingListToggle(document.getElementById('toggleMeetingPointList'),document.getElementById('meetingPointListContent'));
+mountMeetingRailFilter(document.getElementById('showRailMeetingList'),document.getElementById('railMeetingDetails'),renderMeetingPointList);
 document.getElementById('serviceDayFilter').innerHTML='<option value="all">All service days</option><option value="unset">Service days not set</option>'+SERVICE_DAYS.map(d=>'<option>'+d+'</option>').join('');
 document.getElementById('serviceDayFilter').addEventListener('change',renderCongregationList);
 document.getElementById('showAssignedDirectory').addEventListener('change',()=>{revealedCongregations.clear();renderCongregationList();});

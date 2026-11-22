@@ -9,9 +9,9 @@
 <link rel="preconnect" href="https://unpkg.com"/>
 <link rel="preconnect" href="https://tile.openstreetmap.org"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="styles.css?v=travel-override-20261115-1"/>
+<link rel="stylesheet" href="styles.css?v=display-controls-20261122-1"/>
 <link rel="stylesheet" href="report.css?v=reports-20261115-1"/>
-<link rel="stylesheet" href="hosting.css?v=daily-hosting-20261120-1"/>
+<link rel="stylesheet" href="hosting.css?v=display-controls-20261122-1"/>
 <link rel="stylesheet" href="parking.css?v=rtd-parking-20261122-1"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module" src="../assets/branding.js?v=navigation-20261115-2"></script>
@@ -154,7 +154,7 @@
         <div><span class="eyebrow">CURRENT MAP LOCATIONS</span><h2>Meeting Points</h2></div>
         <span class="count-chip" id="meetingPointCount">0</span><button id="toggleMeetingPointList" type="button" class="text-button" aria-controls="meetingPointListContent" aria-expanded="true">Minimize list</button>
       </div>
-      <div id="meetingPointListContent"><label class="sr-only" for="meetingPointSearch">Search meeting points</label><input id="meetingPointSearch" type="search" placeholder="Search halls, meeting areas or rail stations"><p id="railMeetingStatus" class="intro-copy" role="status">Loading rail station meeting points…</p><button id="retryRailMeetingPoints" type="button" class="text-button" hidden>Retry rail stations</button><div class="meeting-point-list" id="meetingPointList"></div></div>
+      <div id="meetingPointListContent"><label class="meeting-list-rail-filter"><input id="showRailMeetingList" type="checkbox" checked aria-controls="meetingPointList railMeetingDetails"> Show light rail stations in this list</label><label class="sr-only" for="meetingPointSearch">Search meeting points</label><input id="meetingPointSearch" type="search" placeholder="Search halls, meeting areas or rail stations"><div id="railMeetingDetails"><p id="railMeetingStatus" class="intro-copy" role="status">Loading rail station meeting points…</p><button id="retryRailMeetingPoints" type="button" class="text-button" hidden>Retry rail stations</button></div><div class="meeting-point-list" id="meetingPointList"></div></div>
     </section>
 
     <section class="card congregation-card">
@@ -228,6 +228,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="app-v3.mjs?v=rtd-parking-20261122-1"></script>
+<script type="module" src="app-v3.mjs?v=display-controls-20261122-1"></script>
 </body>
 </html>

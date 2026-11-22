@@ -1,7 +1,7 @@
 import {collection,query,where,onSnapshot,doc,setDoc,getDocFromServer,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import {observeSiteAccess,canView,canEdit,isOwner} from '../assets/site-access.mjs?v=access-20261114-1';
 import {HOSTING_TYPE,hostingPayload,readHostingRecord,hostingRevision,hostingSheets} from './hosting-model.mjs';
-import {mountHostingPlanner} from './hosting-ui.mjs';
+import {mountHostingPlanner} from './hosting-ui.mjs?v=display-controls-20261122-1';
 import {workbookBytes} from './excel-export.mjs?v=assigned-travel-20261115-1';
 export function initHostingPlanner({root,auth,db,getData,showMeeting,showCongregation}){
  let generation=0,stop=null,fresh=false,supported=false;const storage=()=>{try{return localStorage;}catch{return null;}};
