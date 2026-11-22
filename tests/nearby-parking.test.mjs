@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-import {parkingRecords,parkingFee,parkingQuery,createParkingSearch,walkingUrl,safeParkingUrl,validParkingPoint} from '../assignments/parking-model.mjs';
+import {parkingRecords,parkingFee,parkingQuery,createParkingSearch,walkingUrl,safeParkingUrl,validParkingPoint,photonParkingData,PARKING_ENDPOINT} from '../assignments/parking-model.mjs';
 const station={id:'rtd-test',name:'Example station',lat:39.64,lng:-104.91,locationType:'rail-station'};
 const item=(id,tags={},point={lat:39.641,lon:-104.91})=>({id,type:'way',center:point,tags:{amenity:'parking',...tags}});
 const data={elements:[item(1,{name:'Public lot',access:'yes',fee:'no','addr:housenumber':'100','addr:street':'Example St',capacity:'40'}),item(2,{fee:'yes',charge:'3 USD/hour'},{lat:39.642,lon:-104.91})]};
@@ -48,8 +48,8 @@ test('search caches by coordinates and radius, expires after one hour and suppor
  clock+=3600001;assert.equal((await service.search(station)).cached,false);assert.equal(calls,5);
 });
 test('failed or partial lookup is retryable and never cached as an empty success',async()=>{
- let calls=0;const service=createParkingSearch({fetcher:async()=>{calls++;return calls===1?{ok:false,status:429}:{ok:true,json:async()=>data};}});
- await assert.rejects(service.search(station),/busy/);assert.equal((await service.search(station)).places.length,2);
+ let calls=0;const service=createParkingSearch({fetcher:async()=>{calls++;return calls<=2?{ok:false,status:503}:{ok:true,json:async()=>data};}});
+ await assert.rejects(service.search(station),/unavailable/);assert.equal((await service.search(station)).places.length,2);
  const partial=createParkingSearch({fetcher:async()=>({ok:true,json:async()=>({remark:'timeout',elements:[]})})});await assert.rejects(partial.search(station),/complete/);
  const empty=createParkingSearch({fetcher:async()=>({ok:true,json:async()=>({elements:[]})})});assert.equal((await empty.search(station)).places.length,0);
 });
@@ -59,6 +59,14 @@ test('cancellation and timeout stop search; storage failure does not prevent res
  await assert.rejects(createParkingSearch({fetcher,timeoutMs:5}).search(station),/timed out/);
  const storage={getItem(){throw Error('disabled');},setItem(){throw Error('full');}};
  assert.equal((await createParkingSearch({storage,fetcher:async()=>({ok:true,json:async()=>data})}).search(station)).places.length,2);
+});
+test('backup finds parking with names and addresses but does not invent fee or access information',async()=>{
+ const photon={features:[{geometry:{type:'Point',coordinates:[-104.91,39.641]},properties:{osm_type:'W',osm_id:42,osm_key:'amenity',osm_value:'parking',name:'Example garage',housenumber:'25',street:'Main St'}},{geometry:{type:'Point',coordinates:[-104.91,39.641]},properties:{osm_type:'W',osm_id:43,osm_key:'amenity',osm_value:'parking',extra:{access:'private'}}},{geometry:{type:'Point',coordinates:[-104.91,39.641]},properties:{osm_type:'W',osm_id:44,osm_key:'shop',osm_value:'mall'}}]};
+ assert.equal(photonParkingData(photon).elements.length,2);let primary=0,backup=0;
+ const service=createParkingSearch({fetcher:async url=>{if(url===PARKING_ENDPOINT){primary++;return {ok:false,status:429};}backup++;const parsed=new URL(url);assert.equal(parsed.searchParams.get('osm_tag'),'amenity:parking');assert.equal(parsed.searchParams.get('radius'),'0.805');return {ok:true,json:async()=>photon};}});
+ const result=await service.search(station);assert.equal(result.limited,true);assert.equal(result.places.length,1);assert.equal(result.restricted,1);assert.equal(result.places[0].address,'25 Main St');assert.equal(result.places[0].fee.kind,'unknown');assert.equal(result.places[0].publicAccess,false);
+ assert.equal((await service.search(station)).limited,true);assert.equal(backup,1);
+ await service.search(station,805,{refresh:true});assert.equal(primary,1);assert.equal(backup,2,'rate-limited detailed service is not retried for 30 seconds');
 });
 test('selected meeting point render passes rail, hall and cleared selections to parking controller',()=>{
  const source=readFileSync(new URL('../assignments/app-v3.mjs',import.meta.url),'utf8');

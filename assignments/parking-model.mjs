@@ -1,5 +1,6 @@
 // Nearby car parking is a planning reference, not a reservation or permission to park.
 export const PARKING_ENDPOINT='https://overpass.private.coffee/api/interpreter';
+export const PARKING_BACKUP='https://photon.komoot.io/reverse';
 export const RTD_PARKING_URL='https://www.rtd-denver.com/how-to-ride/parking';
 export const PARKING_RADII=[402,805,1609];
 const CACHE_KEY='denver2027.nearby-parking.v1',TTL=60*60*1000;
@@ -67,33 +68,64 @@ export function parkingSearchUrl(station){
  const url=new URL('https://www.google.com/maps/search/');
  url.search=new URLSearchParams({api:'1',query:`car parking near ${station.name||'RTD station'} ${station.lat},${station.lng}`}).toString();return url.href;
 }
-export function createParkingSearch({fetcher=globalThis.fetch,storage,now=()=>Date.now(),timeoutMs=25000}={}){
+export function photonParkingData(data){
+ if(!Array.isArray(data?.features))throw Error('The backup parking search did not return complete results.');
+ return {elements:data.features.filter(f=>f.geometry?.type==='Point'&&f.properties?.osm_key==='amenity'&&f.properties?.osm_value==='parking').map(f=>{
+  const p=f.properties,c=f.geometry.coordinates||[];
+  return {id:p.osm_id,type:({N:'node',W:'way',R:'relation'})[p.osm_type],lat:c[1],lon:c[0],tags:{...p.extra,amenity:'parking',name:p.name,'addr:housenumber':p.housenumber,'addr:street':p.street,'addr:city':p.city,'addr:state':p.state,'addr:postcode':p.postcode}};
+ })};
+}
+export function createParkingSearch({fetcher=globalThis.fetch,storage,now=()=>Date.now(),timeoutMs=8000}={}){
  let cache={};try{cache=JSON.parse(storage?.getItem(CACHE_KEY)||'{}')||{};}catch{}
- async function search(station,radius=805,{signal,refresh=false}={}){
-  const query=parkingQuery(station,radius),key=[Number(station.lat).toFixed(6),Number(station.lng).toFixed(6),Number(radius)].join('|');
-  if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
-  const saved=cache[key];
-  if(!refresh&&saved&&Number.isFinite(saved.checkedAt)&&saved.checkedAt<=now()&&now()-saved.checkedAt<TTL){
-   try{return {...parkingRecords(saved.data,station,radius),checkedAt:saved.checkedAt,cached:true};}catch{delete cache[key];}
-  }
+ let primaryRetryAt=0;
+ async function request(url,options,signal){
   const controller=new AbortController(),cancel=()=>controller.abort();let timedOut=false;
+  if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
   signal?.addEventListener('abort',cancel,{once:true});
   const timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
   try{
-   const response=await fetcher(PARKING_ENDPOINT,{method:'POST',body:new URLSearchParams({data:query}),signal:controller.signal,cache:'no-store',credentials:'omit'});
-   if(!response.ok)throw Error(response.status===429?'The parking search is busy. Wait a moment, then retry.':'Parking search is unavailable. Retry or use the Google Maps search below.');
+   const response=await fetcher(url,{...options,signal:controller.signal,cache:'no-store',credentials:'omit'});
+   if(!response.ok){
+    if(url===PARKING_ENDPOINT&&[429,406].includes(response.status))primaryRetryAt=now()+30000;
+    throw Error([429,406].includes(response.status)?'The parking search is busy. Wait 30 seconds, then retry.':'Parking search is unavailable. Retry or use the Google Maps search below.');
+   }
    const data=await response.json();
    if(controller.signal.aborted)throw new DOMException('Parking search cancelled.','AbortError');
-   const result=parkingRecords(data,station,radius),checkedAt=now();
-   cache[key]={data,checkedAt};
-   cache=Object.fromEntries(Object.entries(cache).filter(([,v])=>v&&Number.isFinite(v.checkedAt)&&v.checkedAt<=checkedAt&&checkedAt-v.checkedAt<TTL).sort((a,b)=>b[1].checkedAt-a[1].checkedAt).slice(0,12));
-   try{storage?.setItem(CACHE_KEY,JSON.stringify(cache));}catch{}
-   return {...result,checkedAt,cached:false};
+   return data;
   }catch(error){
    if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
    if(timedOut)throw Error('The parking search timed out. Retry or use the Google Maps search below.');
    throw error;
   }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);}
+ }
+ async function search(station,radius=805,{signal,refresh=false}={}){
+  const query=parkingQuery(station,radius),key=[Number(station.lat).toFixed(6),Number(station.lng).toFixed(6),Number(radius)].join('|');
+  if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
+  const saved=cache[key];
+  if(!refresh&&saved&&Number.isFinite(saved.checkedAt)&&saved.checkedAt<=now()&&now()-saved.checkedAt<TTL){
+   try{return {...parkingRecords(saved.data,station,radius),checkedAt:saved.checkedAt,cached:true,limited:Boolean(saved.limited)};}catch{delete cache[key];}
+  }
+  let data,result,limited=false;
+  try{
+   if(now()<primaryRetryAt)throw Error('The parking search is busy. Wait 30 seconds, then retry.');
+   data=await request(PARKING_ENDPOINT,{method:'POST',body:new URLSearchParams({data:query})},signal);
+   result=parkingRecords(data,station,radius);
+  }catch(error){
+   if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
+   // A second OSM index can still provide names and pins if the detailed service is busy.
+   // It may lack fees and access tags, so the UI explicitly marks this as a limited lookup.
+   try{
+    const url=new URL(PARKING_BACKUP);url.search=new URLSearchParams({lat:String(station.lat),lon:String(station.lng),radius:String(radius/1000),limit:'20',osm_tag:'amenity:parking',lang:'en'}).toString();
+    data=photonParkingData(await request(url.href,{},signal));result=parkingRecords(data,station,radius);limited=true;
+   }catch{
+    if(signal?.aborted)throw new DOMException('Parking search cancelled.','AbortError');
+    throw error;
+   }
+  }
+  const checkedAt=now();cache[key]={data,checkedAt,limited};
+  cache=Object.fromEntries(Object.entries(cache).filter(([,v])=>v&&Number.isFinite(v.checkedAt)&&v.checkedAt<=checkedAt&&checkedAt-v.checkedAt<TTL).sort((a,b)=>b[1].checkedAt-a[1].checkedAt).slice(0,12));
+  try{storage?.setItem(CACHE_KEY,JSON.stringify(cache));}catch{}
+  return {...result,checkedAt,cached:false,limited};
  }
  return {search};
 }

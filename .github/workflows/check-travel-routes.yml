@@ -23,5 +23,5 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import {createParkingSearch} from './assignments/parking-model.mjs';
-          try { const r=await createParkingSearch().search({lat:39.6281,lng:-104.9048}); console.log(JSON.stringify({places:r.places.length,restricted:r.restricted,sample:r.places.slice(0,2)})); if(!r.places.length)process.exitCode=1; } catch(e) { console.error(e); process.exitCode=1; }
+          try { const r=await createParkingSearch().search({lat:39.6276868,lng:-104.9045712}); console.log(JSON.stringify({places:r.places.length,restricted:r.restricted,limited:r.limited,sample:r.places.slice(0,2)})); if(!r.places.length)process.exitCode=1; } catch(e) { console.error(e); process.exitCode=1; }
           NODE

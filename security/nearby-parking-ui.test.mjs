@@ -54,3 +54,6 @@ test('list and directions work when the map library is unavailable',async()=>{
  const dom=new JSDOM('<section></section>'),root=dom.window.document.querySelector('section');const ui=mountNearbyParking({root,searcher:{search:async()=>snapshot()}});
  ui.selectStation(station);await tick();assert.match(root.textContent,/Example lot/);assert.equal(root.querySelector('[data-parking-pin]').disabled,true);
 });
+test('limited backup coverage is clearly identified alongside results',async()=>{
+ const f=fixture({search:async()=>({...snapshot(),limited:true})});f.ui.selectStation(station);await tick();assert.match(f.el('status').textContent,/Limited backup search/);assert.match(f.el('status').textContent,/confirm permission/);
+});
