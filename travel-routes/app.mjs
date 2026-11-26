@@ -1,3 +1,4 @@
+import {registerScenarioContext} from '../assets/scenario-context.mjs';
 import {mountMeetingRanking} from './meeting-ranking-ui.mjs?v=ranking-time-20261115-1';
 import {tagMeetingIcon} from '../assets/meeting-suitability-model.mjs';
 import {railMeetingPoints} from '../assets/rail-meeting-points.mjs';
@@ -232,3 +233,15 @@ apply(firstPlan);visualMap.update(locations,publicHallRecords);refreshRail();
 meetingRanking.updateLocations([...locations,...railMeetingPoints(rail)]);
 $('tomtomKey').addEventListener('input',()=>meetingRanking.invalidate('Traffic key changed. Rank again to update the estimates.'));
 $('clearKey').addEventListener('click',()=>meetingRanking.invalidate('Traffic key cleared. Rank again for road baselines.'));
+
+registerScenarioContext('travel',{
+ getLocations:()=>[...locations,...railMeetingPoints(rail)],
+ getKey:()=>$('tomtomKey').value.trim(),
+ usePlan:(plan,schedule)=>{
+  if(saving)throw Error('Wait for the current route save to finish.');
+  validatePlan(plan);apply(plan);
+  if(schedule){result=clone(schedule);activePlan=clone(plan);showResults(plan,schedule);}
+  status('Scenario opened as a new route draft. Review the details and calculate again before saving if needed.');
+  $('planner')?.scrollIntoView({behavior:'smooth',block:'start'});
+ }
+});

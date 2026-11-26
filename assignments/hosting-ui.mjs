@@ -135,6 +135,7 @@ export function mountHostingPlanner(root,{storage,saveShared,deleteShared,export
  }catch(error){say(error.message||'This action could not be completed.');}});
  render();say('Enter daily delegate estimates, review congregation availability, then suggest hosts.');
  return {getPlan:()=>structuredClone(plan),getReport:()=>report,loadPlan:load,
+  applyScenarioPlan(value){if(busy)throw Error('Wait for the current save to finish.');plan=cleanHostingPlan(value);active=null;profileId='';preview=null;dirty=true;pendingLoad=null;resetManual();render();say('Scenario opened as a new hosting draft. Review and save when ready.');},
   setData(next){const changed=JSON.stringify(next)!==JSON.stringify(data);data=structuredClone(next);if(changed){preview=null;render();if(!data.ready)say('Waiting for current meeting approvals and congregation addresses.');}},
   setShared({items=[],read=false,write=false,current=false,enabled=false,reset=false,note=''}={}){
    if(reset||(!read&&canRead)){generation++;busy=false;pendingLoad=null;$('[data-hp-confirm]').replaceChildren();if(active){plan=defaultHostingPlan();active=null;dirty=false;profileId='';preview=null;resetManual();render();say('Shared plan closed because your access changed.');}}

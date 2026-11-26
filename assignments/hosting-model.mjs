@@ -50,7 +50,7 @@ export function hostingReport(input,data){
  const hosted=new Set(rows.filter(r=>r.valid).map(r=>r.congregationId));
  return {plan,rows,days,profiles,totalCongregations:congregations.length,hostedCount:hosted.size,unplanned:congregations.filter(c=>!hosted.has(c.id)),approvalProblems:rows.filter(r=>!isApprovedMeeting(r.point)).length,approved:locations.filter(isApprovedMeeting)};
 }
-export function suggestHosting(input,data,date){
+export function suggestHosting(input,data,date,{congregationIds=null,meetingPointIds=null}={}){
  const report=hostingReport(input,data),plan=report.plan,day=report.days.find(d=>d.date===date);if(!day)throw Error('Choose a service date.');if(day.total===null)throw Error('Enter the expected delegates for this day first.');if(day.issues.length)throw Error(day.issues.join(' '));if(day.rows.some(r=>!r.valid))throw Error('Resolve or remove the flagged hosting slots before adding suggestions.');
  const taken=new Set(day.rows.map(r=>r.congregationId)),used=new Map(),previous=new Map();for(const s of plan.slots){previous.set(s.congregationId,(previous.get(s.congregationId)||0)+1);if(s.date===date)used.set(s.meetingPointId,(used.get(s.meetingPointId)||0)+s.delegates);}
  const suggested=[];const remaining={...day.shortfall};
@@ -59,8 +59,8 @@ export function suggestHosting(input,data,date){
   const center=data.centers.find(p=>p.id===hub);if(!center)throw Error('Starting center could not load.');
   while(remaining[hub]>0){
    const candidates=[];
-   for(const c of data.congregations){const p=report.profiles.get(c.id);if(taken.has(c.id)||!p.available.includes(date)||!p.capacity||p.kind==='unknown'||(day.policy==='local-only'&&p.kind!=='local'))continue;
-    for(const point of report.approved){const room=meetingCapacity(plan,String(point.id))-(used.get(String(point.id))||0);if(room<=0)continue;
+   for(const c of data.congregations){const p=report.profiles.get(c.id);if(congregationIds&&!congregationIds.includes(String(c.id)))continue;if(taken.has(c.id)||!p.available.includes(date)||!p.capacity||p.kind==='unknown'||(day.policy==='local-only'&&p.kind!=='local'))continue;
+    for(const point of report.approved){if(meetingPointIds&&!meetingPointIds.includes(String(point.id)))continue;const room=meetingCapacity(plan,String(point.id))-(used.get(String(point.id))||0);if(room<=0)continue;
      const hubMiles=miles(center,point),homeMiles=p.kind==='local'?miles(c.home?.point,point):0;if(hubMiles===null||homeMiles===null)continue;
      const preferred=day.policy==='visiting-first'?p.kind==='visiting':p.kind==='local';
      const current=data.assignments?.find(a=>a.congregationId===c.id)?.meetingPointId;

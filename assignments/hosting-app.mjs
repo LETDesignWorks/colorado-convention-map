@@ -1,7 +1,7 @@
 import {collection,query,where,onSnapshot,doc,setDoc,getDocFromServer,runTransaction,serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import {observeSiteAccess,canView,canEdit,isOwner} from '../assets/site-access.mjs?v=access-20261114-1';
 import {HOSTING_TYPE,hostingPayload,readHostingRecord,hostingRevision,hostingSheets} from './hosting-model.mjs';
-import {mountHostingPlanner} from './hosting-ui.mjs?v=display-controls-20261122-1';
+import {mountHostingPlanner} from './hosting-ui.mjs?v=scenarios-20261126-1';
 import {workbookBytes} from './excel-export.mjs?v=assigned-travel-20261115-1';
 export function initHostingPlanner({root,auth,db,getData,showMeeting,showCongregation}){
  let generation=0,stop=null,fresh=false,supported=false;const storage=()=>{try{return localStorage;}catch{return null;}};
@@ -28,5 +28,5 @@ export function initHostingPlanner({root,auth,db,getData,showMeeting,showCongreg
    const items=snapshot.docs.map(d=>readHostingRecord({...d.data(),id:d.id})).filter(Boolean).sort((a,b)=>a.plan.name.localeCompare(b.plan.name));ui.setShared({items,read:true,write:canEdit('assignments'),enabled:supported,current:fresh});
   },()=>{if(token!==generation)return;fresh=false;ui.setShared({reset:true,read:canView('assignments'),write:canEdit('assignments'),enabled:supported,note:'Shared hosting plans could not load. Your device draft and exports are available; reconnect or refresh to retry.'});});
  });
- return {update:()=>ui.setData(getData())};
+ return {update:()=>ui.setData(getData()),getPlan:()=>ui.getPlan(),applyScenarioPlan:plan=>ui.applyScenarioPlan(plan)};
 }

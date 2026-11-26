@@ -1,5 +1,6 @@
+import {registerScenarioContext} from '../assets/scenario-context.mjs';
 import {mountNearbyParking} from './parking-ui.mjs?v=rtd-parking-20261122-1';
-import {initHostingPlanner} from './hosting-app.mjs?v=display-controls-20261122-1';
+import {initHostingPlanner} from './hosting-app.mjs?v=scenarios-20261126-1';
 import {isApprovedMeeting} from './hosting-model.mjs';
 import {mountMeetingListToggle,mountMeetingRailFilter} from './meeting-list-toggle.mjs?v=display-controls-20261122-1';
 import {SERVICE_DAYS,SERVICE_DAYS_TYPE,readServiceDays,serviceDaysId,serviceDaysPayload,serviceDaysLabel} from './service-days-model.mjs';
@@ -951,6 +952,19 @@ try {
   db = getFirestore(app);
   await setPersistence(auth, browserLocalPersistence);
   hostingPlanner=initHostingPlanner({root:document.getElementById('dailyHosting'),auth,db,getData:hostingData,showMeeting:id=>{selectMeetingPoint(id,true);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});},showCongregation:id=>{locationUi?.select(id,true);document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});}});
+  registerScenarioContext('assignments',{
+   getData:hostingData,getSelectedIds:()=>[...selectedCongregations],getHostingPlan:()=>hostingPlanner.getPlan(),
+   useHostingPlan:plan=>{hostingPlanner.applyScenarioPlan(plan);document.getElementById('dailyHosting').scrollIntoView({behavior:'smooth',block:'start'});},
+   stageAssignments:(ids,pointId,allowOver)=>{
+    if(assignmentBusy||!isAdmin()||!publicReady)throw Error('Current shared data and assignment edit access are required.');
+    const point=locations.find(p=>p.id===String(pointId));
+    if(!point||!approvedDestination(point))throw Error('This meeting point is no longer approved.');
+    if(!ids.length||ids.some(id=>!CONGREGATIONS.some(c=>c.id===id)))throw Error('Choose current congregations.');
+    selectedCongregations.clear();for(const id of ids){selectedCongregations.add(id);revealedCongregations.add(id);}
+    clearMeetingFocus();selectMeetingPoint(pointId,true);setTravelOverride(pointId,allowOver);renderAll();
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+   }
+  });
   observeSiteAccess(auth, user => {
     travelOverridePointId='';currentUser = user;
     updateAuthUi();subscribeTravelRegister();void checkServiceDaysAccess();

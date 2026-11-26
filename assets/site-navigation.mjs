@@ -1,3 +1,4 @@
+import {mountScenarioPanel} from './scenario-ui.mjs?v=scenarios-20261126-1';
 import './bus-access-status-sync.js?v=suitability-20261115-1';
 import {PDF_BUILDER_URL, openPdfBuilderWindow} from './pdf-tools-link.mjs?v=packets-20261107-1';
 
@@ -67,6 +68,7 @@ export function mountSiteNavigation() {
   }
   nav.prepend(fragment);
   nav.closest('header')?.classList.add('convention-navigation-header');
+  if(typeof mountScenarioPanel==='function')mountScenarioPanel();
 }
 function start() {
   const css = document.createElement('link'); css.rel = 'stylesheet';
@@ -84,4 +86,3 @@ function start() {
   }).observe(document.documentElement, {childList: true, subtree: true});
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true}); else start();
-
